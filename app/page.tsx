@@ -16,7 +16,7 @@ export default function Home() {
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
   const [signupForm, setSignupForm] = useState({ name: '', email: '', password: '' });
 
-  const handleLogin = (e) => {
+  const handleLogin = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
     setUserEmail(loginForm.email);
     setIsLoggedIn(true);
@@ -24,7 +24,7 @@ export default function Home() {
     setLoginForm({ email: '', password: '' });
   };
 
-  const handleSignup = (e) => {
+  const handleSignup = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
     setUserEmail(signupForm.email);
     setIsLoggedIn(true);
