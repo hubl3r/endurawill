@@ -137,3 +137,14 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Next.js specific
+/.next/
+/out/
+next-env.d.ts
+
+# Vercel
+.vercel
+
+# Local env files
+.env*.local
