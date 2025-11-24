@@ -1,19 +1,40 @@
-import type { Metadata } from 'next'
-import './globals.css'
+import type { Metadata } from "next";
+import {
+  ClerkProvider,
+  SignInButton,
+  SignUpButton,
+  SignedIn,
+  SignedOut,
+  UserButton,
+} from "@clerk/nextjs";
+import "./globals.css";
 
 export const metadata: Metadata = {
-  title: 'EnduwaWill - Estate Planning Made Simple',
-  description: 'Create your will and trust with confidence',
-}
+  title: "Endurawill",
+  description: "Your app description",
+};
 
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body>{children}</body>
-    </html>
-  )
+    <ClerkProvider>
+      <html lang="en">
+        <body>
+          <header style={{ padding: "20px", borderBottom: "1px solid #ccc" }}>
+            <SignedOut>
+              <SignInButton />
+              <SignUpButton />
+            </SignedOut>
+            <SignedIn>
+              <UserButton />
+            </SignedIn>
+          </header>
+          {children}
+        </body>
+      </html>
+    </ClerkProvider>
+  );
 }
