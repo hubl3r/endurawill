@@ -1,0 +1,42 @@
+'use client';
+
+import { Shield } from 'lucide-react';
+
+export default function TermsOfService() {
+  return (
+    <div className="min-h-screen bg-gray-50 py-12">
+      <div className="max-w-4xl mx-auto px-4">
+        <div className="flex items-center gap-3 mb-8">
+          <Shield className="h-10 w-10 text-blue-600" />
+          <h1 className="text-4xl font-bold text-gray-900">Terms of Service</h1>
+        </div>
+        <div className="bg-white rounded-2xl shadow-lg p-8 space-y-6 text-gray-700">
+          <p className="text-red-600 font-bold">IMPORTANT DISCLAIMER: Endurawill provides templates and general information only. This is not legal advice, and no attorney-client relationship is formed. Consult a licensed attorney for your specific situation.</p>
+
+          <h2 className="text-2xl font-bold">Acceptance of Terms</h2>
+          <p>By using Endurawill, you agree to these terms and all applicable laws. You must be 18 or older. We may update terms; continued use means acceptance.</p>
+
+          <h2 className="text-2xl font-bold">Services and Disclaimers</h2>
+          <p>Endurawill offers tools for creating wills, trusts, and related documents from templates. We do not review for legal sufficiency or provide advice. Templates may not fit all situations or reflect current laws. For complex estates, seek professional help.</p>
+
+          <h2 className="text-2xl font-bold">User Responsibilities</h2>
+          <p>Provide accurate info, maintain account security, and comply with laws. You grant us a license to use submitted data for service provision. Prohibited: illegal content, spam, viruses.</p>
+
+          <h2 className="text-2xl font-bold">Limitations of Liability</h2>
+          <p>Services are "as is" without warranties. Liability limited to fees paid. No consequential damages.</p>
+
+          <h2 className="text-2xl font-bold">Dispute Resolution</h2>
+          <p>Binding arbitration in [Your State, e.g., California] under AAA rules. No class actions. Governing law: [State] law.</p>
+
+          <h2 className="text-2xl font-bold">Intellectual Property</h2>
+          <p>Site content owned by Endurawill. Limited license for personal use only.</p>
+
+          <h2 className="text-2xl font-bold">Privacy</h2>
+          <p>See our Privacy Policy, incorporated herein.</p>
+
+          <p>Last updated: [Date]. Contact: support@endurawill.com</p>
+        </div>
+      </div>
+    </div>
+  );
+}
