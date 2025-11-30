@@ -11,7 +11,7 @@ export default function TermsOfService() {
   const arbitrationState = 'Delaware';
   const governingLaw = 'Delaware';
 
-  const toggleSection = (id) => {
+  const toggleSection = (id: string) => {
     const newExpanded = new Set(expandedSections);
     if (newExpanded.has(id)) {
       newExpanded.delete(id);
