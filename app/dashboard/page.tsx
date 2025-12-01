@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { SignedIn, SignedOut, RedirectToSignIn, useUser } from '@clerk/nextjs';
+import Link from 'next/link';
 import DashboardLayout from '@/components/DashboardLayout';
 import WelcomeScreen from '@/components/WelcomeScreen';
 import ChecklistModal from '@/components/ChecklistModal';
