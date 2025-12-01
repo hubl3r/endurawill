@@ -1,0 +1,154 @@
+// Prisma schema for Endurawill
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Tenants for multi-tenancy support
+model Tenant {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  users     User[]
+}
+
+// Users linked to Clerk authentication
+model User {
+  id               String    @id @default(uuid())
+  tenantId         String
+  tenant           Tenant    @relation(fields: [tenantId], references: [id])
+  clerkId          String    @unique
+  fullName         String
+  email            String?
+  dob              DateTime?
+  stateResidence   String?
+  maritalStatus    String?   // 'single', 'married', 'divorced', 'widowed'
+  children         Json?     // Array of {name, age, specialNeeds}
+  pets             Json?     // Array of {name, type, careInstructions}
+  hasCompletedOnboarding Boolean @default(false)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  
+  // Relations
+  profile       Profile?
+  assets        Asset[]
+  beneficiaries Beneficiary[]
+  documents     Document[]
+  directives    Directive[]
+  finalArrangements FinalArrangement?
+  delegates     Delegate[]
+}
+
+// User profile and planning preferences
+model Profile {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goals           Json?    // Array like ['avoid_probate', 'minimize_taxes', 'protect_children']
+  complexityLevel String?  // 'low', 'medium', 'high'
+  selectedPlan    String?  // 'will', 'trust', 'complete', 'premium'
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// Assets inventory
+model Asset {
+  id                    String   @id @default(uuid())
+  userId                String
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type                  String   // 'real_estate', 'bank_account', 'investment', 'vehicle', 'personal_property', 'business'
+  description           String
+  value                 Decimal? @db.Decimal(15, 2)
+  location              String?
+  existingBeneficiaries Json?    // If asset already has TOD/POD beneficiaries
+  notes                 String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+// Beneficiaries
+model Beneficiary {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  relationship String?  // 'spouse', 'child', 'sibling', 'friend', 'charity'
+  email        String?
+  phone        String?
+  address      String?
+  percentage   Decimal? @db.Decimal(5, 2) // 0-100
+  isContingent Boolean  @default(false)
+  conditions   Json?    // e.g., {ageRequirement: 25, trustUntil: 30}
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// Legal documents (wills, trusts, etc.)
+model Document {
+  id               String   @id @default(uuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type             String   // 'will', 'living_trust', 'healthcare_directive', 'poa', 'upload'
+  title            String
+  url              String?  // S3/Blob storage URL
+  encryptedContent Bytes?   // Optional encrypted storage
+  status           String   @default("draft") // 'draft', 'in_review', 'signed', 'active', 'superseded'
+  version          Int      @default(1)
+  supersedes       String?  // ID of document this replaces
+  metadata         Json?    // Additional document-specific data
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  signedAt         DateTime?
+}
+
+// Healthcare directives and POA
+model Directive {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        String   // 'healthcare_proxy', 'living_will', 'financial_poa', 'durable_poa'
+  agentName   String?
+  agentEmail  String?
+  agentPhone  String?
+  alternateAgent String?
+  preferences Json?    // Medical preferences, end-of-life wishes, etc.
+  limitations String?  // Any limits on agent's authority
+  status      String   @default("draft")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Final arrangements (burial, cremation, etc.)
+model FinalArrangement {
+  id                String   @id @default(uuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  preference        String?  // 'burial', 'cremation', 'donation'
+  location          String?  // Cemetery, crematorium
+  ceremony          String?  // 'religious', 'secular', 'none'
+  obituary          String?  @db.Text
+  notifications     Json?    // List of people/orgs to notify
+  prepaid           Boolean  @default(false)
+  specialInstructions String? @db.Text
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+// Trusted delegates/emergency contacts
+model Delegate {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  relationship String
+  email        String
+  phone        String?
+  role         String   // 'emergency_contact', 'document_access', 'executor'
+  accessLevel  String   @default("view") // 'view', 'edit', 'admin'
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
