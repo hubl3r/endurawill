@@ -1,14 +1,15 @@
 'use client';
 
-import { Shield, CheckCircle, ArrowRight } from 'lucide-react';
+import { Shield, CheckCircle, ArrowRight, X } from 'lucide-react';
 import Link from 'next/link';
 
 interface WelcomeScreenProps {
   userName?: string;
   onGetStarted?: () => void;
+  onClose?: () => void;
 }
 
-export default function WelcomeScreen({ userName, onGetStarted }: WelcomeScreenProps) {
+export default function WelcomeScreen({ userName, onGetStarted, onClose }: WelcomeScreenProps) {
   const completionSteps = [
     {
       id: 'profile',
@@ -42,6 +43,19 @@ export default function WelcomeScreen({ userName, onGetStarted }: WelcomeScreenP
 
   return (
     <div className="max-w-4xl mx-auto">
+      {/* Close Button */}
+      {onClose && (
+        <div className="flex justify-end mb-4">
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2 text-gray-600 hover:text-gray-900"
+          >
+            <span className="text-sm font-medium">Skip for now</span>
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      )}
+      
       {/* Welcome Header */}
       <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl p-8 md:p-12 text-white mb-8">
         <div className="flex items-center gap-4 mb-6">
