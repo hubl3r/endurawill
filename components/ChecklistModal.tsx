@@ -5,6 +5,19 @@ import { X, CheckCircle, Circle, Upload, UserCheck, Shield, FileText, Lock, User
 interface ChecklistModalProps {
   isOpen: boolean;
   onClose: () => void;
+  completionStatus?: {
+    profile?: boolean;
+    security?: boolean;
+    delegates?: boolean;
+    will?: boolean;
+    healthcare?: boolean;
+    poa?: boolean;
+    finalArrangements?: boolean;
+    vaultUpload?: boolean;
+    passwords?: boolean;
+    trust?: boolean;
+    beneficiaries?: boolean;
+  };
 }
 
 interface ChecklistItem {
@@ -17,7 +30,7 @@ interface ChecklistItem {
   category: 'setup' | 'documents' | 'security' | 'advanced';
 }
 
-export default function ChecklistModal({ isOpen, onClose }: ChecklistModalProps) {
+export default function ChecklistModal({ isOpen, onClose, completionStatus = {} }: ChecklistModalProps) {
   if (!isOpen) return null;
 
   const checklistItems: ChecklistItem[] = [
@@ -26,7 +39,7 @@ export default function ChecklistModal({ isOpen, onClose }: ChecklistModalProps)
       id: 'profile',
       title: 'Complete Your Profile',
       description: 'Add personal information, date of birth, and state of residence',
-      completed: false,
+      completed: completionStatus.profile || false,
       icon: UserCheck,
       href: '/dashboard/profile/personal',
       category: 'setup'
@@ -35,7 +48,7 @@ export default function ChecklistModal({ isOpen, onClose }: ChecklistModalProps)
       id: 'security',
       title: 'Configure Security Settings',
       description: 'Set up two-factor authentication and recovery options',
-      completed: false,
+      completed: completionStatus.security || false,
       icon: Shield,
       href: '/dashboard/profile/security',
       category: 'setup'
@@ -44,7 +57,7 @@ export default function ChecklistModal({ isOpen, onClose }: ChecklistModalProps)
       id: 'delegates',
       title: 'Add Trusted Delegates',
       description: 'Designate people who can access your documents in emergencies',
-      completed: false,
+      completed: completionStatus.delegates || false,
       icon: Users,
       href: '/dashboard/profile/delegates',
       category: 'setup'
@@ -55,7 +68,7 @@ export default function ChecklistModal({ isOpen, onClose }: ChecklistModalProps)
       id: 'will',
       title: 'Create Your Will',
       description: 'Essential document specifying beneficiaries and guardians',
-      completed: false,
+      completed: completionStatus.will || false,
       icon: FileText,
       href: '/dashboard/wills/create',
       category: 'documents'
@@ -64,7 +77,7 @@ export default function ChecklistModal({ isOpen, onClose }: ChecklistModalProps)
       id: 'healthcare',
       title: 'Healthcare Directive',
       description: 'Outline medical preferences and appoint healthcare agent',
-      completed: false,
+      completed: completionStatus.healthcare || false,
       icon: FileText,
       href: '/dashboard/healthcare/create',
       category: 'documents'
@@ -73,7 +86,7 @@ export default function ChecklistModal({ isOpen, onClose }: ChecklistModalProps)
       id: 'poa',
       title: 'Power of Attorney',
       description: 'Designate someone to handle financial matters if needed',
-      completed: false,
+      completed: completionStatus.poa || false,
       icon: FileText,
       href: '/dashboard/poa/create',
       category: 'documents'
@@ -82,7 +95,7 @@ export default function ChecklistModal({ isOpen, onClose }: ChecklistModalProps)
       id: 'final-arrangements',
       title: 'Final Arrangements',
       description: 'Document your preferences for burial, cremation, and memorials',
-      completed: false,
+      completed: completionStatus.finalArrangements || false,
       icon: Mail,
       href: '/dashboard/final-arrangements',
       category: 'documents'
@@ -93,7 +106,7 @@ export default function ChecklistModal({ isOpen, onClose }: ChecklistModalProps)
       id: 'vault-upload',
       title: 'Upload Important Documents',
       description: 'Store existing documents, deeds, insurance policies in your vault',
-      completed: false,
+      completed: completionStatus.vaultUpload || false,
       icon: Upload,
       href: '/dashboard/vault/upload',
       category: 'security'
@@ -102,7 +115,7 @@ export default function ChecklistModal({ isOpen, onClose }: ChecklistModalProps)
       id: 'passwords',
       title: 'Document Important Passwords',
       description: 'Create a secure record of critical account information',
-      completed: false,
+      completed: completionStatus.passwords || false,
       icon: Lock,
       href: '/dashboard/letters',
       category: 'security'
@@ -113,7 +126,7 @@ export default function ChecklistModal({ isOpen, onClose }: ChecklistModalProps)
       id: 'trust',
       title: 'Consider a Living Trust',
       description: 'Avoid probate and maintain privacy (recommended for estates >$100k)',
-      completed: false,
+      completed: completionStatus.trust || false,
       icon: FileText,
       href: '/dashboard/trusts/create',
       category: 'advanced'
@@ -122,7 +135,7 @@ export default function ChecklistModal({ isOpen, onClose }: ChecklistModalProps)
       id: 'beneficiaries',
       title: 'Review Asset Beneficiaries',
       description: 'Ensure bank accounts, investments, and insurance have up-to-date beneficiaries',
-      completed: false,
+      completed: completionStatus.beneficiaries || false,
       icon: UserCheck,
       href: '/dashboard/profile/personal',
       category: 'advanced'
