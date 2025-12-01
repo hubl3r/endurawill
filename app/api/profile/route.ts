@@ -49,18 +49,26 @@ export async function POST(request: Request) {
       );
     }
 
-    // Validate age (must be 18+)
+    // Validate age (must be 18-120)
     const birthDate = new Date(data.dob);
     const today = new Date();
-    const age = today.getFullYear() - birthDate.getFullYear();
+    let age = today.getFullYear() - birthDate.getFullYear();
     const monthDiff = today.getMonth() - birthDate.getMonth();
-    const adjustedAge = monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate()) 
-      ? age - 1 
-      : age;
+    
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
 
-    if (adjustedAge < 18) {
+    if (age < 18) {
       return NextResponse.json(
-        { error: 'You must be 18 or older to use this service' },
+        { error: 'You must be at least 18 years old to use this service' },
+        { status: 400 }
+      );
+    }
+
+    if (age > 120 || birthDate > today) {
+      return NextResponse.json(
+        { error: 'Please enter a valid date of birth' },
         { status: 400 }
       );
     }
