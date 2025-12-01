@@ -116,6 +116,30 @@ export default function PersonalInfoPage() {
     setSaveStatus('idle');
     setErrorMessage('');
 
+    // Validate age (must be 18-120)
+    const birthDate = new Date(formData.dob);
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+
+    if (age < 18) {
+      setSaveStatus('error');
+      setErrorMessage('You must be at least 18 years old to use this service.');
+      setIsSaving(false);
+      return;
+    }
+
+    if (age > 120) {
+      setSaveStatus('error');
+      setErrorMessage('Please enter a valid date of birth.');
+      setIsSaving(false);
+      return;
+    }
+
     try {
       const response = await fetch('/api/profile', {
         method: 'POST',
@@ -131,7 +155,7 @@ export default function PersonalInfoPage() {
       } else {
         const error = await response.json();
         setSaveStatus('error');
-        setErrorMessage(error.message || 'Failed to save profile');
+        setErrorMessage(error.error || 'Failed to save profile');
       }
     } catch (error) {
       setSaveStatus('error');
