@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { SignedIn, SignedOut, RedirectToSignIn, useUser } from '@clerk/nextjs';
 import Link from 'next/link';
 import DashboardLayout from '@/components/DashboardLayout';
@@ -10,6 +10,19 @@ import ChecklistModal from '@/components/ChecklistModal';
 export default function DashboardPage() {
   const [isChecklistOpen, setIsChecklistOpen] = useState(false);
   const [showWelcome, setShowWelcome] = useState(true);
+  const [completionStatus, setCompletionStatus] = useState({
+    profile: false,
+    security: false,
+    delegates: false,
+    will: false,
+    healthcare: false,
+    poa: false,
+    finalArrangements: false,
+    vaultUpload: false,
+    passwords: false,
+    trust: false,
+    beneficiaries: false,
+  });
   const { user } = useUser();
   
   // TODO: In a real implementation, this would come from your database
@@ -17,6 +30,38 @@ export default function DashboardPage() {
   const hasCompletedOnboarding = false;
   
   const userName = user?.firstName || undefined;
+
+  // Load profile data and check completion
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        const response = await fetch('/api/profile');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.profile) {
+            // Mark profile as complete if user has all required fields
+            const profileComplete = !!(
+              data.profile.fullName &&
+              data.profile.dob &&
+              data.profile.stateResidence &&
+              data.profile.maritalStatus
+            );
+            
+            setCompletionStatus(prev => ({
+              ...prev,
+              profile: profileComplete
+            }));
+          }
+        }
+      } catch (error) {
+        console.error('Error loading profile:', error);
+      }
+    };
+
+    if (user) {
+      loadProfile();
+    }
+  }, [user]);
 
   const handleCloseWelcome = () => {
     setShowWelcome(false);
@@ -74,6 +119,7 @@ export default function DashboardPage() {
         <ChecklistModal 
           isOpen={isChecklistOpen}
           onClose={() => setIsChecklistOpen(false)}
+          completionStatus={completionStatus}
         />
       </SignedIn>
 
