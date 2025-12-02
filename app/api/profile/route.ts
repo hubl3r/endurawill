@@ -1,17 +1,15 @@
-
-```typescript
-import { prisma } from '@/lib/prisma';
-import { currentUser } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
+import { currentUser } from '@clerk/nextjs/server';
+import { prisma } from '@/lib/prisma';
 
 export async function GET() {
   const clerkUser = await currentUser();
+  
   if (!clerkUser) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {
-    // Find user with profile
     const user = await prisma.user.findUnique({
       where: { clerkId: clerkUser.id },
       include: { profile: true }
@@ -32,6 +30,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const clerkUser = await currentUser();
+  
   if (!clerkUser) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -126,6 +125,12 @@ export async function POST(request: Request) {
       }
     });
 
+    // Update tenant owner count
+    await prisma.tenant.update({
+      where: { id: tenant.id },
+      data: { ownerCount: 1 }
+    });
+
     // Log the action
     await prisma.auditLog.create({
       data: {
@@ -154,4 +159,3 @@ export async function POST(request: Request) {
     );
   }
 }
-```
