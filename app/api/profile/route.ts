@@ -15,9 +15,16 @@ export async function GET() {
       include: { profile: true }
     });
 
+    // Combine user data with profile for the form
+    const profileData = user?.profile ? {
+      ...user.profile,
+      fullName: user.fullName,
+      dob: user.dob,
+    } : null;
+
     return NextResponse.json({ 
       success: true, 
-      profile: user?.profile || null 
+      profile: profileData
     });
   } catch (error) {
     console.error('Error loading profile:', error);
