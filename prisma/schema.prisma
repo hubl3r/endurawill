@@ -1,154 +1,601 @@
-// Prisma schema for Endurawill
+// Endurawill - Refined Database Schema
+// Supports: Individual estates, Joint estates (max 2), Delegate workflow
+
+generator client {
+  provider = "prisma-client-js"
+}
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-generator client {
-  provider = "prisma-client-js"
-}
-
-// Tenants for multi-tenancy support
+// ============================================
+// TENANT = An Estate (Individual or Joint)
+// ============================================
 model Tenant {
-  id        String   @id @default(uuid())
-  createdAt DateTime @default(now())
-  users     User[]
+  id          String   @id @default(uuid())
+  name        String?  // "Estate of John Doe" or "Doe Family Estate"
+  type        String   @default("individual") // 'individual', 'joint', 'business'(future)
+  
+  // Joint estate support
+  maxOwners   Int      @default(1) // 1 for individual, 2 for joint
+  ownerCount  Int      @default(0)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations - everything belongs to the tenant
+  users             User[]
+  documents         Document[]
+  assets            Asset[]
+  liabilities       Liability[]
+  beneficiaries     Beneficiary[]
+  directives        Directive[]
+  finalArrangements FinalArrangement[]
+  delegates         Delegate[]
+  settings          TenantSettings?
+  auditLogs         AuditLog[]
+  
+  @@index([type])
 }
 
-// Users linked to Clerk authentication
+// ============================================
+// USER = A person with access to the estate
+// ============================================
 model User {
-  id               String    @id @default(uuid())
-  tenantId         String
-  tenant           Tenant    @relation(fields: [tenantId], references: [id])
-  clerkId          String    @unique
-  fullName         String
-  email            String?
-  dob              DateTime?
-  stateResidence   String?
-  maritalStatus    String?   // 'single', 'married', 'divorced', 'widowed'
-  children         Json?     // Array of {name, age, specialNeeds}
-  pets             Json?     // Array of {name, type, careInstructions}
-  hasCompletedOnboarding Boolean @default(false)
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  id         String   @id @default(uuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  clerkId    String   @unique
+  
+  // Role & Permissions
+  role       String   // 'primary_owner', 'co_owner', 'delegate'
+  isPrimary  Boolean  @default(false) // Only one primary per tenant
+  
+  // Permissions (for co-owners and delegates)
+  permissions Json?   // { canEditAssets: false, canEditBeneficiaries: false, canViewOnly: true }
+  
+  // Personal info
+  fullName   String
+  email      String?
+  dob        DateTime?
+  phone      String?
+  
+  // Profile (only for owners, not delegates)
+  profile    Profile?
+  
+  // Security
+  twoFactorEnabled Boolean @default(false)
+  
+  // Activity tracking
+  lastLoginAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
   
   // Relations
-  profile       Profile?
-  assets        Asset[]
-  beneficiaries Beneficiary[]
-  documents     Document[]
-  directives    Directive[]
-  finalArrangements FinalArrangement?
-  delegates     Delegate[]
+  sessions      Session[]
+  auditLogs     AuditLog[]
+  createdDocuments Document[] @relation("CreatedBy")
+  modifiedDocuments Document[] @relation("ModifiedBy")
+  
+  // If this user is a delegate who signed up
+  delegateRecord Delegate? @relation("DelegateUser")
+  
+  @@unique([tenantId, clerkId])
+  @@index([clerkId])
+  @@index([tenantId])
 }
 
-// User profile and planning preferences
+// ============================================
+// PROFILE = Extended info for estate owners
+// ============================================
 model Profile {
   id              String   @id @default(uuid())
   userId          String   @unique
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  goals           Json?    // Array like ['avoid_probate', 'minimize_taxes', 'protect_children']
-  complexityLevel String?  // 'low', 'medium', 'high'
-  selectedPlan    String?  // 'will', 'trust', 'complete', 'premium'
+  
+  // Personal details
+  stateResidence  String?
+  maritalStatus   String?  // 'single', 'married', 'divorced', 'widowed'
+  children        Json?    // [{ name, dob, relationship }]
+  pets            Json?    // [{ name, type, specialNeeds }]
+  
+  // Estate planning preferences
+  goals           Json?
+  complexityLevel String?
+  selectedPlan    String?  // 'basic', 'complete', 'premium'
+  
+  // Onboarding
+  hasCompletedOnboarding Boolean @default(false)
+  onboardingStep  Int     @default(0)
+  
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }
 
-// Assets inventory
-model Asset {
-  id                    String   @id @default(uuid())
-  userId                String
-  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type                  String   // 'real_estate', 'bank_account', 'investment', 'vehicle', 'personal_property', 'business'
-  description           String
-  value                 Decimal? @db.Decimal(15, 2)
-  location              String?
-  existingBeneficiaries Json?    // If asset already has TOD/POD beneficiaries
-  notes                 String?
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+// ============================================
+// TENANT SETTINGS = Estate-wide preferences
+// ============================================
+model TenantSettings {
+  id        String   @id @default(uuid())
+  tenantId  String   @unique
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  // Joint estate settings
+  requireBothOwnersApproval Boolean @default(false) // For major actions
+  primaryCanOverride        Boolean @default(true)  // Primary can act alone
+  
+  // Notification preferences
+  emailNotifications Boolean @default(true)
+  smsNotifications   Boolean @default(false)
+  notifyOnDelegateAccess Boolean @default(true)
+  
+  // Security settings
+  require2FA         Boolean @default(false)
+  sessionTimeout     Int     @default(30) // minutes
+  ipWhitelist        Json?   // Optional: restrict access by IP
+  
+  // Document settings
+  autoVersioning     Boolean @default(true)
+  retentionPeriod    Int     @default(50) // years after death
+  
+  // Delegate settings
+  allowDelegateInvite Boolean @default(true)
+  requireDelegateApproval Boolean @default(true)
+  maxDelegates       Int     @default(10)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
-// Beneficiaries
+// ============================================
+// DOCUMENTS = Wills, Trusts, Directives
+// ============================================
+model Document {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  // Document details
+  type      String   // 'will', 'trust', 'healthcare_directive', 'poa', 'letter'
+  title     String
+  content   Json?    // Structured document data
+  
+  // File storage
+  fileUrl   String?  // S3/storage URL
+  fileType  String?  // 'pdf', 'docx'
+  fileSize  Int?     // bytes
+  
+  // Version control
+  version   Int      @default(1)
+  status    String   @default("draft") // 'draft', 'final', 'signed', 'superseded'
+  
+  // Signatures
+  signedAt  DateTime?
+  signedBy  Json?    // [{ userId, name, timestamp, ipAddress }]
+  witnessedBy Json?  // [{ name, email, timestamp }]
+  
+  // Tracking
+  createdById  String?
+  createdBy    User?   @relation("CreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  modifiedById String?
+  modifiedBy   User?   @relation("ModifiedBy", fields: [modifiedById], references: [id], onDelete: SetNull)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  accessLogs DocumentAccess[]
+  
+  @@index([tenantId])
+  @@index([type])
+  @@index([status])
+}
+
+// ============================================
+// ASSETS = Property, accounts, valuables
+// ============================================
+model Asset {
+  id          String   @id @default(uuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  // Asset details
+  type        String   // 'real_estate', 'bank_account', 'investment', 'vehicle', 'personal_property', 'crypto', 'business'
+  description String
+  
+  // Value
+  estimatedValue Decimal? @db.Decimal(15, 2)
+  currency       String   @default("USD")
+  valuationDate  DateTime?
+  
+  // Identification
+  accountNumber  String?
+  institution    String?  // Bank name, brokerage, etc.
+  location       String?  // For real estate, vehicles
+  serialNumber   String?  // For vehicles, equipment
+  
+  // Ownership (for joint estates)
+  ownershipType  String   @default("joint") // 'individual', 'joint', 'community_property'
+  ownedBy        Json?    // [userId] for individual ownership
+  ownershipPct   Json?    // { userId: percentage } if split
+  
+  // Beneficiary designation (some assets have their own beneficiaries)
+  hasBeneficiary Boolean  @default(false)
+  beneficiaryInfo Json?   // { primary: [], contingent: [] }
+  
+  // Additional details
+  notes          String?
+  attachments    Json?    // [{ name, url, type }]
+  
+  // Disposition instructions
+  dispositionInstructions String? // "Sell", "Give to John", etc.
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([tenantId])
+  @@index([type])
+}
+
+// ============================================
+// LIABILITIES = Debts, mortgages, loans
+// ============================================
+model Liability {
+  id          String   @id @default(uuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  // Liability details
+  type        String   // 'mortgage', 'auto_loan', 'student_loan', 'credit_card', 'personal_loan', 'medical_debt', 'tax_debt'
+  creditor    String   // Lender/creditor name
+  description String?
+  
+  // Amount
+  originalAmount    Decimal?  @db.Decimal(15, 2)
+  currentBalance    Decimal   @db.Decimal(15, 2)
+  interestRate      Decimal?  @db.Decimal(5, 2) // Percentage
+  
+  // Account info
+  accountNumber     String?
+  loanNumber        String?
+  
+  // Payment details (manual tracking)
+  monthlyPayment    Decimal?  @db.Decimal(10, 2)
+  dueDate           String?   // "1st of month", "15th of month"
+  autopay           Boolean   @default(false)
+  
+  // Dates
+  originationDate   DateTime?
+  maturityDate      DateTime? // When loan is paid off
+  
+  // Responsibility (for joint estates)
+  responsibility    String    @default("joint") // 'individual', 'joint'
+  responsibleParty  Json?     // [userId] if individual
+  
+  // Collateral
+  hasCollateral     Boolean   @default(false)
+  collateralAssetId String?   // Link to Asset if exists
+  
+  // Notes
+  notes             String?
+  payoffInstructions String? // Instructions for executor
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // NOTE: Manual entry - no automatic sync with banks
+  // Future enhancement: Link to Plaid/Yodlee for automatic updates
+  
+  @@index([tenantId])
+  @@index([type])
+}
+
+// ============================================
+// BENEFICIARIES = Who inherits what
+// ============================================
 model Beneficiary {
   id           String   @id @default(uuid())
-  userId       String
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  // Beneficiary details
   name         String
-  relationship String?  // 'spouse', 'child', 'sibling', 'friend', 'charity'
+  relationship String?  // 'spouse', 'child', 'parent', 'sibling', 'friend', 'charity'
+  
+  // Contact info
   email        String?
   phone        String?
   address      String?
-  percentage   Decimal? @db.Decimal(5, 2) // 0-100
-  isContingent Boolean  @default(false)
-  conditions   Json?    // e.g., {ageRequirement: 25, trustUntil: 30}
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  dateOfBirth  DateTime?
+  
+  // Tax ID (for legal distribution)
+  ssn          String?  // Encrypted
+  taxId        String?  // For entities/charities
+  
+  // Inheritance details
+  inheritanceType String @default("percentage") // 'percentage', 'specific_asset', 'specific_amount'
+  percentage      Decimal? @db.Decimal(5, 2) // Of total estate
+  specificAssets  Json?    // [assetId] array
+  specificAmount  Decimal? @db.Decimal(15, 2)
+  
+  // Contingency
+  isPrimary       Boolean  @default(true)
+  isContingent    Boolean  @default(false)
+  contingentTo    String?  // Beneficiary ID they're contingent to
+  
+  // Conditions
+  hasConditions   Boolean  @default(false)
+  conditions      Json?    // { minAge: 25, condition: "graduated college" }
+  
+  // Trust provisions
+  inTrust         Boolean  @default(false)
+  trustUntilAge   Int?
+  trustee         String?  // Name of trustee
+  
+  notes           String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([tenantId])
 }
 
-// Legal documents (wills, trusts, etc.)
-model Document {
-  id               String   @id @default(uuid())
-  userId           String
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type             String   // 'will', 'living_trust', 'healthcare_directive', 'poa', 'upload'
-  title            String
-  url              String?  // S3/Blob storage URL
-  encryptedContent Bytes?   // Optional encrypted storage
-  status           String   @default("draft") // 'draft', 'in_review', 'signed', 'active', 'superseded'
-  version          Int      @default(1)
-  supersedes       String?  // ID of document this replaces
-  metadata         Json?    // Additional document-specific data
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  signedAt         DateTime?
-}
-
-// Healthcare directives and POA
-model Directive {
-  id          String   @id @default(uuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type        String   // 'healthcare_proxy', 'living_will', 'financial_poa', 'durable_poa'
-  agentName   String?
-  agentEmail  String?
-  agentPhone  String?
-  alternateAgent String?
-  preferences Json?    // Medical preferences, end-of-life wishes, etc.
-  limitations String?  // Any limits on agent's authority
-  status      String   @default("draft")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-}
-
-// Final arrangements (burial, cremation, etc.)
-model FinalArrangement {
-  id                String   @id @default(uuid())
-  userId            String   @unique
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  preference        String?  // 'burial', 'cremation', 'donation'
-  location          String?  // Cemetery, crematorium
-  ceremony          String?  // 'religious', 'secular', 'none'
-  obituary          String?  @db.Text
-  notifications     Json?    // List of people/orgs to notify
-  prepaid           Boolean  @default(false)
-  specialInstructions String? @db.Text
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-}
-
-// Trusted delegates/emergency contacts
+// ============================================
+// DELEGATES = Trusted contacts with access
+// ============================================
 model Delegate {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  // Delegate info (before they sign up)
+  name      String
+  email     String
+  phone     String?
+  relationship String // 'spouse', 'child', 'attorney', 'friend', 'executor'
+  
+  // Account status
+  hasAccount      Boolean  @default(false) // Have they created a user account?
+  userId          String?  @unique // Linked User if they signed up
+  user            User?    @relation("DelegateUser", fields: [userId], references: [id], onDelete: SetNull)
+  
+  // Approval workflow
+  status          String   @default("pending") // 'pending', 'invited', 'active', 'revoked', 'expired'
+  isApproved      Boolean  @default(false) // Must be approved to access
+  approvedBy      String?  // User ID who approved
+  approvedAt      DateTime?
+  
+  // Invitation
+  invitationToken String?  @unique
+  invitedAt       DateTime?
+  acceptedAt      DateTime?
+  expiresAt       DateTime? // Invitation expiration
+  
+  // Access timing (when can they access anything)
+  canAccessWhen   String   @default("after_death") // 'immediately', 'after_death', 'emergency_only', 'custom'
+  customTrigger   String?  // Custom condition for access
+  
+  // GRANULAR PERMISSIONS - Line by Line
+  // Each resource type has explicit permissions
+  // Default structure: { default: { view, edit, delete, download, share }, overrides: { [resourceId]: {...} } }
+  
+  // Documents permissions (per document or all)
+  documentPermissions Json? // { default: { view: true, download: false, edit: false, delete: false, share: false }, overrides: { "doc-123": { view: true, download: true } } }
+  
+  // Assets permissions (per asset or all)
+  assetPermissions Json? // { default: { view: false, download: false, edit: false, delete: false, share: false }, overrides: { "asset-456": { view: true } } }
+  
+  // Liabilities permissions (per liability or all)
+  liabilityPermissions Json? // { default: { view: false, download: false, edit: false, delete: false, share: false }, overrides: {} }
+  
+  // Beneficiaries permissions
+  beneficiaryPermissions Json? // { view: false, edit: false, delete: false }
+  
+  // Settings & Profile permissions
+  settingsPermissions Json? // { view: false, edit: false }
+  profilePermissions Json? // { view: false, edit: false }
+  
+  // Convenience flag (computed from above)
+  hasAnyPermissions Boolean @default(false) // True if ANY permission is granted anywhere
+  
+  // POA Grants (special executor permissions)
+  poaPermissions  Json?    // { canPayBills: true, canSellProperty: false, etc. }
+  poaStartDate    DateTime?
+  poaEndDate      DateTime?
+  
+  // Activity tracking
+  lastAccessedAt  DateTime?
+  accessCount     Int      @default(0)
+  lastNotifiedAt  DateTime?
+  
+  notes           String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  revokedAt DateTime?
+  
+  auditLogs AuditLog[]
+  permissions DelegatePermission[] // Detailed permission log
+  
+  @@index([tenantId])
+  @@index([email])
+  @@index([status])
+  @@index([hasAccount])
+}
+
+// ============================================
+// DELEGATE PERMISSIONS = Audit trail of grants
+// ============================================
+model DelegatePermission {
+  id          String   @id @default(uuid())
+  delegateId  String
+  delegate    Delegate @relation(fields: [delegateId], references: [id], onDelete: Cascade)
+  
+  // What resource
+  resourceType String  // 'document', 'asset', 'liability', 'beneficiary', 'profile', 'settings'
+  resourceId   String? // Specific ID or 'all'
+  
+  // What actions
+  canView      Boolean @default(false)
+  canEdit      Boolean @default(false)
+  canDelete    Boolean @default(false)
+  canDownload  Boolean @default(false)
+  canShare     Boolean @default(false)
+  canModifyPermissions Boolean @default(false)
+  
+  // When granted
+  grantedBy    String  // User ID who granted
+  grantedAt    DateTime @default(now())
+  
+  // When revoked (if applicable)
+  revokedBy    String?
+  revokedAt    DateTime?
+  isActive     Boolean @default(true)
+  
+  // Why granted
+  reason       String?
+  
+  @@index([delegateId])
+  @@index([resourceType, resourceId])
+  @@index([isActive])
+}
+
+// ============================================
+// DIRECTIVES = Healthcare, POA
+// ============================================
+model Directive {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  type      String   // 'healthcare', 'financial_poa', 'durable_poa'
+  content   Json
+  status    String   @default("draft")
+  
+  // Agents/Attorneys-in-fact
+  primaryAgent    Json?    // { name, email, phone, relationship }
+  alternateAgent  Json?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([tenantId])
+}
+
+// ============================================
+// FINAL ARRANGEMENTS = Funeral preferences
+// ============================================
+model FinalArrangement {
+  id        String   @id @default(uuid())
+  tenantId  String   @unique
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  preference String  // 'burial', 'cremation', 'donation'
+  details    Json
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================
+// AUDIT LOG = Track everything
+// ============================================
+model AuditLog {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  // Actor
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  delegateId String?
+  delegate  Delegate? @relation(fields: [delegateId], references: [id], onDelete: SetNull)
+  actorType String   // 'user', 'delegate', 'system'
+  actorName String   // Display name
+  
+  // Action
+  action    String   // 'login', 'logout', 'view_document', 'edit_asset', 'add_delegate'
+  category  String   // 'auth', 'document', 'asset', 'beneficiary', 'delegate', 'security'
+  
+  // Resource
+  resourceType String? // 'document', 'asset', 'beneficiary', etc.
+  resourceId   String? // ID of affected resource
+  
+  // Context
+  details      Json?   // Additional data
+  result       String  @default("success") // 'success', 'failure', 'blocked'
+  errorMessage String?
+  
+  // Session
+  sessionId String?
+  ipAddress String?
+  userAgent String?
+  location  String?  // City, State from IP
+  
+  timestamp DateTime @default(now())
+  
+  @@index([tenantId])
+  @@index([userId])
+  @@index([delegateId])
+  @@index([action])
+  @@index([timestamp])
+  @@index([category])
+}
+
+// ============================================
+// SESSION = Active login sessions
+// ============================================
+model Session {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clerkSessionId String   @unique
+  
+  // Device info
+  ipAddress   String
+  userAgent   String
+  browser     String?
+  os          String?
+  device      String?  // 'desktop', 'mobile', 'tablet'
+  location    String?
+  
+  // Timestamps
+  loginAt        DateTime @default(now())
+  lastActivityAt DateTime @default(now())
+  logoutAt       DateTime?
+  expiresAt      DateTime
+  
+  isActive Boolean @default(true)
+  
+  @@index([userId])
+  @@index([isActive])
+  @@index([clerkSessionId])
+}
+
+// ============================================
+// DOCUMENT ACCESS = Track who views what
+// ============================================
+model DocumentAccess {
   id           String   @id @default(uuid())
-  userId       String
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name         String
-  relationship String
-  email        String
-  phone        String?
-  role         String   // 'emergency_contact', 'document_access', 'executor'
-  accessLevel  String   @default("view") // 'view', 'edit', 'admin'
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  documentId   String
+  document     Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  
+  // Accessor
+  accessorId   String
+  accessorType String   // 'owner', 'co_owner', 'delegate'
+  accessorName String
+  
+  // Action
+  action       String   // 'viewed', 'downloaded', 'printed', 'shared', 'edited'
+  
+  // Context
+  timestamp    DateTime @default(now())
+  ipAddress    String?
+  duration     Int?     // Seconds spent viewing
+  
+  @@index([documentId])
+  @@index([accessorId])
+  @@index([timestamp])
 }
