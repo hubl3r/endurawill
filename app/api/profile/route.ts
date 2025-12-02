@@ -1,26 +1,25 @@
-import { NextResponse } from 'next/server';
+
+```typescript
+import { prisma } from '@/lib/prisma';
 import { currentUser } from '@clerk/nextjs/server';
-
-// NOTE: This is a temporary implementation that stores data in-memory
-// You'll need to replace this with actual Prisma database calls
-
-// Temporary in-memory storage (will be lost on server restart)
-const profileStore = new Map();
+import { NextResponse } from 'next/server';
 
 export async function GET() {
-  const user = await currentUser();
-  
-  if (!user) {
+  const clerkUser = await currentUser();
+  if (!clerkUser) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {
-    // Get profile from temporary storage
-    const profile = profileStore.get(user.id);
-    
+    // Find user with profile
+    const user = await prisma.user.findUnique({
+      where: { clerkId: clerkUser.id },
+      include: { profile: true }
+    });
+
     return NextResponse.json({ 
       success: true, 
-      profile: profile || null 
+      profile: user?.profile || null 
     });
   } catch (error) {
     console.error('Error loading profile:', error);
@@ -32,9 +31,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const user = await currentUser();
-  
-  if (!user) {
+  const clerkUser = await currentUser();
+  if (!clerkUser) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -49,7 +47,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // Validate age (must be 18-120)
+    // Validate age (18-120)
     const birthDate = new Date(data.dob);
     const today = new Date();
     let age = today.getFullYear() - birthDate.getFullYear();
@@ -73,58 +71,80 @@ export async function POST(request: Request) {
       );
     }
 
-    // Store profile in temporary storage
-    // TODO: Replace with Prisma database call
-    const profileData = {
-      clerkId: user.id,
-      fullName: data.fullName,
-      email: user.emailAddresses[0]?.emailAddress,
-      dob: data.dob,
-      stateResidence: data.stateResidence,
-      maritalStatus: data.maritalStatus,
-      hasCompletedOnboarding: true,
-      updatedAt: new Date().toISOString(),
-    };
+    // Find or create tenant
+    let tenant = await prisma.tenant.findFirst({
+      where: {
+        users: {
+          some: { clerkId: clerkUser.id }
+        }
+      }
+    });
 
-    profileStore.set(user.id, profileData);
-
-    /* 
-    TODO: Replace the above with this Prisma code once you set up the database:
-    
-    // First, find or create tenant
-    let tenant = await prisma.tenant.findFirst();
     if (!tenant) {
-      tenant = await prisma.tenant.create({ data: {} });
+      tenant = await prisma.tenant.create({
+        data: {
+          type: 'individual',
+          maxOwners: 1,
+          ownerCount: 1
+        }
+      });
     }
 
-    // Upsert user profile
-    const dbUser = await prisma.user.upsert({
-      where: { clerkId: user.id },
+    // Upsert user
+    const user = await prisma.user.upsert({
+      where: { clerkId: clerkUser.id },
       update: {
         fullName: data.fullName,
+        email: clerkUser.emailAddresses[0]?.emailAddress,
         dob: new Date(data.dob),
+      },
+      create: {
+        clerkId: clerkUser.id,
+        tenantId: tenant.id,
+        role: 'primary_owner',
+        isPrimary: true,
+        fullName: data.fullName,
+        email: clerkUser.emailAddresses[0]?.emailAddress,
+        dob: new Date(data.dob),
+      },
+      include: { profile: true }
+    });
+
+    // Upsert profile
+    const profile = await prisma.profile.upsert({
+      where: { userId: user.id },
+      update: {
         stateResidence: data.stateResidence,
         maritalStatus: data.maritalStatus,
         hasCompletedOnboarding: true,
       },
       create: {
-        clerkId: user.id,
-        tenantId: tenant.id,
-        fullName: data.fullName,
-        email: user.emailAddresses[0]?.emailAddress,
-        dob: new Date(data.dob),
+        userId: user.id,
         stateResidence: data.stateResidence,
         maritalStatus: data.maritalStatus,
         hasCompletedOnboarding: true,
-      },
+      }
     });
 
-    return NextResponse.json({ success: true, user: dbUser });
-    */
+    // Log the action
+    await prisma.auditLog.create({
+      data: {
+        tenantId: tenant.id,
+        userId: user.id,
+        actorType: 'user',
+        actorName: user.fullName,
+        action: 'profile_updated',
+        category: 'profile',
+        resourceType: 'profile',
+        resourceId: profile.id,
+        result: 'success',
+        timestamp: new Date()
+      }
+    });
 
     return NextResponse.json({ 
       success: true, 
-      profile: profileData 
+      profile 
     });
   } catch (error) {
     console.error('Error saving profile:', error);
@@ -134,3 +154,4 @@ export async function POST(request: Request) {
     );
   }
 }
+```
