@@ -69,13 +69,13 @@ export default function PersonalInfoPage() {
   const [errorMessage, setErrorMessage] = useState('');
 
   const [formData, setFormData] = useState({
+    estateName: '',
     fullName: '',
     dob: '',
     stateResidence: '',
     maritalStatus: '',
   });
 
-  // Load existing data if available
   useEffect(() => {
     if (user) {
       setFormData(prev => ({
@@ -83,7 +83,6 @@ export default function PersonalInfoPage() {
         fullName: user.fullName || '',
       }));
       
-      // TODO: Load existing profile data from database
       loadProfileData();
     }
   }, [user]);
@@ -96,6 +95,7 @@ export default function PersonalInfoPage() {
         const data = await response.json();
         if (data.profile) {
           setFormData({
+            estateName: data.tenant?.name || '',
             fullName: data.profile.fullName || '',
             dob: data.profile.dob ? new Date(data.profile.dob).toISOString().split('T')[0] : '',
             stateResidence: data.profile.stateResidence || '',
@@ -141,25 +141,39 @@ export default function PersonalInfoPage() {
     }
 
     try {
-      const response = await fetch('/api/profile', {
+      // Save profile
+      const profileResponse = await fetch('/api/profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          fullName: formData.fullName,
+          dob: formData.dob,
+          stateResidence: formData.stateResidence,
+          maritalStatus: formData.maritalStatus
+        }),
       });
 
-      if (response.ok) {
-        setSaveStatus('success');
-        setTimeout(() => {
-          router.push('/dashboard');
-        }, 1500);
-      } else {
-        const error = await response.json();
-        setSaveStatus('error');
-        setErrorMessage(error.error || 'Failed to save profile');
+      if (!profileResponse.ok) {
+        const error = await profileResponse.json();
+        throw new Error(error.error || 'Failed to save profile');
       }
+
+      // Save estate name if provided
+      if (formData.estateName) {
+        await fetch('/api/tenant', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: formData.estateName }),
+        });
+      }
+
+      setSaveStatus('success');
+      setTimeout(() => {
+        router.push('/dashboard');
+      }, 1500);
     } catch (error) {
       setSaveStatus('error');
-      setErrorMessage('An unexpected error occurred');
+      setErrorMessage(error instanceof Error ? error.message : 'An unexpected error occurred');
       console.error('Error saving profile:', error);
     } finally {
       setIsSaving(false);
@@ -220,6 +234,25 @@ export default function PersonalInfoPage() {
 
         <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
           <div className="space-y-6">
+            {/* Estate Name */}
+            <div>
+              <label htmlFor="estateName" className="block text-sm font-medium text-gray-700 mb-2">
+                Estate Name
+              </label>
+              <input
+                type="text"
+                id="estateName"
+                name="estateName"
+                value={formData.estateName}
+                onChange={handleChange}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                placeholder="The Smith Family Estate"
+              />
+              <p className="mt-1 text-sm text-gray-500">
+                Optional: Give your estate a custom name. Defaults to "Estate of [Your Name]"
+              </p>
+            </div>
+
             {/* Full Legal Name */}
             <div>
               <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 mb-2">
@@ -303,7 +336,7 @@ export default function PersonalInfoPage() {
                 <option value="married">Married</option>
                 <option value="divorced">Divorced</option>
                 <option value="widowed">Widowed</option>
-                <option value="domestic_partnership">Domestic Partnership</option>
+                <option value="separated">Separated</option>
               </select>
               <p className="mt-1 text-sm text-gray-500">
                 This affects how your assets are distributed and who can make decisions for you
