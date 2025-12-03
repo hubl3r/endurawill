@@ -1,22 +1,41 @@
-import { NextResponse } from 'next/server';
-import { currentUser } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
+import { currentUser } from '@clerk/nextjs/server';
+import { NextResponse } from 'next/server';
 
+/**
+ * GET /api/profile
+ * Retrieves the current user's profile data
+ */
 export async function GET() {
-  const clerkUser = await currentUser();
-  
-  if (!clerkUser) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
   try {
+    const clerkUser = await currentUser();
+    
+    if (!clerkUser) {
+      return NextResponse.json(
+        { error: 'Unauthorized' }, 
+        { status: 401 }
+      );
+    }
+
+    // Find user with profile and tenant info
     const user = await prisma.user.findUnique({
       where: { clerkId: clerkUser.id },
-      include: { profile: true }
+      include: { 
+        profile: true,
+        tenant: true
+      }
     });
 
+    if (!user) {
+      return NextResponse.json({ 
+        success: true, 
+        profile: null,
+        message: 'No profile found'
+      });
+    }
+
     // Combine user data with profile for the form
-    const profileData = user?.profile ? {
+    const profileData = user.profile ? {
       ...user.profile,
       fullName: user.fullName,
       dob: user.dob,
@@ -24,38 +43,76 @@ export async function GET() {
 
     return NextResponse.json({ 
       success: true, 
-      profile: profileData
+      profile: profileData,
+      user: {
+        id: user.id,
+        fullName: user.fullName,
+        email: user.email,
+        role: user.role,
+        isPrimary: user.isPrimary
+      },
+      tenant: user.tenant ? {
+        id: user.tenant.id,
+        type: user.tenant.type
+      } : null
     });
+
   } catch (error) {
     console.error('Error loading profile:', error);
     return NextResponse.json(
-      { error: 'Failed to load profile' }, 
+      { 
+        error: 'Failed to load profile',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      }, 
       { status: 500 }
     );
   }
 }
 
+/**
+ * POST /api/profile
+ * Creates or updates the current user's profile
+ */
 export async function POST(request: Request) {
-  const clerkUser = await currentUser();
-  
-  if (!clerkUser) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
   try {
+    const clerkUser = await currentUser();
+    
+    if (!clerkUser) {
+      return NextResponse.json(
+        { error: 'Unauthorized' }, 
+        { status: 401 }
+      );
+    }
+
     const data = await request.json();
 
     // Validate required fields
     if (!data.fullName || !data.dob || !data.stateResidence || !data.maritalStatus) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: 'Missing required fields: fullName, dob, stateResidence, maritalStatus' },
         { status: 400 }
       );
     }
 
-    // Validate age (18-120)
+    // Validate date of birth
     const birthDate = new Date(data.dob);
     const today = new Date();
+    
+    if (isNaN(birthDate.getTime())) {
+      return NextResponse.json(
+        { error: 'Invalid date of birth format' },
+        { status: 400 }
+      );
+    }
+
+    if (birthDate > today) {
+      return NextResponse.json(
+        { error: 'Date of birth cannot be in the future' },
+        { status: 400 }
+      );
+    }
+
+    // Calculate age
     let age = today.getFullYear() - birthDate.getFullYear();
     const monthDiff = today.getMonth() - birthDate.getMonth();
     
@@ -63,6 +120,7 @@ export async function POST(request: Request) {
       age--;
     }
 
+    // Validate age range (18-120)
     if (age < 18) {
       return NextResponse.json(
         { error: 'You must be at least 18 years old to use this service' },
@@ -70,9 +128,34 @@ export async function POST(request: Request) {
       );
     }
 
-    if (age > 120 || birthDate > today) {
+    if (age > 120) {
       return NextResponse.json(
         { error: 'Please enter a valid date of birth' },
+        { status: 400 }
+      );
+    }
+
+    // Validate state residence (US states + DC)
+    const validStates = [
+      'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA',
+      'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD',
+      'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ',
+      'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC',
+      'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY', 'DC'
+    ];
+
+    if (!validStates.includes(data.stateResidence)) {
+      return NextResponse.json(
+        { error: 'Invalid state residence' },
+        { status: 400 }
+      );
+    }
+
+    // Validate marital status
+    const validMaritalStatuses = ['single', 'married', 'divorced', 'widowed', 'separated'];
+    if (!validMaritalStatuses.includes(data.maritalStatus)) {
+      return NextResponse.json(
+        { error: 'Invalid marital status' },
         { status: 400 }
       );
     }
@@ -101,8 +184,8 @@ export async function POST(request: Request) {
       where: { clerkId: clerkUser.id },
       update: {
         fullName: data.fullName,
-        email: clerkUser.emailAddresses[0]?.emailAddress,
-        dob: new Date(data.dob),
+        email: clerkUser.emailAddresses[0]?.emailAddress || '',
+        dob: birthDate,
       },
       create: {
         clerkId: clerkUser.id,
@@ -110,8 +193,8 @@ export async function POST(request: Request) {
         role: 'primary_owner',
         isPrimary: true,
         fullName: data.fullName,
-        email: clerkUser.emailAddresses[0]?.emailAddress,
-        dob: new Date(data.dob),
+        email: clerkUser.emailAddresses[0]?.emailAddress || '',
+        dob: birthDate,
       },
       include: { profile: true }
     });
@@ -132,36 +215,38 @@ export async function POST(request: Request) {
       }
     });
 
-    // Update tenant owner count
-    await prisma.tenant.update({
-      where: { id: tenant.id },
-      data: { ownerCount: 1 }
-    });
-
-    // Log the action
+    // Create audit log
     await prisma.auditLog.create({
       data: {
         tenantId: tenant.id,
         userId: user.id,
         actorType: 'user',
         actorName: user.fullName,
-        action: 'profile_updated',
+        action: user.profile ? 'profile_updated' : 'profile_created',
         category: 'profile',
         resourceType: 'profile',
         resourceId: profile.id,
         result: 'success',
-        timestamp: new Date()
+        timestamp: new Date(),
+        metadata: {
+          fields_updated: ['fullName', 'dob', 'stateResidence', 'maritalStatus']
+        }
       }
     });
 
     return NextResponse.json({ 
       success: true, 
-      profile 
+      profile,
+      message: 'Profile saved successfully'
     });
+
   } catch (error) {
     console.error('Error saving profile:', error);
     return NextResponse.json(
-      { error: 'Failed to save profile', message: error instanceof Error ? error.message : 'Unknown error' },
+      { 
+        error: 'Failed to save profile', 
+        message: error instanceof Error ? error.message : 'Unknown error' 
+      },
       { status: 500 }
     );
   }
