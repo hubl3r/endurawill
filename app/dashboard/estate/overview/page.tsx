@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useUser } from '@clerk/nextjs';
 import DashboardLayout from '@/components/DashboardLayout';
-import { Home, Users, FileText, Calendar, Crown, UserPlus, Edit2 } from 'lucide-react';
+import { Home, Users, FileText, Calendar, Crown, UserPlus, Edit2, CheckCircle, AlertCircle, X } from 'lucide-react';
 
 interface EstateData {
   tenant: {
@@ -33,6 +33,14 @@ export default function EstateOverviewPage() {
   const { user } = useUser();
   const [estateData, setEstateData] = useState<EstateData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+  
+  const [editForm, setEditForm] = useState({
+    name: '',
+    type: 'individual'
+  });
 
   useEffect(() => {
     loadEstateData();
@@ -46,7 +54,7 @@ export default function EstateOverviewPage() {
         const data = await response.json();
         
         // Build estate data from profile response
-        setEstateData({
+        const estate = {
           tenant: data.tenant || {
             id: '',
             name: null,
@@ -57,17 +65,61 @@ export default function EstateOverviewPage() {
           },
           owners: data.user ? [data.user] : [],
           stats: {
-            delegates: 0, // TODO: Load from API
+            delegates: 0,
             documents: 0,
             assets: 0,
             beneficiaries: 0
           }
+        };
+        
+        setEstateData(estate);
+        setEditForm({
+          name: estate.tenant.name || '',
+          type: estate.tenant.type
         });
       }
     } catch (error) {
       console.error('Error loading estate data:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleEditEstate = () => {
+    if (estateData) {
+      setEditForm({
+        name: estateData.tenant.name || '',
+        type: estateData.tenant.type
+      });
+      setShowEditModal(true);
+    }
+  };
+
+  const handleSaveEstate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSaving(true);
+    setMessage(null);
+
+    try {
+      const response = await fetch('/api/tenant', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editForm)
+      });
+
+      if (response.ok) {
+        setMessage({ type: 'success', text: 'Estate updated successfully' });
+        setShowEditModal(false);
+        loadEstateData();
+      } else {
+        const error = await response.json();
+        setMessage({ type: 'error', text: error.error || 'Failed to update estate' });
+      }
+    } catch (error) {
+      console.error('Error updating estate:', error);
+      setMessage({ type: 'error', text: 'An error occurred' });
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -123,13 +175,34 @@ export default function EstateOverviewPage() {
   return (
     <DashboardLayout>
       <div className="max-w-4xl mx-auto">
+        {/* Message */}
+        {message && (
+          <div className={`mb-6 border rounded-lg p-4 flex items-center gap-3 ${
+            message.type === 'success' 
+              ? 'bg-green-50 border-green-200' 
+              : 'bg-red-50 border-red-200'
+          }`}>
+            {message.type === 'success' ? (
+              <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />
+            ) : (
+              <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0" />
+            )}
+            <p className={message.type === 'success' ? 'text-green-900' : 'text-red-900'}>
+              {message.text}
+            </p>
+          </div>
+        )}
+
         <div className="mb-8">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-3">
               <Home className="h-8 w-8 text-blue-600" />
               <h1 className="text-3xl font-bold text-gray-900">{estateName}</h1>
             </div>
-            <button className="flex items-center gap-2 text-gray-700 hover:text-gray-900 font-medium text-sm px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+            <button 
+              onClick={handleEditEstate}
+              className="flex items-center gap-2 text-gray-700 hover:text-gray-900 font-medium text-sm px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            >
               <Edit2 className="h-4 w-4" />
               Edit Estate
             </button>
@@ -277,6 +350,99 @@ export default function EstateOverviewPage() {
           </p>
         </div>
       </div>
+
+      {/* Edit Estate Modal */}
+      {showEditModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-gray-900">Edit Estate</h2>
+                <button
+                  onClick={() => setShowEditModal(false)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveEstate} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Estate Name
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.name}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, name: e.target.value }))}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Estate of John Doe"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Leave blank to use "Estate of [Your Name]"
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-3">
+                    Estate Type
+                  </label>
+                  <div className="space-y-3">
+                    <label className="flex items-start gap-3 p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
+                      <input
+                        type="radio"
+                        value="individual"
+                        checked={editForm.type === 'individual'}
+                        onChange={(e) => setEditForm(prev => ({ ...prev, type: e.target.value }))}
+                        className="mt-1"
+                      />
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900">Individual Estate</p>
+                        <p className="text-sm text-gray-600">
+                          One owner manages the estate (you)
+                        </p>
+                      </div>
+                    </label>
+
+                    <label className="flex items-start gap-3 p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
+                      <input
+                        type="radio"
+                        value="joint"
+                        checked={editForm.type === 'joint'}
+                        onChange={(e) => setEditForm(prev => ({ ...prev, type: e.target.value }))}
+                        className="mt-1"
+                      />
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900">Joint Estate</p>
+                        <p className="text-sm text-gray-600">
+                          Up to two owners can manage together (e.g., spouses)
+                        </p>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowEditModal(false)}
+                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSaving}
+                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  >
+                    {isSaving ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 }
