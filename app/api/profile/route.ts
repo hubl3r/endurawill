@@ -34,16 +34,9 @@ export async function GET() {
       });
     }
 
-    // Combine user data with profile for the form
-    const profileData = user.profile ? {
-      ...user.profile,
-      fullName: user.fullName,
-      dob: user.dob,
-    } : null;
-
     return NextResponse.json({ 
       success: true, 
-      profile: profileData,
+      profile: user.profile,
       user: {
         id: user.id,
         fullName: user.fullName,
@@ -228,9 +221,6 @@ export async function POST(request: Request) {
         resourceId: profile.id,
         result: 'success',
         timestamp: new Date(),
-        metadata: {
-          fields_updated: ['fullName', 'dob', 'stateResidence', 'maritalStatus']
-        }
       }
     });
 
