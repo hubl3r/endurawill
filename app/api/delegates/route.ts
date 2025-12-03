@@ -41,12 +41,6 @@ export async function GET() {
             revokedAt: null
           }
         },
-        invitedByUser: {
-          select: {
-            fullName: true,
-            email: true
-          }
-        }
       },
       orderBy: {
         createdAt: 'desc'
@@ -90,7 +84,7 @@ export async function GET() {
         email: delegate.email,
         status: delegate.status,
         expiresAt: delegate.expiresAt,
-        invitedBy: delegate.invitedByUser,
+        
         createdAt: delegate.createdAt,
         lastAccessAt: delegate.lastAccessAt,
         permissions: permissionsByType,
