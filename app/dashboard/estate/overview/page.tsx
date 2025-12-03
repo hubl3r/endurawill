@@ -223,10 +223,11 @@ export default function EstateOverviewPage() {
               <h2 className="text-xl font-bold text-gray-900">Estate Owners</h2>
             </div>
             <div className="flex items-center gap-2">
-              {estateData.tenant.type === 'individual' && (
+              {(estateData.tenant.type === 'individual' || 
+                (estateData.tenant.type === 'joint' && estateData.tenant.ownerCount < estateData.tenant.maxOwners)) && (
                 <button className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium text-sm px-3 py-2 border border-blue-600 rounded-lg hover:bg-blue-50 transition-colors">
                   <UserPlus className="h-4 w-4" />
-                  Add Co-Owner
+                  {estateData.tenant.type === 'individual' ? 'Add Co-Owner' : 'Invite Co-Owner'}
                 </button>
               )}
             </div>
