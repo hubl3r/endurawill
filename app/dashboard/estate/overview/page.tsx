@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useUser } from '@clerk/nextjs';
 import DashboardLayout from '@/components/DashboardLayout';
-import { Home, Users, FileText, Calendar, Crown, UserPlus } from 'lucide-react';
+import { Home, Users, FileText, Calendar, Crown, UserPlus, Edit2 } from 'lucide-react';
 
 interface EstateData {
   tenant: {
@@ -124,9 +124,15 @@ export default function EstateOverviewPage() {
     <DashboardLayout>
       <div className="max-w-4xl mx-auto">
         <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <Home className="h-8 w-8 text-blue-600" />
-            <h1 className="text-3xl font-bold text-gray-900">{estateName}</h1>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-3">
+              <Home className="h-8 w-8 text-blue-600" />
+              <h1 className="text-3xl font-bold text-gray-900">{estateName}</h1>
+            </div>
+            <button className="flex items-center gap-2 text-gray-700 hover:text-gray-900 font-medium text-sm px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+              <Edit2 className="h-4 w-4" />
+              Edit Estate
+            </button>
           </div>
           <div className="flex items-center gap-3">
             {getEstateTypeBadge(estateData.tenant.type)}
@@ -143,12 +149,14 @@ export default function EstateOverviewPage() {
               <Crown className="h-6 w-6 text-blue-600" />
               <h2 className="text-xl font-bold text-gray-900">Estate Owners</h2>
             </div>
-            {estateData.tenant.type === 'individual' && estateData.tenant.maxOwners > estateData.tenant.ownerCount && (
-              <button className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium text-sm">
-                <UserPlus className="h-4 w-4" />
-                Add Co-Owner
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {estateData.tenant.type === 'individual' && (
+                <button className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium text-sm px-3 py-2 border border-blue-600 rounded-lg hover:bg-blue-50 transition-colors">
+                  <UserPlus className="h-4 w-4" />
+                  Add Co-Owner
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="space-y-4">
