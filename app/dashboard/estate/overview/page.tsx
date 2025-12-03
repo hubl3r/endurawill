@@ -55,7 +55,7 @@ export default function EstateOverviewPage() {
             ownerCount: 1,
             createdAt: new Date().toISOString()
           },
-          owners: [data.user] || [],
+          owners: data.user ? [data.user] : [],
           stats: {
             delegates: 0, // TODO: Load from API
             documents: 0,
