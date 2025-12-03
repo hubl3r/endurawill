@@ -45,7 +45,12 @@ export async function GET() {
       },
       tenant: user.tenant ? {
         id: user.tenant.id,
-        type: user.tenant.type
+        name: user.tenant.name,
+        type: user.tenant.type,
+        maxOwners: user.tenant.maxOwners,
+        ownerCount: user.tenant.ownerCount,
+        createdAt: user.tenant.createdAt.toISOString(),
+        updatedAt: user.tenant.updatedAt.toISOString()
       } : null
     });
   } catch (error) {
