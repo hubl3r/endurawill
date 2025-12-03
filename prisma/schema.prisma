@@ -1,5 +1,6 @@
-// Endurawill - Refined Database Schema
-// Supports: Individual estates, Joint estates (max 2), Delegate workflow
+// Endurawill - Production-Ready Database Schema
+// Built for scale, audit trails, and granular permissions
+// Version: 2.0
 
 generator client {
   provider = "prisma-client-js"
@@ -53,9 +54,6 @@ model User {
   role       String   // 'primary_owner', 'co_owner', 'delegate'
   isPrimary  Boolean  @default(false) // Only one primary per tenant
   
-  // Permissions (for co-owners and delegates)
-  permissions Json?   // { canEditAssets: false, canEditBeneficiaries: false, canViewOnly: true }
-  
   // Personal info
   fullName   String
   email      String?
@@ -79,12 +77,19 @@ model User {
   createdDocuments Document[] @relation("CreatedBy")
   modifiedDocuments Document[] @relation("ModifiedBy")
   
+  // Resource-level permissions (for co-owners and delegates)
+  resourcePermissions ResourcePermission[]
+  
   // If this user is a delegate who signed up
   delegateRecord Delegate? @relation("DelegateUser")
+  
+  // Invitations sent
+  invitedDelegates Delegate[] @relation("InvitedBy")
   
   @@unique([tenantId, clerkId])
   @@index([clerkId])
   @@index([tenantId])
+  @@index([role])
 }
 
 // ============================================
@@ -97,9 +102,9 @@ model Profile {
   
   // Personal details
   stateResidence  String?
-  maritalStatus   String?  // 'single', 'married', 'divorced', 'widowed'
-  children        Json?    // [{ name, dob, relationship }]
-  pets            Json?    // [{ name, type, specialNeeds }]
+  maritalStatus   String?  // 'single', 'married', 'divorced', 'widowed', 'separated'
+  
+  // Children and pets are now separate models (see below)
   
   // Estate planning preferences
   goals           Json?
@@ -112,6 +117,117 @@ model Profile {
   
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+  
+  // Relations
+  children        Child[]
+  pets            Pet[]
+}
+
+// ============================================
+// CHILD = Profile's children
+// ============================================
+model Child {
+  id           String   @id @default(uuid())
+  profileId    String
+  profile      Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  
+  fullName     String
+  dob          DateTime?
+  relationship String   @default("child") // 'child', 'stepchild', 'adopted', 'grandchild'
+  isMinor      Boolean  @default(true)
+  
+  // Guardian designation
+  guardianPreference String? // Name of preferred guardian
+  
+  // Link to beneficiary if applicable
+  beneficiaryId String?
+  
+  notes        String?
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  @@index([profileId])
+}
+
+// ============================================
+// PET = Profile's pets
+// ============================================
+model Pet {
+  id             String   @id @default(uuid())
+  profileId      String
+  profile        Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  
+  name           String
+  type           String   // 'dog', 'cat', 'bird', 'horse', 'other'
+  breed          String?
+  age            Int?
+  
+  // Care instructions
+  specialNeeds   String?
+  vetInfo        Json?    // { name, phone, address }
+  careInstructions String?
+  
+  // Caretaker designation
+  caretakerPreference String? // Name of preferred caretaker
+  trustFund       Boolean @default(false) // Has money set aside
+  trustAmount     Decimal? @db.Decimal(15, 2)
+  
+  notes          String?
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  @@index([profileId])
+}
+
+// ============================================
+// RESOURCE PERMISSION = Granular access control
+// For both co-owners and delegates
+// ============================================
+model ResourcePermission {
+  id           String   @id @default(uuid())
+  tenantId     String
+  
+  // Who has permission
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // What resource (specific or wildcard)
+  resourceType String   // 'document', 'asset', 'liability', 'beneficiary', 'profile', 'settings', 'all_documents', 'all_assets', etc.
+  resourceId   String?  // NULL = applies to all of that type (e.g., "all documents")
+  
+  // Specific document type (if resourceType is 'document' or 'all_documents')
+  documentType String?  // 'will', 'trust', 'healthcare_directive', 'poa', 'letter'
+  
+  // What they can do
+  canView      Boolean  @default(false)
+  canEdit      Boolean  @default(false)
+  canDelete    Boolean  @default(false)
+  canDownload  Boolean  @default(false)
+  canShare     Boolean  @default(false)
+  canModifyPermissions Boolean @default(false) // Admin permission
+  
+  // When granted/revoked
+  grantedBy    String   // User ID who granted
+  grantedAt    DateTime @default(now())
+  revokedBy    String?
+  revokedAt    DateTime?
+  isActive     Boolean  @default(true)
+  
+  // Why granted
+  reason       String?
+  notes        String?
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  @@unique([userId, resourceType, resourceId, documentType])
+  @@index([userId])
+  @@index([tenantId])
+  @@index([resourceType, resourceId])
+  @@index([isActive])
+  @@index([documentType])
 }
 
 // ============================================
@@ -191,6 +307,7 @@ model Document {
   @@index([tenantId])
   @@index([type])
   @@index([status])
+  @@index([createdById])
 }
 
 // ============================================
@@ -247,46 +364,23 @@ model Liability {
   tenantId    String
   tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   
-  // Liability details
-  type        String   // 'mortgage', 'auto_loan', 'student_loan', 'credit_card', 'personal_loan', 'medical_debt', 'tax_debt'
-  creditor    String   // Lender/creditor name
-  description String?
+  type        String   // 'mortgage', 'loan', 'credit_card', 'medical', 'other'
+  description String
+  creditor    String?
   
-  // Amount
-  originalAmount    Decimal?  @db.Decimal(15, 2)
-  currentBalance    Decimal   @db.Decimal(15, 2)
-  interestRate      Decimal?  @db.Decimal(5, 2) // Percentage
+  amount      Decimal  @db.Decimal(15, 2)
+  currency    String   @default("USD")
   
-  // Account info
-  accountNumber     String?
-  loanNumber        String?
+  accountNumber String?
+  interestRate  Decimal? @db.Decimal(5, 2)
   
-  // Payment details (manual tracking)
-  monthlyPayment    Decimal?  @db.Decimal(10, 2)
-  dueDate           String?   // "1st of month", "15th of month"
-  autopay           Boolean   @default(false)
+  paymentSchedule String? // 'monthly', 'annual', etc.
+  monthlyPayment  Decimal? @db.Decimal(15, 2)
   
-  // Dates
-  originationDate   DateTime?
-  maturityDate      DateTime? // When loan is paid off
-  
-  // Responsibility (for joint estates)
-  responsibility    String    @default("joint") // 'individual', 'joint'
-  responsibleParty  Json?     // [userId] if individual
-  
-  // Collateral
-  hasCollateral     Boolean   @default(false)
-  collateralAssetId String?   // Link to Asset if exists
-  
-  // Notes
-  notes             String?
-  payoffInstructions String? // Instructions for executor
+  notes       String?
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
-  // NOTE: Manual entry - no automatic sync with banks
-  // Future enhancement: Link to Plaid/Yodlee for automatic updates
   
   @@index([tenantId])
   @@index([type])
@@ -296,64 +390,55 @@ model Liability {
 // BENEFICIARIES = Who inherits what
 // ============================================
 model Beneficiary {
-  id           String   @id @default(uuid())
-  tenantId     String
-  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id          String   @id @default(uuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   
-  // Beneficiary details
-  name         String
-  relationship String?  // 'spouse', 'child', 'parent', 'sibling', 'friend', 'charity'
+  fullName    String
+  relationship String  // 'spouse', 'child', 'sibling', 'friend', 'charity'
+  email       String?
+  phone       String?
+  address     Json?
   
-  // Contact info
-  email        String?
-  phone        String?
-  address      String?
-  dateOfBirth  DateTime?
+  // Type
+  isPrimary   Boolean  @default(true)  // Primary vs Contingent
+  isCharity   Boolean  @default(false)
+  charityTaxId String? // For 501(c)(3) orgs
   
-  // Tax ID (for legal distribution)
-  ssn          String?  // Encrypted
-  taxId        String?  // For entities/charities
-  
-  // Inheritance details
-  inheritanceType String @default("percentage") // 'percentage', 'specific_asset', 'specific_amount'
-  percentage      Decimal? @db.Decimal(5, 2) // Of total estate
-  specificAssets  Json?    // [assetId] array
-  specificAmount  Decimal? @db.Decimal(15, 2)
-  
-  // Contingency
-  isPrimary       Boolean  @default(true)
-  isContingent    Boolean  @default(false)
-  contingentTo    String?  // Beneficiary ID they're contingent to
+  // Share
+  shareType   String   @default("percentage") // 'percentage', 'specific_amount', 'residue', 'specific_item'
+  shareValue  Decimal? @db.Decimal(15, 2)
+  sharePercent Decimal? @db.Decimal(5, 2)
   
   // Conditions
-  hasConditions   Boolean  @default(false)
-  conditions      Json?    // { minAge: 25, condition: "graduated college" }
+  conditions  String?  // "If survives me by 30 days"
+  trusteeInfo Json?    // If leaving to minor in trust
   
-  // Trust provisions
-  inTrust         Boolean  @default(false)
-  trustUntilAge   Int?
-  trustee         String?  // Name of trustee
-  
-  notes           String?
+  notes       String?
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   
   @@index([tenantId])
+  @@index([relationship])
 }
 
 // ============================================
-// DELEGATES = Trusted contacts with access
+// DELEGATE = Someone with access to estate info
 // ============================================
 model Delegate {
-  id        String   @id @default(uuid())
-  tenantId  String
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id          String   @id @default(uuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   
-  // Delegate info (before they sign up)
-  name      String
-  email     String
-  phone     String?
+  // Who invited them (AUDIT TRAIL)
+  invitedByUserId String
+  invitedBy       User    @relation("InvitedBy", fields: [invitedByUserId], references: [id], onDelete: Restrict)
+  
+  // Delegate info
+  fullName    String
+  email       String
+  phone       String?
   relationship String // 'spouse', 'child', 'attorney', 'friend', 'executor'
   
   // Account status
@@ -369,7 +454,7 @@ model Delegate {
   
   // Invitation
   invitationToken String?  @unique
-  invitedAt       DateTime?
+  invitedAt       DateTime @default(now())
   acceptedAt      DateTime?
   expiresAt       DateTime? // Invitation expiration
   
@@ -377,28 +462,17 @@ model Delegate {
   canAccessWhen   String   @default("after_death") // 'immediately', 'after_death', 'emergency_only', 'custom'
   customTrigger   String?  // Custom condition for access
   
-  // GRANULAR PERMISSIONS - Line by Line
-  // Each resource type has explicit permissions
-  // Default structure: { default: { view, edit, delete, download, share }, overrides: { [resourceId]: {...} } }
+  // DEPRECATED: Legacy JSON permissions (keeping for backwards compatibility during migration)
+  // These will be migrated to ResourcePermission table
+  documentPermissions    Json? @default("{ \"default\": { \"view\": false, \"edit\": false, \"delete\": false, \"download\": false, \"share\": false }, \"overrides\": {} }")
+  assetPermissions       Json? @default("{ \"default\": { \"view\": false, \"edit\": false, \"delete\": false, \"download\": false, \"share\": false }, \"overrides\": {} }")
+  liabilityPermissions   Json? @default("{ \"default\": { \"view\": false, \"edit\": false, \"delete\": false, \"download\": false, \"share\": false }, \"overrides\": {} }")
+  beneficiaryPermissions Json? @default("{ \"view\": false, \"edit\": false, \"delete\": false }")
+  settingsPermissions    Json? @default("{ \"view\": false, \"edit\": false }")
+  profilePermissions     Json? @default("{ \"view\": false, \"edit\": false }")
   
-  // Documents permissions (per document or all)
-  documentPermissions Json? // { default: { view: true, download: false, edit: false, delete: false, share: false }, overrides: { "doc-123": { view: true, download: true } } }
-  
-  // Assets permissions (per asset or all)
-  assetPermissions Json? // { default: { view: false, download: false, edit: false, delete: false, share: false }, overrides: { "asset-456": { view: true } } }
-  
-  // Liabilities permissions (per liability or all)
-  liabilityPermissions Json? // { default: { view: false, download: false, edit: false, delete: false, share: false }, overrides: {} }
-  
-  // Beneficiaries permissions
-  beneficiaryPermissions Json? // { view: false, edit: false, delete: false }
-  
-  // Settings & Profile permissions
-  settingsPermissions Json? // { view: false, edit: false }
-  profilePermissions Json? // { view: false, edit: false }
-  
-  // Convenience flag (computed from above)
-  hasAnyPermissions Boolean @default(false) // True if ANY permission is granted anywhere
+  // Convenience flag
+  hasAnyPermissions Boolean @default(false)
   
   // POA Grants (special executor permissions)
   poaPermissions  Json?    // { canPayBills: true, canSellProperty: false, etc. }
@@ -417,49 +491,12 @@ model Delegate {
   revokedAt DateTime?
   
   auditLogs AuditLog[]
-  permissions DelegatePermission[] // Detailed permission log
   
   @@index([tenantId])
   @@index([email])
   @@index([status])
   @@index([hasAccount])
-}
-
-// ============================================
-// DELEGATE PERMISSIONS = Audit trail of grants
-// ============================================
-model DelegatePermission {
-  id          String   @id @default(uuid())
-  delegateId  String
-  delegate    Delegate @relation(fields: [delegateId], references: [id], onDelete: Cascade)
-  
-  // What resource
-  resourceType String  // 'document', 'asset', 'liability', 'beneficiary', 'profile', 'settings'
-  resourceId   String? // Specific ID or 'all'
-  
-  // What actions
-  canView      Boolean @default(false)
-  canEdit      Boolean @default(false)
-  canDelete    Boolean @default(false)
-  canDownload  Boolean @default(false)
-  canShare     Boolean @default(false)
-  canModifyPermissions Boolean @default(false)
-  
-  // When granted
-  grantedBy    String  // User ID who granted
-  grantedAt    DateTime @default(now())
-  
-  // When revoked (if applicable)
-  revokedBy    String?
-  revokedAt    DateTime?
-  isActive     Boolean @default(true)
-  
-  // Why granted
-  reason       String?
-  
-  @@index([delegateId])
-  @@index([resourceType, resourceId])
-  @@index([isActive])
+  @@index([invitedByUserId])
 }
 
 // ============================================
@@ -482,6 +519,7 @@ model Directive {
   updatedAt DateTime @updatedAt
   
   @@index([tenantId])
+  @@index([type])
 }
 
 // ============================================
@@ -516,15 +554,15 @@ model AuditLog {
   actorName String   // Display name
   
   // Action
-  action    String   // 'login', 'logout', 'view_document', 'edit_asset', 'add_delegate'
-  category  String   // 'auth', 'document', 'asset', 'beneficiary', 'delegate', 'security'
+  action    String   // 'login', 'logout', 'view_document', 'edit_asset', 'add_delegate', 'grant_permission', 'revoke_permission'
+  category  String   // 'auth', 'document', 'asset', 'beneficiary', 'delegate', 'security', 'permission'
   
   // Resource
-  resourceType String? // 'document', 'asset', 'beneficiary', etc.
+  resourceType String? // 'document', 'asset', 'beneficiary', 'permission', etc.
   resourceId   String? // ID of affected resource
   
   // Context
-  details      Json?   // Additional data
+  details      Json?   // Additional data (what changed, old vs new values)
   result       String  @default("success") // 'success', 'failure', 'blocked'
   errorMessage String?
   
@@ -542,6 +580,7 @@ model AuditLog {
   @@index([action])
   @@index([timestamp])
   @@index([category])
+  @@index([resourceType])
 }
 
 // ============================================
@@ -569,6 +608,9 @@ model Session {
   
   isActive Boolean @default(true)
   
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
   @@index([userId])
   @@index([isActive])
   @@index([clerkSessionId])
@@ -595,7 +637,11 @@ model DocumentAccess {
   ipAddress    String?
   duration     Int?     // Seconds spent viewing
   
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
   @@index([documentId])
   @@index([accessorId])
   @@index([timestamp])
+  @@index([action])
 }
