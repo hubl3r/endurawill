@@ -1,28 +1,20 @@
-import { prisma } from '@/lib/prisma';
-import { currentUser } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
+import { currentUser } from '@clerk/nextjs/server';
+import { prisma } from '@/lib/prisma';
 
-/**
- * GET /api/profile
- * Retrieves the current user's profile data
- */
 export async function GET() {
-  try {
-    const clerkUser = await currentUser();
-    
-    if (!clerkUser) {
-      return NextResponse.json(
-        { error: 'Unauthorized' }, 
-        { status: 401 }
-      );
-    }
+  const clerkUser = await currentUser();
+  
+  if (!clerkUser) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
 
-    // Find user with profile and tenant info
+  try {
     const user = await prisma.user.findUnique({
       where: { clerkId: clerkUser.id },
       include: { 
         profile: true,
-        tenant: true
+        tenant: true 
       }
     });
 
@@ -34,9 +26,16 @@ export async function GET() {
       });
     }
 
+    // Combine user data with profile for the form
+    const profileData = user.profile ? {
+      ...user.profile,
+      fullName: user.fullName,
+      dob: user.dob,
+    } : null;
+
     return NextResponse.json({ 
       success: true, 
-      profile: user.profile,
+      profile: profileData,
       user: {
         id: user.id,
         fullName: user.fullName,
@@ -49,34 +48,23 @@ export async function GET() {
         type: user.tenant.type
       } : null
     });
-
   } catch (error) {
     console.error('Error loading profile:', error);
     return NextResponse.json(
-      { 
-        error: 'Failed to load profile',
-        message: error instanceof Error ? error.message : 'Unknown error'
-      }, 
+      { error: 'Failed to load profile' }, 
       { status: 500 }
     );
   }
 }
 
-/**
- * POST /api/profile
- * Creates or updates the current user's profile
- */
 export async function POST(request: Request) {
-  try {
-    const clerkUser = await currentUser();
-    
-    if (!clerkUser) {
-      return NextResponse.json(
-        { error: 'Unauthorized' }, 
-        { status: 401 }
-      );
-    }
+  const clerkUser = await currentUser();
+  
+  if (!clerkUser) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
 
+  try {
     const data = await request.json();
 
     // Validate required fields
@@ -220,7 +208,7 @@ export async function POST(request: Request) {
         resourceType: 'profile',
         resourceId: profile.id,
         result: 'success',
-        timestamp: new Date(),
+        timestamp: new Date()
       }
     });
 
@@ -229,14 +217,10 @@ export async function POST(request: Request) {
       profile,
       message: 'Profile saved successfully'
     });
-
   } catch (error) {
     console.error('Error saving profile:', error);
     return NextResponse.json(
-      { 
-        error: 'Failed to save profile', 
-        message: error instanceof Error ? error.message : 'Unknown error' 
-      },
+      { error: 'Failed to save profile', message: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }
