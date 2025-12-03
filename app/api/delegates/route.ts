@@ -34,7 +34,6 @@ export async function GET() {
     const delegates = await prisma.delegate.findMany({
       where: {
         tenantId: user.tenant.id,
-        deletedAt: null
       },
       include: {
         permissions: {
@@ -176,7 +175,6 @@ export async function POST(request: Request) {
       where: {
         tenantId: user.tenant.id,
         email: data.email.toLowerCase(),
-        deletedAt: null
       }
     });
 
@@ -284,10 +282,6 @@ export async function POST(request: Request) {
         resourceId: delegate.id,
         result: 'success',
         timestamp: new Date(),
-        metadata: {
-          delegate_email: delegate.email,
-          delegate_name: delegate.fullName
-        }
       }
     });
 
