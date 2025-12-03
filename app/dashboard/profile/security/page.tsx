@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useUser } from '@clerk/nextjs';
-import { UserProfile } from '@clerk/nextjs';
 import DashboardLayout from '@/components/DashboardLayout';
 import { Monitor, Smartphone, Tablet, Trash2, Shield, AlertCircle, CheckCircle } from 'lucide-react';
 
@@ -137,16 +136,52 @@ export default function SecurityPage() {
             <h2 className="text-xl font-bold text-gray-900">Account Security</h2>
           </div>
 
-          <UserProfile 
-            appearance={{
-              elements: {
-                rootBox: "w-full",
-                card: "shadow-none border-0",
-                navbar: "hidden",
-                pageScrollBox: "p-0"
-              }
-            }}
-          />
+          <div className="space-y-4">
+            <div className="flex items-center justify-between py-3 border-b border-gray-200">
+              <div>
+                <h3 className="font-medium text-gray-900">Password</h3>
+                <p className="text-sm text-gray-600">Manage your password securely</p>
+              </div>
+              <a 
+                href="https://accounts.clerk.com/user"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:text-blue-700 font-medium text-sm"
+              >
+                Change Password
+              </a>
+            </div>
+
+            <div className="flex items-center justify-between py-3 border-b border-gray-200">
+              <div>
+                <h3 className="font-medium text-gray-900">Two-Factor Authentication</h3>
+                <p className="text-sm text-gray-600">Add an extra layer of security to your account</p>
+              </div>
+              <a 
+                href="https://accounts.clerk.com/user"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:text-blue-700 font-medium text-sm"
+              >
+                Configure 2FA
+              </a>
+            </div>
+
+            <div className="flex items-center justify-between py-3">
+              <div>
+                <h3 className="font-medium text-gray-900">Email Address</h3>
+                <p className="text-sm text-gray-600">{user?.primaryEmailAddress?.emailAddress}</p>
+              </div>
+              <a 
+                href="https://accounts.clerk.com/user"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:text-blue-700 font-medium text-sm"
+              >
+                Update Email
+              </a>
+            </div>
+          </div>
         </div>
 
         {/* Active Sessions Section */}
