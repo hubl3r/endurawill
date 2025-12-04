@@ -1,174 +1,650 @@
-import { prisma } from '@/lib/prisma';
-import { currentUser } from '@clerk/nextjs/server';
-import { NextResponse } from 'next/server';
+// Endurawill - Production-Ready Database Schema
+// Built for scale, audit trails, and granular permissions
+// Version: 2.0
 
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id } = await params;
-    const clerkUser = await currentUser();
-    
-    if (!clerkUser) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { clerkId: clerkUser.id },
-      include: { tenant: true }
-    });
-
-    if (!user?.tenant) {
-      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
-    }
-
-    const delegate = await prisma.delegate.findFirst({
-      where: {
-        id,
-        tenantId: user.tenant.id
-      }
-    });
-
-    if (!delegate) {
-      return NextResponse.json({ error: 'Delegate not found' }, { status: 404 });
-    }
-
-    return NextResponse.json({ success: true, delegate });
-  } catch (error) {
-    console.error('Error loading delegate:', error);
-    return NextResponse.json({ error: 'Failed to load delegate' }, { status: 500 });
-  }
+generator client {
+  provider = "prisma-client-js"
 }
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id } = await params;
-    const clerkUser = await currentUser();
-    
-    if (!clerkUser) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const data = await request.json();
-
-    const user = await prisma.user.findUnique({
-      where: { clerkId: clerkUser.id },
-      include: { tenant: true }
-    });
-
-    if (!user?.tenant) {
-      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
-    }
-
-    if (user.role !== 'primary_owner' && user.role !== 'co_owner') {
-      return NextResponse.json({ error: 'Only estate owners can modify delegates' }, { status: 403 });
-    }
-
-    const delegate = await prisma.delegate.findFirst({
-      where: { id, tenantId: user.tenant.id }
-    });
-
-    if (!delegate) {
-      return NextResponse.json({ error: 'Delegate not found' }, { status: 404 });
-    }
-
-    const updateData: any = {};
-    if (data.fullName) updateData.fullName = data.fullName;
-    if (data.phone !== undefined) updateData.phone = data.phone;
-    if (data.relationship) updateData.relationship = data.relationship;
-    if (data.status) updateData.status = data.status;
-    if (data.notes !== undefined) updateData.notes = data.notes;
-
-    const updatedDelegate = await prisma.delegate.update({
-      where: { id },
-      data: updateData
-    });
-
-    await prisma.auditLog.create({
-      data: {
-        tenantId: user.tenant.id,
-        userId: user.id,
-        actorType: 'user',
-        actorName: user.fullName,
-        action: 'delegate_updated',
-        category: 'delegate',
-        resourceType: 'delegate',
-        resourceId: id,
-        result: 'success',
-        timestamp: new Date()
-      }
-    });
-
-    return NextResponse.json({ success: true, delegate: updatedDelegate });
-  } catch (error) {
-    console.error('Error updating delegate:', error);
-    return NextResponse.json({ error: 'Failed to update delegate' }, { status: 500 });
-  }
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
-export async function DELETE(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id } = await params;
-    const clerkUser = await currentUser();
-    
-    if (!clerkUser) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+// ============================================
+// TENANT = An Estate (Individual or Joint)
+// ============================================
+model Tenant {
+  id          String   @id @default(uuid())
+  name        String?  // "Estate of John Doe" or "Doe Family Estate"
+  type        String   @default("individual") // 'individual', 'joint', 'business'(future)
+  
+  // Joint estate support
+  maxOwners   Int      @default(1) // 1 for individual, 2 for joint
+  ownerCount  Int      @default(0)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations - everything belongs to the tenant
+  users             User[]
+  documents         Document[]
+  assets            Asset[]
+  liabilities       Liability[]
+  beneficiaries     Beneficiary[]
+  directives        Directive[]
+  finalArrangements FinalArrangement[]
+  delegates         Delegate[]
+  settings          TenantSettings?
+  auditLogs         AuditLog[]
+  
+  @@index([type])
+}
 
-    const user = await prisma.user.findUnique({
-      where: { clerkId: clerkUser.id },
-      include: { tenant: true }
-    });
+// ============================================
+// USER = A person with access to the estate
+// ============================================
+model User {
+  id         String   @id @default(uuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  clerkId    String   @unique
+  
+  // Role & Permissions
+  role       String   // 'primary_owner', 'co_owner', 'delegate'
+  isPrimary  Boolean  @default(false) // Only one primary per tenant
+  
+  // Personal info
+  fullName   String
+  email      String?
+  dob        DateTime?
+  phone      String?
+  
+  // Profile (only for owners, not delegates)
+  profile    Profile?
+  
+  // Security
+  twoFactorEnabled Boolean @default(false)
+  
+  // Activity tracking
+  lastLoginAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Relations
+  sessions      Session[]
+  auditLogs     AuditLog[]
+  createdDocuments Document[] @relation("CreatedBy")
+  modifiedDocuments Document[] @relation("ModifiedBy")
+  
+  // Resource-level permissions (for co-owners and delegates)
+  resourcePermissions ResourcePermission[]
+  
+  // If this user is a delegate who signed up
+  delegateRecord Delegate? @relation("DelegateUser")
+  
+  // Invitations sent
+  invitedDelegates Delegate[] @relation("InvitedBy")
+  
+  @@unique([tenantId, clerkId])
+  @@index([clerkId])
+  @@index([tenantId])
+  @@index([role])
+}
 
-    if (!user?.tenant) {
-      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
-    }
+// ============================================
+// PROFILE = Extended info for estate owners
+// ============================================
+model Profile {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Personal details
+  stateResidence  String?
+  maritalStatus   String?  // 'single', 'married', 'divorced', 'widowed', 'separated'
+  
+  // Children and pets are now separate models (see below)
+  
+  // Estate planning preferences
+  goals           Json?
+  complexityLevel String?
+  selectedPlan    String?  // 'basic', 'complete', 'premium'
+  
+  // Onboarding
+  hasCompletedOnboarding Boolean @default(false)
+  onboardingStep  Int     @default(0)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  children        Child[]
+  pets            Pet[]
+}
 
-    if (user.role !== 'primary_owner' && user.role !== 'co_owner') {
-      return NextResponse.json({ error: 'Only estate owners can remove delegates' }, { status: 403 });
-    }
+// ============================================
+// CHILD = Profile's children
+// ============================================
+model Child {
+  id           String   @id @default(uuid())
+  profileId    String
+  profile      Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  
+  fullName     String
+  dob          DateTime?
+  relationship String   @default("child") // 'child', 'stepchild', 'adopted', 'grandchild'
+  isMinor      Boolean  @default(true)
+  
+  // Guardian designation
+  guardianPreference String? // Name of preferred guardian
+  
+  // Link to beneficiary if applicable
+  beneficiaryId String?
+  
+  notes        String?
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  @@index([profileId])
+}
 
-    const delegate = await prisma.delegate.findFirst({
-      where: { id, tenantId: user.tenant.id }
-    });
+// ============================================
+// PET = Profile's pets
+// ============================================
+model Pet {
+  id             String   @id @default(uuid())
+  profileId      String
+  profile        Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  
+  name           String
+  type           String   // 'dog', 'cat', 'bird', 'horse', 'other'
+  breed          String?
+  age            Int?
+  
+  // Care instructions
+  specialNeeds   String?
+  vetInfo        Json?    // { name, phone, address }
+  careInstructions String?
+  
+  // Caretaker designation
+  caretakerPreference String? // Name of preferred caretaker
+  trustFund       Boolean @default(false) // Has money set aside
+  trustAmount     Decimal? @db.Decimal(15, 2)
+  
+  notes          String?
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  @@index([profileId])
+}
 
-    if (!delegate) {
-      return NextResponse.json({ error: 'Delegate not found' }, { status: 404 });
-    }
+// ============================================
+// RESOURCE PERMISSION = Granular access control
+// For both co-owners and delegates
+// ============================================
+model ResourcePermission {
+  id           String   @id @default(uuid())
+  tenantId     String
+  
+  // Who has permission
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // What resource (specific or wildcard)
+  resourceType String   // 'document', 'asset', 'liability', 'beneficiary', 'profile', 'settings', 'all_documents', 'all_assets', etc.
+  resourceId   String?  // NULL = applies to all of that type (e.g., "all documents")
+  
+  // Specific document type (if resourceType is 'document' or 'all_documents')
+  documentType String?  // 'will', 'trust', 'healthcare_directive', 'poa', 'letter'
+  
+  // What they can do
+  canView      Boolean  @default(false)
+  canEdit      Boolean  @default(false)
+  canDelete    Boolean  @default(false)
+  canDownload  Boolean  @default(false)
+  canShare     Boolean  @default(false)
+  canModifyPermissions Boolean @default(false) // Admin permission
+  
+  // When granted/revoked
+  grantedBy    String   // User ID who granted
+  grantedAt    DateTime @default(now())
+  revokedBy    String?
+  revokedAt    DateTime?
+  isActive     Boolean  @default(true)
+  
+  // Why granted
+  reason       String?
+  notes        String?
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  @@unique([userId, resourceType, resourceId, documentType])
+  @@index([userId])
+  @@index([tenantId])
+  @@index([resourceType, resourceId])
+  @@index([isActive])
+  @@index([documentType])
+}
 
-    await prisma.delegate.update({
-      where: { id },
-      data: {
-        status: 'revoked',
-        revokedAt: new Date()
-      }
-    });
+// ============================================
+// TENANT SETTINGS = Estate-wide preferences
+// ============================================
+model TenantSettings {
+  id        String   @id @default(uuid())
+  tenantId  String   @unique
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  // Joint estate settings
+  requireBothOwnersApproval Boolean @default(false) // For major actions
+  primaryCanOverride        Boolean @default(true)  // Primary can act alone
+  
+  // Notification preferences
+  emailNotifications Boolean @default(true)
+  smsNotifications   Boolean @default(false)
+  notifyOnDelegateAccess Boolean @default(true)
+  
+  // Security settings
+  require2FA         Boolean @default(false)
+  sessionTimeout     Int     @default(30) // minutes
+  ipWhitelist        Json?   // Optional: restrict access by IP
+  
+  // Document settings
+  autoVersioning     Boolean @default(true)
+  retentionPeriod    Int     @default(50) // years after death
+  
+  // Delegate settings
+  allowDelegateInvite Boolean @default(true)
+  requireDelegateApproval Boolean @default(true)
+  maxDelegates       Int     @default(10)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
 
-    await prisma.auditLog.create({
-      data: {
-        tenantId: user.tenant.id,
-        userId: user.id,
-        actorType: 'user',
-        actorName: user.fullName,
-        action: 'delegate_revoked',
-        category: 'delegate',
-        resourceType: 'delegate',
-        resourceId: id,
-        result: 'success',
-        timestamp: new Date()
-      }
-    });
+// ============================================
+// DOCUMENTS = Wills, Trusts, Directives
+// ============================================
+model Document {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  // Document details
+  type      String   // 'will', 'trust', 'healthcare_directive', 'poa', 'letter'
+  title     String
+  content   Json?    // Structured document data
+  
+  // File storage
+  fileUrl   String?  // S3/storage URL
+  fileType  String?  // 'pdf', 'docx'
+  fileSize  Int?     // bytes
+  
+  // Version control
+  version   Int      @default(1)
+  status    String   @default("draft") // 'draft', 'final', 'signed', 'superseded'
+  
+  // Signatures
+  signedAt  DateTime?
+  signedBy  Json?    // [{ userId, name, timestamp, ipAddress }]
+  witnessedBy Json?  // [{ name, email, timestamp }]
+  
+  // Tracking
+  createdById  String?
+  createdBy    User?   @relation("CreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  modifiedById String?
+  modifiedBy   User?   @relation("ModifiedBy", fields: [modifiedById], references: [id], onDelete: SetNull)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  accessLogs DocumentAccess[]
+  
+  @@index([tenantId])
+  @@index([type])
+  @@index([status])
+  @@index([createdById])
+}
 
-    return NextResponse.json({ success: true, message: 'Delegate revoked' });
-  } catch (error) {
-    console.error('Error revoking delegate:', error);
-    return NextResponse.json({ error: 'Failed to revoke delegate' }, { status: 500 });
-  }
+// ============================================
+// ASSETS = Property, accounts, valuables
+// ============================================
+model Asset {
+  id          String   @id @default(uuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  // Asset details
+  type        String   // 'real_estate', 'bank_account', 'investment', 'vehicle', 'personal_property', 'crypto', 'business'
+  description String
+  
+  // Value
+  estimatedValue Decimal? @db.Decimal(15, 2)
+  currency       String   @default("USD")
+  valuationDate  DateTime?
+  
+  // Identification
+  accountNumber  String?
+  institution    String?  // Bank name, brokerage, etc.
+  location       String?  // For real estate, vehicles
+  serialNumber   String?  // For vehicles, equipment
+  
+  // Ownership (for joint estates)
+  ownershipType  String   @default("joint") // 'individual', 'joint', 'community_property'
+  ownedBy        Json?    // [userId] for individual ownership
+  ownershipPct   Json?    // { userId: percentage } if split
+  
+  // Beneficiary designation (some assets have their own beneficiaries)
+  hasBeneficiary Boolean  @default(false)
+  beneficiaryInfo Json?   // { primary: [], contingent: [] }
+  
+  // Additional details
+  notes          String?
+  attachments    Json?    // [{ name, url, type }]
+  
+  // Disposition instructions
+  dispositionInstructions String? // "Sell", "Give to John", etc.
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([tenantId])
+  @@index([type])
+}
+
+// ============================================
+// LIABILITIES = Debts, mortgages, loans
+// ============================================
+model Liability {
+  id          String   @id @default(uuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  type        String   // 'mortgage', 'loan', 'credit_card', 'medical', 'other'
+  description String
+  creditor    String?
+  
+  amount      Decimal  @db.Decimal(15, 2)
+  currency    String   @default("USD")
+  
+  accountNumber String?
+  interestRate  Decimal? @db.Decimal(5, 2)
+  
+  paymentSchedule String? // 'monthly', 'annual', etc.
+  monthlyPayment  Decimal? @db.Decimal(15, 2)
+  
+  notes       String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([tenantId])
+  @@index([type])
+}
+
+// ============================================
+// BENEFICIARIES = Who inherits what
+// ============================================
+model Beneficiary {
+  id          String   @id @default(uuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  fullName    String
+  relationship String  // 'spouse', 'child', 'sibling', 'friend', 'charity'
+  email       String?
+  phone       String?
+  address     Json?
+  
+  // Type
+  isPrimary   Boolean  @default(true)  // Primary vs Contingent
+  isCharity   Boolean  @default(false)
+  charityTaxId String? // For 501(c)(3) orgs
+  
+  // Share
+  shareType   String   @default("percentage") // 'percentage', 'specific_amount', 'residue', 'specific_item'
+  shareValue  Decimal? @db.Decimal(15, 2)
+  sharePercent Decimal? @db.Decimal(5, 2)
+  
+  // Conditions
+  conditions  String?  // "If survives me by 30 days"
+  trusteeInfo Json?    // If leaving to minor in trust
+  
+  notes       String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([tenantId])
+  @@index([relationship])
+}
+
+// ============================================
+// DELEGATE = Someone with access to estate info
+// ============================================
+model Delegate {
+  id          String   @id @default(uuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  // Who invited them (AUDIT TRAIL)
+  invitedByUserId String
+  invitedBy       User    @relation("InvitedBy", fields: [invitedByUserId], references: [id], onDelete: Restrict)
+  
+  // Delegate info
+  fullName    String
+  email       String
+  phone       String?
+  relationship String // 'spouse', 'child', 'attorney', 'friend', 'executor'
+  
+  // Account status
+  hasAccount      Boolean  @default(false) // Have they created a user account?
+  userId          String?  @unique // Linked User if they signed up
+  user            User?    @relation("DelegateUser", fields: [userId], references: [id], onDelete: SetNull)
+  
+  // Approval workflow
+  status          String   @default("invited") // 'invited', 'active', 'declined', 'revoked', 'expired'
+  isApproved      Boolean  @default(false) // Must be approved to access
+  approvedBy      String?  // User ID who approved
+  approvedAt      DateTime?
+  
+  // Invitation
+  invitationToken  String?  @unique
+  invitedAt        DateTime @default(now())
+  lastInviteSentAt DateTime? // Track when invitation email was last sent
+  acceptedAt       DateTime?
+  expiresAt        DateTime? // Invitation expiration
+  revokedAt        DateTime? // When access was revoked
+  revokedBy        String?   // User ID who revoked
+  
+  // Access timing (when can they access anything)
+  canAccessWhen   String   @default("after_death") // 'immediately', 'after_death', 'emergency_only', 'custom'
+  customTrigger   String?  // Custom condition for access
+  
+  // DEPRECATED: Legacy JSON permissions (keeping for backwards compatibility during migration)
+  // These will be migrated to ResourcePermission table
+  documentPermissions    Json? @default("{ \"default\": { \"view\": false, \"edit\": false, \"delete\": false, \"download\": false, \"share\": false }, \"overrides\": {} }")
+  assetPermissions       Json? @default("{ \"default\": { \"view\": false, \"edit\": false, \"delete\": false, \"download\": false, \"share\": false }, \"overrides\": {} }")
+  liabilityPermissions   Json? @default("{ \"default\": { \"view\": false, \"edit\": false, \"delete\": false, \"download\": false, \"share\": false }, \"overrides\": {} }")
+  beneficiaryPermissions Json? @default("{ \"view\": false, \"edit\": false, \"delete\": false }")
+  settingsPermissions    Json? @default("{ \"view\": false, \"edit\": false }")
+  profilePermissions     Json? @default("{ \"view\": false, \"edit\": false }")
+  
+  // Convenience flag
+  hasAnyPermissions Boolean @default(false)
+  
+  // POA Grants (special executor permissions)
+  poaPermissions  Json?    // { canPayBills: true, canSellProperty: false, etc. }
+  poaStartDate    DateTime?
+  poaEndDate      DateTime?
+  
+  // Activity tracking
+  lastAccessedAt  DateTime?
+  accessCount     Int      @default(0)
+  lastNotifiedAt  DateTime?
+  
+  notes           String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  revokedAt DateTime?
+  
+  auditLogs AuditLog[]
+  
+  @@index([tenantId])
+  @@index([email])
+  @@index([status])
+  @@index([hasAccount])
+  @@index([invitedByUserId])
+}
+
+// ============================================
+// DIRECTIVES = Healthcare, POA
+// ============================================
+model Directive {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  type      String   // 'healthcare', 'financial_poa', 'durable_poa'
+  content   Json
+  status    String   @default("draft")
+  
+  // Agents/Attorneys-in-fact
+  primaryAgent    Json?    // { name, email, phone, relationship }
+  alternateAgent  Json?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([tenantId])
+  @@index([type])
+}
+
+// ============================================
+// FINAL ARRANGEMENTS = Funeral preferences
+// ============================================
+model FinalArrangement {
+  id        String   @id @default(uuid())
+  tenantId  String   @unique
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  preference String  // 'burial', 'cremation', 'donation'
+  details    Json
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================
+// AUDIT LOG = Track everything
+// ============================================
+model AuditLog {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  // Actor
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  delegateId String?
+  delegate  Delegate? @relation(fields: [delegateId], references: [id], onDelete: SetNull)
+  actorType String   // 'user', 'delegate', 'system'
+  actorName String   // Display name
+  
+  // Action
+  action    String   // 'login', 'logout', 'view_document', 'edit_asset', 'add_delegate', 'grant_permission', 'revoke_permission'
+  category  String   // 'auth', 'document', 'asset', 'beneficiary', 'delegate', 'security', 'permission'
+  
+  // Resource
+  resourceType String? // 'document', 'asset', 'beneficiary', 'permission', etc.
+  resourceId   String? // ID of affected resource
+  
+  // Context
+  details      Json?   // Additional data (what changed, old vs new values)
+  result       String  @default("success") // 'success', 'failure', 'blocked'
+  errorMessage String?
+  
+  // Session
+  sessionId String?
+  ipAddress String?
+  userAgent String?
+  location  String?  // City, State from IP
+  
+  timestamp DateTime @default(now())
+  
+  @@index([tenantId])
+  @@index([userId])
+  @@index([delegateId])
+  @@index([action])
+  @@index([timestamp])
+  @@index([category])
+  @@index([resourceType])
+}
+
+// ============================================
+// SESSION = Active login sessions
+// ============================================
+model Session {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clerkSessionId String   @unique
+  
+  // Device info
+  ipAddress   String
+  userAgent   String
+  browser     String?
+  os          String?
+  device      String?  // 'desktop', 'mobile', 'tablet'
+  location    String?
+  
+  // Timestamps
+  loginAt        DateTime @default(now())
+  lastActivityAt DateTime @default(now())
+  logoutAt       DateTime?
+  expiresAt      DateTime
+  
+  isActive Boolean @default(true)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([userId])
+  @@index([isActive])
+  @@index([clerkSessionId])
+}
+
+// ============================================
+// DOCUMENT ACCESS = Track who views what
+// ============================================
+model DocumentAccess {
+  id           String   @id @default(uuid())
+  documentId   String
+  document     Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  
+  // Accessor
+  accessorId   String
+  accessorType String   // 'owner', 'co_owner', 'delegate'
+  accessorName String
+  
+  // Action
+  action       String   // 'viewed', 'downloaded', 'printed', 'shared', 'edited'
+  
+  // Context
+  timestamp    DateTime @default(now())
+  ipAddress    String?
+  duration     Int?     // Seconds spent viewing
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([documentId])
+  @@index([accessorId])
+  @@index([timestamp])
+  @@index([action])
 }
