@@ -76,9 +76,16 @@ export async function POST(request: Request) {
         email: data.email.toLowerCase(),
         phone: data.phone || null,
         relationship: data.relationship || 'other',
-        status: 'pending'
+        status: 'invited',
+        invitationToken: crypto.randomUUID(),
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+        canAccessWhen: data.canAccessWhen || 'after_death'
       }
     });
+
+    // TODO: Send invitation email
+    // const inviteLink = `https://endurawill.com/accept-invite?token=${delegate.invitationToken}`;
+    // await sendInvitationEmail(delegate.email, delegate.fullName, user.fullName, inviteLink);
 
     await prisma.auditLog.create({
       data: {
