@@ -1,7 +1,5 @@
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 export async function sendDelegateInvitation(
   toEmail: string,
   delegateName: string,
@@ -9,7 +7,15 @@ export async function sendDelegateInvitation(
   estateName: string,
   invitationToken: string
 ) {
-  const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL}/accept-invite?token=${invitationToken}`;
+  // Lazy load Resend so it doesn't fail during build
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    console.warn('Resend API key not configured - skipping email send');
+    return { success: false, error: 'Email service not configured' };
+  }
+
+  const resend = new Resend(apiKey);
+  const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://endurawill.com'}/accept-invite?token=${invitationToken}`;
   
   try {
     const { data, error } = await resend.emails.send({
