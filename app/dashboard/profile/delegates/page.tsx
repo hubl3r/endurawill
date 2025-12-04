@@ -17,6 +17,8 @@ interface Delegate {
   acceptedAt: string | null;
   expiresAt: string | null;
   canAccessWhen: string;
+  userId: string | null;
+  userRole?: string; // Role from linked User record
 }
 
 export default function DelegatesPage() {
@@ -107,6 +109,52 @@ export default function DelegatesPage() {
       }
     } catch (error) {
       console.error('Error revoking delegate:', error);
+      setMessage({ type: 'error', text: 'An error occurred' });
+    }
+  };
+
+  const handlePromote = async (delegateId: string, delegateName: string) => {
+    if (!confirm(`Promote ${delegateName} to co-owner? They will have full access to manage the estate.`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/delegates/${delegateId}/promote`, {
+        method: 'PATCH',
+      });
+
+      if (response.ok) {
+        setMessage({ type: 'success', text: `${delegateName} promoted to co-owner` });
+        loadDelegates();
+      } else {
+        const error = await response.json();
+        setMessage({ type: 'error', text: error.error || 'Failed to promote delegate' });
+      }
+    } catch (error) {
+      console.error('Error promoting delegate:', error);
+      setMessage({ type: 'error', text: 'An error occurred' });
+    }
+  };
+
+  const handleDemote = async (delegateId: string, delegateName: string) => {
+    if (!confirm(`Demote ${delegateName} to delegate? They will lose co-owner privileges.`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/delegates/${delegateId}/demote`, {
+        method: 'PATCH',
+      });
+
+      if (response.ok) {
+        setMessage({ type: 'success', text: `${delegateName} demoted to delegate` });
+        loadDelegates();
+      } else {
+        const error = await response.json();
+        setMessage({ type: 'error', text: error.error || 'Failed to demote co-owner' });
+      }
+    } catch (error) {
+      console.error('Error demoting co-owner:', error);
       setMessage({ type: 'error', text: 'An error occurred' });
     }
   };
@@ -226,6 +274,11 @@ export default function DelegatesPage() {
                       <div className="flex items-center gap-3 mb-2">
                         <h3 className="text-lg font-semibold text-gray-900">{delegate.fullName}</h3>
                         {getStatusBadge(delegate.status)}
+                        {delegate.userRole === 'co_owner' && (
+                          <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full font-medium">
+                            Co-Owner
+                          </span>
+                        )}
                       </div>
                       
                       <div className="space-y-1 text-sm text-gray-600 mb-3">
@@ -272,6 +325,27 @@ export default function DelegatesPage() {
                     </div>
 
                     <div className="flex items-center gap-2 ml-4">
+                      {delegate.hasAccount && delegate.status === 'active' && (
+                        <>
+                          {delegate.userRole === 'delegate' ? (
+                            <button
+                              onClick={() => handlePromote(delegate.id, delegate.fullName)}
+                              className="text-green-600 hover:text-green-700 px-3 py-2 hover:bg-green-50 rounded-lg transition-colors text-sm font-medium"
+                              title="Promote to co-owner"
+                            >
+                              Promote
+                            </button>
+                          ) : delegate.userRole === 'co_owner' ? (
+                            <button
+                              onClick={() => handleDemote(delegate.id, delegate.fullName)}
+                              className="text-orange-600 hover:text-orange-700 px-3 py-2 hover:bg-orange-50 rounded-lg transition-colors text-sm font-medium"
+                              title="Demote to delegate"
+                            >
+                              Demote
+                            </button>
+                          ) : null}
+                        </>
+                      )}
                       <button
                         onClick={() => handleRevoke(delegate.id, delegate.fullName)}
                         disabled={delegate.status === 'revoked'}
