@@ -94,7 +94,7 @@ export async function POST(request: Request) {
     }
 
     // Prevent inviting yourself
-    if (data.email.toLowerCase() === user.email.toLowerCase()) {
+    if (user.email && data.email.toLowerCase() === user.email.toLowerCase()) {
       return NextResponse.json(
         { error: 'You cannot invite yourself as a delegate' },
         { status: 400 }
