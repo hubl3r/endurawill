@@ -491,7 +491,6 @@ model Delegate {
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  revokedAt DateTime?
   
   auditLogs AuditLog[]
   
