@@ -100,6 +100,8 @@ export default function EstateOverviewPage() {
     setIsSaving(true);
     setMessage(null);
 
+    console.log('Sending to API:', editForm); // Debug log
+
     try {
       const response = await fetch('/api/tenant', {
         method: 'PATCH',
@@ -107,13 +109,15 @@ export default function EstateOverviewPage() {
         body: JSON.stringify(editForm)
       });
 
+      const result = await response.json();
+      console.log('API response:', result); // Debug log
+
       if (response.ok) {
         setMessage({ type: 'success', text: 'Estate updated successfully' });
         setShowEditModal(false);
-        loadEstateData();
+        await loadEstateData(); // Wait for reload
       } else {
-        const error = await response.json();
-        setMessage({ type: 'error', text: error.error || 'Failed to update estate' });
+        setMessage({ type: 'error', text: result.error || 'Failed to update estate' });
       }
     } catch (error) {
       console.error('Error updating estate:', error);
