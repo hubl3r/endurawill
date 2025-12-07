@@ -17,6 +17,7 @@ function AcceptInviteContent() {
   const [success, setSuccess] = useState(false);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   useEffect(() => {
     if (token) {
@@ -48,6 +49,11 @@ function AcceptInviteContent() {
     e.preventDefault();
     setError(null);
 
+    if (!acceptedTerms) {
+      setError('You must accept the Terms of Service and Privacy Policy to continue');
+      return;
+    }
+
     if (password.length < 8) {
       setError('Password must be at least 8 characters long');
       return;
@@ -64,7 +70,7 @@ function AcceptInviteContent() {
       const response = await fetch('/api/invitations/accept', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, password }),
+        body: JSON.stringify({ token, password, acceptedTerms: true }),
       });
 
       const data = await response.json();
@@ -184,6 +190,28 @@ function AcceptInviteContent() {
         </div>
 
         <form onSubmit={handleAccept} className="space-y-4 mb-6">
+          <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={acceptedTerms}
+                onChange={(e) => setAcceptedTerms(e.target.checked)}
+                className="mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                required
+              />
+              <span className="text-sm text-gray-700">
+                I accept the{' '}
+                <a href="/terms-of-service" target="_blank" className="text-blue-600 hover:text-blue-700 underline">
+                  Terms of Service
+                </a>{' '}
+                and{' '}
+                <a href="/privacy-policy" target="_blank" className="text-blue-600 hover:text-blue-700 underline">
+                  Privacy Policy
+                </a>
+              </span>
+            </label>
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Create Password <span className="text-red-500">*</span>
