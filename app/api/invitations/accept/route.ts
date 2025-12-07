@@ -136,12 +136,21 @@ export async function POST(request: Request) {
     // Handle Clerk-specific errors
     if (error && typeof error === 'object' && 'errors' in error) {
       const clerkError = error as any;
+      console.error('Clerk error details:', JSON.stringify(clerkError.errors, null, 2));
+      
       if (clerkError.errors?.[0]?.code === 'form_identifier_exists') {
         return NextResponse.json(
           { error: 'An account with this email already exists' },
           { status: 400 }
         );
       }
+      
+      // Return the specific Clerk error message
+      const errorMessage = clerkError.errors?.[0]?.message || clerkError.errors?.[0]?.longMessage || 'Failed to create account';
+      return NextResponse.json(
+        { error: errorMessage },
+        { status: 400 }
+      );
     }
 
     return NextResponse.json(
@@ -183,11 +192,11 @@ export async function DELETE(request: Request) {
       );
     }
 
-    // Update delegate to rejected status
+    // Update delegate to declined status
     await prisma.delegate.update({
       where: { id: delegate.id },
       data: {
-        status: 'revoked',
+        status: 'declined',
         revokedAt: new Date(),
         invitationToken: null
       }
