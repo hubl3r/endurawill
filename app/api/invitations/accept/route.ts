@@ -85,14 +85,8 @@ export async function POST(request: Request) {
       password: password,
       firstName: firstName,
       lastName: lastName,
+      legal_accepted_at: new Date().toISOString()
     };
-    
-    // Add legal acceptance if terms were accepted
-    if (data.acceptedTerms) {
-      userData.unsafeMetadata = {
-        legal_accepted_at: new Date().toISOString()
-      };
-    }
     
     const clerkUser = await client.users.createUser(userData);
 
