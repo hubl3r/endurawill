@@ -80,12 +80,21 @@ export async function POST(request: Request) {
     const firstName = nameParts[0];
     const lastName = nameParts.slice(1).join(' ') || nameParts[0]; // Use first name as last if only one name
     
-    const clerkUser = await client.users.createUser({
+    const userData: any = {
       emailAddress: [delegate.email],
       password: password,
       firstName: firstName,
       lastName: lastName,
-    });
+    };
+    
+    // Add legal acceptance if terms were accepted
+    if (data.acceptedTerms) {
+      userData.unsafeMetadata = {
+        legal_accepted_at: new Date().toISOString()
+      };
+    }
+    
+    const clerkUser = await client.users.createUser(userData);
 
     // Create user in our database and link to delegate
     const user = await prisma.user.create({
