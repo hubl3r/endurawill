@@ -76,11 +76,15 @@ export async function POST(request: Request) {
     }
 
     // Create Clerk user
+    const nameParts = delegate.fullName.trim().split(' ');
+    const firstName = nameParts[0];
+    const lastName = nameParts.slice(1).join(' ') || nameParts[0]; // Use first name as last if only one name
+    
     const clerkUser = await client.users.createUser({
       emailAddress: [delegate.email],
       password: password,
-      firstName: delegate.fullName.split(' ')[0],
-      lastName: delegate.fullName.split(' ').slice(1).join(' ') || '',
+      firstName: firstName,
+      lastName: lastName,
     });
 
     // Create user in our database and link to delegate
