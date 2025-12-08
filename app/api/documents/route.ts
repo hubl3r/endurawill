@@ -36,14 +36,6 @@ export async function GET(request: Request) {
       const documents = await prisma.document.findMany({
         where: whereClause,
         include: {
-          uploadedBy: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              email: true,
-            },
-          },
           _count: {
             select: {
               comments: true,
@@ -176,14 +168,6 @@ export async function POST(request: Request) {
         uploadedById: user.id,
       },
       include: {
-        uploadedBy: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
         _count: {
           select: {
             comments: true,
