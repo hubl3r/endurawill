@@ -28,7 +28,7 @@ export async function GET(request: Request) {
       tenantId: user.tenant.id
     };
 
-    if (type) whereClause.documentType = type;
+    if (type) whereClause.type = type;
     if (status) whereClause.status = status;
 
     // If tree view is requested, include more details for folder navigation
@@ -44,7 +44,6 @@ export async function GET(request: Request) {
         },
         orderBy: [
           { isFolder: 'desc' }, // Folders first
-          { displayOrder: 'asc' },
           { createdAt: 'desc' },
         ],
       });
@@ -64,7 +63,7 @@ export async function GET(request: Request) {
       where: whereClause,
       select: {
         id: true,
-        documentType: true,
+        type: true,
         title: true,
         description: true,
         isFolder: true,
@@ -97,7 +96,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { title, parentId, isFolder, documentType, description } = body;
+    const { title, parentId, isFolder, type: documentType, description } = body;
 
     const user = await prisma.user.findUnique({
       where: { clerkId: clerkUser.id },
@@ -142,30 +141,17 @@ export async function POST(request: Request) {
       }
     }
 
-    // Get the highest display order for siblings
-    const siblings = await prisma.document.findMany({
-      where: {
-        tenantId: user.tenant.id,
-        parentId: parentId || null,
-      },
-      orderBy: { displayOrder: 'desc' },
-      take: 1,
-    });
-
-    const displayOrder = siblings.length > 0 ? (siblings[0].displayOrder || 0) + 1 : 0;
-
     // Create folder or document record
     const document = await prisma.document.create({
       data: {
         title,
         description: description || null,
         isFolder: isFolder || false,
-        documentType: documentType || 'wills',
+        type: documentType || 'will',
         parentId: parentId || null,
-        displayOrder,
         status: 'draft',
         tenantId: user.tenant.id,
-        uploadedById: user.id,
+        createdById: user.id,
       },
       include: {
         _count: {
@@ -181,15 +167,17 @@ export async function POST(request: Request) {
       data: {
         tenantId: user.tenant.id,
         userId: user.id,
+        actorType: 'user',
+        actorName: user.fullName,
         action: isFolder ? 'folder_created' : 'document_created',
         category: 'document',
         result: 'success',
         resourceType: 'document',
         resourceId: document.id,
-        metadata: {
+        details: {
           title,
           parentId,
-          documentType,
+          type: documentType,
         },
       },
     });
