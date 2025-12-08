@@ -76,6 +76,7 @@ model User {
   auditLogs     AuditLog[]
   createdDocuments Document[] @relation("CreatedBy")
   modifiedDocuments Document[] @relation("ModifiedBy")
+  comments      Comment[]
   
   // Resource-level permissions (for co-owners and delegates)
   resourcePermissions ResourcePermission[]
@@ -273,12 +274,19 @@ model Document {
   tenantId  String
   tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   
+  // Folder structure
+  isFolder     Boolean  @default(false)
+  parentId     String?  // For nested folders/documents
+  parent       Document? @relation("FolderHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children     Document[] @relation("FolderHierarchy")
+  
   // Document details
-  type      String   // 'will', 'trust', 'healthcare_directive', 'poa', 'letter'
+  type      String   // 'will', 'trust', 'healthcare_directive', 'poa', 'letter', 'vitals'
   title     String
+  description String? @db.Text // Up to 1000 chars description
   content   Json?    // Structured document data
   
-  // File storage
+  // File storage (null if isFolder = true)
   fileUrl   String?  // S3/storage URL
   fileName  String?  // Original filename
   fileType  String?  // 'pdf', 'docx'
@@ -304,11 +312,44 @@ model Document {
   
   // Relations
   accessLogs DocumentAccess[]
+  comments   Comment[]
   
   @@index([tenantId])
   @@index([type])
   @@index([status])
   @@index([createdById])
+  @@index([parentId])
+  @@index([isFolder])
+}
+
+// ============================================
+// COMMENTS = Document comments and discussions
+// ============================================
+model Comment {
+  id         String   @id @default(uuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  content    String   @db.Text
+  
+  // Optional: Thread support for replies
+  parentCommentId String?
+  parentComment   Comment?  @relation("CommentReplies", fields: [parentCommentId], references: [id], onDelete: Cascade)
+  replies         Comment[] @relation("CommentReplies")
+  
+  // Editing tracking
+  isEdited   Boolean  @default(false)
+  editedAt   DateTime?
+  
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  @@index([documentId])
+  @@index([userId])
+  @@index([parentCommentId])
 }
 
 // ============================================
