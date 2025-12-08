@@ -280,6 +280,7 @@ model Document {
   
   // File storage
   fileUrl   String?  // S3/storage URL
+  fileName  String?  // Original filename
   fileType  String?  // 'pdf', 'docx'
   fileSize  Int?     // bytes
   
