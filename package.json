@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "resend": "^4.0.0",
+    "@vercel/blob": "^0.25.0",
     "@vercel/postgres": "^0.10.0",
     "@clerk/nextjs": "^6.35.4",
     "@prisma/client": "^6.1.0",
