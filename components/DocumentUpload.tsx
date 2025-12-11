@@ -5,13 +5,15 @@ import { Upload, X, FileText, CheckCircle, AlertCircle } from 'lucide-react';
 
 interface DocumentUploadProps {
   documentType: string; // wills, vitals, healthcare, etc.
+  parentId?: string | null; // Folder to upload into
   onUploadComplete?: (document: any) => void;
   onClose?: () => void;
 }
 
-export default function DocumentUpload({ documentType, onUploadComplete, onClose }: DocumentUploadProps) {
+export default function DocumentUpload({ documentType, parentId, onUploadComplete, onClose }: DocumentUploadProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'success' | 'error'>('idle');
@@ -80,6 +82,8 @@ export default function DocumentUpload({ documentType, onUploadComplete, onClose
       formData.append('file', selectedFile);
       formData.append('type', documentType);
       formData.append('title', title);
+      if (description) formData.append('description', description);
+      if (parentId) formData.append('parentId', parentId);
 
       const response = await fetch('/api/documents/upload', {
         method: 'POST',
@@ -111,6 +115,7 @@ export default function DocumentUpload({ documentType, onUploadComplete, onClose
   const handleReset = () => {
     setSelectedFile(null);
     setTitle('');
+    setDescription('');
     setUploadStatus('idle');
     setErrorMessage('');
     if (fileInputRef.current) {
@@ -209,7 +214,7 @@ export default function DocumentUpload({ documentType, onUploadComplete, onClose
           {/* Title Input */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Document Title
+              Document Title *
             </label>
             <input
               type="text"
@@ -218,6 +223,22 @@ export default function DocumentUpload({ documentType, onUploadComplete, onClose
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="Enter document title"
             />
+          </div>
+
+          {/* Description Input */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Description (optional)
+            </label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+              maxLength={1000}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+              placeholder="Add a description..."
+            />
+            <p className="text-xs text-gray-500 mt-1">{description.length}/1000 characters</p>
           </div>
 
           {/* Upload Button */}
