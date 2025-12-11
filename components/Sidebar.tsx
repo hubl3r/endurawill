@@ -261,20 +261,24 @@ export default function Sidebar({
                   </div>
                 </button>
               ))}
-              <button
-                onClick={() => {
-                  setShowEstateSwitcher(false);
-                  if (isMobile && onClose) {
-                    onClose();
-                  }
-                }}
-                className="w-full flex items-center justify-center gap-2 p-2 mt-2 border-t border-gray-200 pt-3 text-sm text-blue-600 hover:text-blue-700 font-medium"
-              >
-                <Plus className="h-4 w-4" />
-                Create New Estate
-              </button>
             </div>
           )}
+
+          {/* Create/Join Estate Button - Always Visible */}
+          <div className="mt-2 pt-2 border-t border-gray-200">
+            <Link
+              href="/dashboard/estate/create"
+              onClick={() => {
+                if (isMobile && onClose) {
+                  onClose();
+                }
+              }}
+              className="w-full flex items-center justify-center gap-2 p-2 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg font-medium transition-colors"
+            >
+              <Plus className="h-4 w-4" />
+              Create or Join Estate
+            </Link>
+          </div>
         </div>
       )}
 
