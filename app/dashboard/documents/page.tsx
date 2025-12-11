@@ -3,13 +3,12 @@
 import { useState, useEffect } from 'react';
 import { 
   Folder, 
-  FolderOpen, 
   File, 
   Upload, 
   Plus, 
   Search,
   ChevronRight,
-  ChevronDown,
+  Home,
   MoreVertical,
   Download,
   Share2,
@@ -17,7 +16,7 @@ import {
   Trash2,
   MessageSquare,
   Shield,
-  FileText,
+  ArrowLeft,
 } from 'lucide-react';
 
 interface Document {
@@ -25,40 +24,40 @@ interface Document {
   title: string;
   description: string | null;
   isFolder: boolean;
-  type: string; // Changed from documentType
+  type: string;
   parentId: string | null;
   fileSize: number | null;
   fileName: string | null;
   fileType: string | null;
   createdAt: string;
-  createdById: string | null; // Changed from uploadedById
+  createdById: string | null;
   _count: {
     comments: number;
   };
 }
 
-interface FolderNode extends Document {
-  children: FolderNode[];
-  isExpanded?: boolean;
+interface BreadcrumbItem {
+  id: string;
+  name: string;
+  type?: string;
 }
 
 const DEFAULT_CATEGORIES = [
-  { id: 'will', name: 'Wills', icon: FileText },
-  { id: 'vitals', name: 'Vitals', icon: Shield },
-  { id: 'healthcare_directive', name: 'Healthcare', icon: FileText },
-  { id: 'poa', name: 'Power of Attorney', icon: FileText },
-  { id: 'trust', name: 'Trusts', icon: FileText },
-  { id: 'letter', name: 'Letters', icon: FileText },
+  { id: 'will', name: 'Wills' },
+  { id: 'vitals', name: 'Vitals' },
+  { id: 'healthcare_directive', name: 'Healthcare Directives' },
+  { id: 'poa', name: 'Power of Attorney' },
+  { id: 'trust', name: 'Trusts' },
+  { id: 'letter', name: 'Letters' },
 ];
 
 export default function DocumentsPage(): JSX.Element {
   const [documents, setDocuments] = useState<Document[]>([]);
-  const [folderTree, setFolderTree] = useState<FolderNode[]>([]);
-  const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
+  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
+  const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbItem[]>([{ id: 'root', name: 'Documents' }]);
   const [loading, setLoading] = useState(true);
   const [tenantName, setTenantName] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [showUploadModal, setShowUploadModal] = useState(false);
 
   useEffect(() => {
     fetchDocuments();
@@ -72,7 +71,6 @@ export default function DocumentsPage(): JSX.Element {
       if (data.success && data.documents) {
         setDocuments(data.documents);
         setTenantName(data.tenant.name);
-        buildFolderTree(data.documents);
       }
     } catch (error) {
       console.error('Error fetching documents:', error);
@@ -81,120 +79,82 @@ export default function DocumentsPage(): JSX.Element {
     }
   };
 
-  const buildFolderTree = (docs: Document[]) => {
-    // Create root level categories
-    const rootCategories: FolderNode[] = DEFAULT_CATEGORIES.map(cat => {
-      const existingCategory = docs.find(
-        d => d.isFolder && d.parentId === null && d.type === cat.id
-      );
-      
-      return {
-        id: existingCategory?.id || `category-${cat.id}`,
-        title: existingCategory?.title || cat.name,
-        description: null,
-        isFolder: true,
-        type: cat.id,
-        parentId: null,
-        fileSize: null,
-        fileName: null,
-        fileType: null,
-        createdAt: existingCategory?.createdAt || new Date().toISOString(),
-        createdById: existingCategory?.createdById || null,
-        _count: { comments: 0 },
-        children: [],
-        isExpanded: false,
-      };
-    });
-
-    // Build nested structure
-    const buildChildren = (parentId: string): FolderNode[] => {
-      return docs
-        .filter(d => d.parentId === parentId && d.isFolder)
-        .map(d => ({
-          ...d,
-          children: buildChildren(d.id),
-          isExpanded: false,
-        }))
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    };
-
-    // Add children to each category
-    rootCategories.forEach(category => {
-      if (category.id.startsWith('category-')) {
-        // Virtual category, find its children
-        category.children = docs
-          .filter(d => d.parentId === null && d.isFolder && d.type === category.type)
-          .map(d => ({
-            ...d,
-            children: buildChildren(d.id),
-            isExpanded: false,
-          }));
-      } else {
-        // Real folder
-        category.children = buildChildren(category.id);
-      }
-    });
-
-    setFolderTree(rootCategories);
-  };
-
-  const toggleFolder = (folderId: string) => {
-    const updateTree = (nodes: FolderNode[]): FolderNode[] => {
-      return nodes.map(node => {
-        if (node.id === folderId) {
-          return { ...node, isExpanded: !node.isExpanded };
-        }
-        if (node.children.length > 0) {
-          return { ...node, children: updateTree(node.children) };
-        }
-        return node;
-      });
-    };
-
-    setFolderTree(updateTree(folderTree));
-  };
-
-  const selectFolder = (folderId: string) => {
-    setSelectedFolder(folderId);
-  };
-
-  const getFilesInFolder = (folderId: string | null): Document[] => {
-    if (!folderId) return [];
-    
-    // Handle virtual categories
-    if (folderId.startsWith('category-')) {
-      const docType = folderId.replace('category-', '');
-      return documents.filter(
-        d => !d.isFolder && d.type === docType && d.parentId === null
-      );
+  const getCurrentItems = (): Document[] => {
+    // Root level - show categories
+    if (currentFolderId === null || currentFolderId === 'root') {
+      return DEFAULT_CATEGORIES.map(cat => {
+        const hasItems = documents.some(d => d.type === cat.id);
+        return {
+          id: `category-${cat.id}`,
+          title: cat.name,
+          description: null,
+          isFolder: true,
+          type: cat.id,
+          parentId: null,
+          fileSize: null,
+          fileName: null,
+          fileType: null,
+          createdAt: new Date().toISOString(),
+          createdById: null,
+          _count: {
+            comments: documents.filter(d => d.type === cat.id).length,
+          },
+        };
+      }) as Document[];
     }
+
+    // Category level - show top-level folders and files for that type
+    if (currentFolderId.startsWith('category-')) {
+      const docType = currentFolderId.replace('category-', '');
+      return documents.filter(d => d.type === docType && d.parentId === null);
+    }
+
+    // Folder level - show contents of folder
+    return documents.filter(d => d.parentId === currentFolderId);
+  };
+
+  const navigateToFolder = (folderId: string, folderName: string) => {
+    setCurrentFolderId(folderId);
     
-    return documents.filter(d => !d.isFolder && d.parentId === folderId);
+    // Update breadcrumbs
+    const newBreadcrumbs = [...breadcrumbs, { id: folderId, name: folderName }];
+    setBreadcrumbs(newBreadcrumbs);
+  };
+
+  const navigateToBreadcrumb = (index: number) => {
+    const crumb = breadcrumbs[index];
+    setCurrentFolderId(crumb.id === 'root' ? null : crumb.id);
+    setBreadcrumbs(breadcrumbs.slice(0, index + 1));
+  };
+
+  const goBack = () => {
+    if (breadcrumbs.length > 1) {
+      navigateToBreadcrumb(breadcrumbs.length - 2);
+    }
   };
 
   const createFolder = async () => {
-    if (!selectedFolder) {
-      alert('Please select a folder first');
-      return;
-    }
-
     const folderName = prompt('Enter folder name:');
     if (!folderName) return;
 
     try {
-      // Determine parent and type based on selected folder
       let parentId = null;
       let documentType = 'will';
 
-      if (selectedFolder.startsWith('category-')) {
-        // Creating a top-level folder under a category
+      if (currentFolderId === null || currentFolderId === 'root') {
+        alert('Please select a category first');
+        return;
+      }
+
+      if (currentFolderId.startsWith('category-')) {
+        // Creating in a category
         parentId = null;
-        documentType = selectedFolder.replace('category-', '');
+        documentType = currentFolderId.replace('category-', '');
       } else {
-        // Creating a subfolder under an existing folder
-        const parentFolder = documents.find(d => d.id === selectedFolder);
+        // Creating in a folder
+        const parentFolder = documents.find(d => d.id === currentFolderId);
         if (parentFolder) {
-          parentId = selectedFolder;
+          parentId = currentFolderId;
           documentType = parentFolder.type;
         }
       }
@@ -237,48 +197,6 @@ export default function DocumentsPage(): JSX.Element {
     });
   };
 
-  const renderFolderTree = (nodes: FolderNode[], level: number = 0) => {
-    return nodes.map(node => (
-      <div key={node.id} style={{ marginLeft: `${level * 20}px` }}>
-        <div
-          className={`flex items-center gap-2 p-2 hover:bg-gray-100 rounded cursor-pointer ${
-            selectedFolder === node.id ? 'bg-blue-50 border-l-4 border-blue-500' : ''
-          }`}
-          onClick={() => {
-            selectFolder(node.id);
-            toggleFolder(node.id);
-          }}
-        >
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              toggleFolder(node.id);
-            }}
-            className="p-1 hover:bg-gray-200 rounded"
-          >
-            {node.isExpanded ? (
-              <ChevronDown className="h-4 w-4 text-gray-500" />
-            ) : (
-              <ChevronRight className="h-4 w-4 text-gray-500" />
-            )}
-          </button>
-          {node.isExpanded ? (
-            <FolderOpen className="h-5 w-5 text-blue-500" />
-          ) : (
-            <Folder className="h-5 w-5 text-gray-500" />
-          )}
-          <span className="text-sm font-medium text-gray-700">{node.title}</span>
-          {!node.id.startsWith('category-') && (
-            <span className="text-xs text-gray-400 ml-auto">
-              {documents.filter(d => d.parentId === node.id).length}
-            </span>
-          )}
-        </div>
-        {node.isExpanded && node.children.length > 0 && renderFolderTree(node.children, level + 1)}
-      </div>
-    ));
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -287,13 +205,14 @@ export default function DocumentsPage(): JSX.Element {
     );
   }
 
-  const filesInSelectedFolder = selectedFolder ? getFilesInFolder(selectedFolder) : [];
+  const currentItems = getCurrentItems();
+  const isRootOrCategory = currentFolderId === null || currentFolderId === 'root' || currentFolderId?.startsWith('category-');
 
   return (
     <div className="h-full flex flex-col bg-white">
       {/* Header */}
       <div className="border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mb-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Documents</h1>
             <p className="text-sm text-gray-500 mt-1">Estate of {tenantName}</p>
@@ -301,60 +220,64 @@ export default function DocumentsPage(): JSX.Element {
           <div className="flex items-center gap-3">
             <button
               onClick={createFolder}
-              disabled={!selectedFolder}
+              disabled={currentFolderId === null || currentFolderId === 'root'}
               className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Plus className="h-4 w-4" />
               New Folder
             </button>
             <button
-              onClick={() => setShowUploadModal(true)}
-              disabled={!selectedFolder}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={currentFolderId === null || currentFolderId === 'root'}
             >
               <Upload className="h-4 w-4" />
               Upload
             </button>
           </div>
         </div>
+
+        {/* Breadcrumbs */}
+        <div className="flex items-center gap-2 text-sm">
+          {breadcrumbs.length > 1 && (
+            <button
+              onClick={goBack}
+              className="p-1 hover:bg-gray-100 rounded"
+              title="Go back"
+            >
+              <ArrowLeft className="h-4 w-4 text-gray-600" />
+            </button>
+          )}
+          {breadcrumbs.map((crumb, index) => (
+            <div key={crumb.id} className="flex items-center gap-2">
+              {index > 0 && <ChevronRight className="h-4 w-4 text-gray-400" />}
+              <button
+                onClick={() => navigateToBreadcrumb(index)}
+                className={`hover:text-blue-600 ${
+                  index === breadcrumbs.length - 1
+                    ? 'text-gray-900 font-medium'
+                    : 'text-gray-600'
+                }`}
+              >
+                {index === 0 && <Home className="h-4 w-4 inline mr-1" />}
+                {crumb.name}
+              </button>
+            </div>
+          ))}
+        </div>
       </div>
 
-      <div className="flex-1 overflow-hidden flex flex-col">
-        {/* Folder Tree */}
-        <div className="border-b border-gray-200 p-4 bg-gray-50">
-          <div className="max-h-64 overflow-y-auto">
-            {folderTree.length > 0 ? (
-              renderFolderTree(folderTree)
-            ) : (
-              <div className="text-center py-8 text-gray-500">
-                <Folder className="h-12 w-12 mx-auto mb-2 text-gray-300" />
-                <p>No folders yet</p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* File List */}
-        <div className="flex-1 overflow-auto p-6">
-          {!selectedFolder ? (
-            <div className="text-center py-16">
-              <Folder className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                Select a folder to view its contents
-              </h3>
-              <p className="text-gray-500">
-                Choose a folder from the tree above to see files and subfolders
-              </p>
-            </div>
-          ) : filesInSelectedFolder.length === 0 ? (
-            <div className="text-center py-16">
-              <File className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                This folder is empty
-              </h3>
-              <p className="text-gray-500 mb-4">
-                Upload files or create subfolders to organize your documents
-              </p>
+      {/* Content Area */}
+      <div className="flex-1 overflow-auto p-6">
+        {currentItems.length === 0 ? (
+          <div className="text-center py-16">
+            <Folder className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              This folder is empty
+            </h3>
+            <p className="text-gray-500 mb-4">
+              Upload files or create folders to organize your documents
+            </p>
+            {!isRootOrCategory && (
               <div className="flex items-center justify-center gap-3">
                 <button
                   onClick={createFolder}
@@ -363,117 +286,107 @@ export default function DocumentsPage(): JSX.Element {
                   <Plus className="h-4 w-4" />
                   Create Folder
                 </button>
-                <button
-                  onClick={() => setShowUploadModal(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
+                <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
                   <Upload className="h-4 w-4" />
                   Upload File
                 </button>
               </div>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Name
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Description
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Size
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Date Created
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Comments
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {filesInSelectedFolder.map(file => (
-                    <tr key={file.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <File className="h-5 w-5 text-gray-400" />
-                          <div>
-                            <div className="text-sm font-medium text-gray-900">
-                              {file.title}
-                            </div>
-                            {file.fileName && (
-                              <div className="text-xs text-gray-500">{file.fileName}</div>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="text-sm text-gray-500 max-w-xs truncate">
-                          {file.description || '-'}
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {formatFileSize(file.fileSize)}
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {formatDate(file.createdAt)}
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap">
-                        <button className="flex items-center gap-1 text-sm text-gray-600 hover:text-blue-600">
-                          <MessageSquare className="h-4 w-4" />
-                          <span>{file._count.comments}</span>
-                        </button>
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <button
-                            className="p-1 hover:bg-gray-100 rounded"
-                            title="Download"
-                          >
-                            <Download className="h-4 w-4 text-gray-600" />
-                          </button>
-                          <button
-                            className="p-1 hover:bg-gray-100 rounded"
-                            title="Preview"
-                          >
-                            <Eye className="h-4 w-4 text-gray-600" />
-                          </button>
-                          <button
-                            className="p-1 hover:bg-gray-100 rounded"
-                            title="Share"
-                          >
-                            <Share2 className="h-4 w-4 text-gray-600" />
-                          </button>
-                          <button
-                            className="p-1 hover:bg-gray-100 rounded"
-                            title="Permissions"
-                          >
-                            <Shield className="h-4 w-4 text-gray-600" />
-                          </button>
-                          <button
-                            className="p-1 hover:bg-red-100 rounded"
-                            title="Delete"
-                          >
-                            <Trash2 className="h-4 w-4 text-red-600" />
-                          </button>
-                          <button className="p-1 hover:bg-gray-100 rounded">
-                            <MoreVertical className="h-4 w-4 text-gray-600" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-2">
+            {/* Folders first */}
+            {currentItems
+              .filter(item => item.isFolder)
+              .map(item => (
+                <div
+                  key={item.id}
+                  onClick={() => navigateToFolder(item.id, item.title)}
+                  className="flex items-center gap-4 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer group"
+                >
+                  <Folder className="h-8 w-8 text-blue-500 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-gray-900">{item.title}</div>
+                    {item.description && (
+                      <div className="text-sm text-gray-500 truncate">
+                        {item.description}
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-sm text-gray-500">
+                    {item._count.comments} items
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
+              ))}
+
+            {/* Files */}
+            {currentItems
+              .filter(item => !item.isFolder)
+              .map(item => (
+                <div
+                  key={item.id}
+                  className="flex items-center gap-4 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 group"
+                >
+                  <File className="h-8 w-8 text-gray-400 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-gray-900">{item.title}</div>
+                    {item.fileName && (
+                      <div className="text-sm text-gray-500">{item.fileName}</div>
+                    )}
+                    {item.description && (
+                      <div className="text-sm text-gray-500 truncate mt-1">
+                        {item.description}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-4 text-sm text-gray-500">
+                    <span>{formatFileSize(item.fileSize)}</span>
+                    <span>{formatDate(item.createdAt)}</span>
+                    <button className="flex items-center gap-1 hover:text-blue-600">
+                      <MessageSquare className="h-4 w-4" />
+                      <span>{item._count.comments}</span>
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      className="p-1 hover:bg-gray-200 rounded"
+                      title="Download"
+                    >
+                      <Download className="h-4 w-4 text-gray-600" />
+                    </button>
+                    <button
+                      className="p-1 hover:bg-gray-200 rounded"
+                      title="Preview"
+                    >
+                      <Eye className="h-4 w-4 text-gray-600" />
+                    </button>
+                    <button
+                      className="p-1 hover:bg-gray-200 rounded"
+                      title="Share"
+                    >
+                      <Share2 className="h-4 w-4 text-gray-600" />
+                    </button>
+                    <button
+                      className="p-1 hover:bg-gray-200 rounded"
+                      title="Permissions"
+                    >
+                      <Shield className="h-4 w-4 text-gray-600" />
+                    </button>
+                    <button
+                      className="p-1 hover:bg-red-100 rounded"
+                      title="Delete"
+                    >
+                      <Trash2 className="h-4 w-4 text-red-600" />
+                    </button>
+                    <button className="p-1 hover:bg-gray-200 rounded">
+                      <MoreVertical className="h-4 w-4 text-gray-600" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+          </div>
+        )}
       </div>
     </div>
   );
