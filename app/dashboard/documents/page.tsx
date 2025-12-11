@@ -89,7 +89,8 @@ export default function DocumentsPage(): JSX.Element {
     // Root level - show categories
     if (currentFolderId === null || currentFolderId === 'root') {
       return DEFAULT_CATEGORIES.map(cat => {
-        const itemCount = documents.filter(d => d.type === cat.id).length;
+        // Count only top-level items for this category (parentId === null)
+        const itemCount = documents.filter(d => d.type === cat.id && d.parentId === null).length;
         return {
           id: `category-${cat.id}`,
           title: cat.name,
