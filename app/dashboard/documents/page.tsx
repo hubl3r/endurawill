@@ -87,7 +87,7 @@ export default function DocumentsPage(): JSX.Element {
     // Root level - show categories
     if (currentFolderId === null || currentFolderId === 'root') {
       return DEFAULT_CATEGORIES.map(cat => {
-        const hasItems = documents.some(d => d.type === cat.id);
+        const itemCount = documents.filter(d => d.type === cat.id).length;
         return {
           id: `category-${cat.id}`,
           title: cat.name,
@@ -98,10 +98,11 @@ export default function DocumentsPage(): JSX.Element {
           fileSize: null,
           fileName: null,
           fileType: null,
+          fileUrl: null,
           createdAt: new Date().toISOString(),
           createdById: null,
           _count: {
-            comments: documents.filter(d => d.type === cat.id).length,
+            comments: itemCount,
           },
         };
       }) as Document[];
@@ -249,6 +250,39 @@ export default function DocumentsPage(): JSX.Element {
     }
   };
 
+  const handleRename = async (documentId: string, currentTitle: string, isFolder: boolean) => {
+    const newTitle = prompt(`Enter new ${isFolder ? 'folder' : 'file'} name:`, currentTitle);
+    if (!newTitle || newTitle === currentTitle) return;
+
+    try {
+      const response = await fetch(`/api/documents/${documentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: newTitle }),
+      });
+
+      if (response.ok) {
+        await fetchDocuments();
+      } else {
+        const data = await response.json();
+        alert(data.error || 'Failed to rename');
+      }
+    } catch (error) {
+      console.error('Error renaming:', error);
+      alert('Failed to rename');
+    }
+  };
+
+  const handleShare = (document: Document) => {
+    // Placeholder for share functionality
+    alert('Share functionality coming soon!');
+  };
+
+  const handlePermissions = (document: Document) => {
+    // Placeholder for permissions functionality
+    alert('Permissions functionality coming soon!');
+  };
+
   const formatFileSize = (bytes: number | null): string => {
     if (!bytes) return '-';
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
@@ -369,27 +403,70 @@ export default function DocumentsPage(): JSX.Element {
             {/* Folders first */}
             {currentItems
               .filter(item => item.isFolder)
-              .map(item => (
-                <div
-                  key={item.id}
-                  onClick={() => navigateToFolder(item.id, item.title)}
-                  className="flex items-center gap-4 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer group"
-                >
-                  <Folder className="h-8 w-8 text-blue-500 flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium text-gray-900">{item.title}</div>
-                    {item.description && (
-                      <div className="text-sm text-gray-500 truncate">
-                        {item.description}
+              .map(item => {
+                const childCount = documents.filter(d => d.parentId === item.id).length;
+                const displayCount = item.id.startsWith('category-') ? item._count.comments : childCount;
+                
+                return (
+                  <div
+                    key={item.id}
+                    className="flex items-center gap-4 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 group"
+                  >
+                    <div
+                      onClick={() => navigateToFolder(item.id, item.title)}
+                      className="flex items-center gap-4 flex-1 min-w-0 cursor-pointer"
+                    >
+                      <Folder className="h-8 w-8 text-blue-500 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-gray-900">{item.title}</div>
+                        {item.description && (
+                          <div className="text-sm text-gray-500 truncate">
+                            {item.description}
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        {displayCount} {displayCount === 1 ? 'item' : 'items'}
+                      </div>
+                      <ChevronRight className="h-5 w-5 text-gray-400" />
+                    </div>
+                    
+                    {/* Action buttons for real folders (not categories) */}
+                    {!item.id.startsWith('category-') && (
+                      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => handleRename(item.id, item.title, true)}
+                          className="p-1 hover:bg-gray-200 rounded"
+                          title="Rename"
+                        >
+                          <FileText className="h-4 w-4 text-gray-600" />
+                        </button>
+                        <button
+                          onClick={() => handleShare(item)}
+                          className="p-1 hover:bg-gray-200 rounded"
+                          title="Share"
+                        >
+                          <Share2 className="h-4 w-4 text-gray-600" />
+                        </button>
+                        <button
+                          onClick={() => handlePermissions(item)}
+                          className="p-1 hover:bg-gray-200 rounded"
+                          title="Permissions"
+                        >
+                          <Shield className="h-4 w-4 text-gray-600" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(item.id, item.title)}
+                          className="p-1 hover:bg-red-100 rounded"
+                          title="Delete"
+                        >
+                          <Trash2 className="h-4 w-4 text-red-600" />
+                        </button>
                       </div>
                     )}
                   </div>
-                  <div className="text-sm text-gray-500">
-                    {item._count.comments} items
-                  </div>
-                  <ChevronRight className="h-5 w-5 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-                </div>
-              ))}
+                );
+              })}
 
             {/* Files */}
             {currentItems
@@ -414,7 +491,10 @@ export default function DocumentsPage(): JSX.Element {
                   <div className="flex items-center gap-4 text-sm text-gray-500">
                     <span>{formatFileSize(item.fileSize)}</span>
                     <span>{formatDate(item.createdAt)}</span>
-                    <button className="flex items-center gap-1 hover:text-blue-600">
+                    <button 
+                      className="flex items-center gap-1 hover:text-blue-600"
+                      title="Comments"
+                    >
                       <MessageSquare className="h-4 w-4" />
                       <span>{item._count.comments}</span>
                     </button>
@@ -428,18 +508,27 @@ export default function DocumentsPage(): JSX.Element {
                       <Download className="h-4 w-4 text-gray-600" />
                     </button>
                     <button
+                      onClick={() => handleRename(item.id, item.title, false)}
+                      className="p-1 hover:bg-gray-200 rounded"
+                      title="Rename"
+                    >
+                      <FileText className="h-4 w-4 text-gray-600" />
+                    </button>
+                    <button
                       className="p-1 hover:bg-gray-200 rounded"
                       title="Preview"
                     >
                       <Eye className="h-4 w-4 text-gray-600" />
                     </button>
                     <button
+                      onClick={() => handleShare(item)}
                       className="p-1 hover:bg-gray-200 rounded"
                       title="Share"
                     >
                       <Share2 className="h-4 w-4 text-gray-600" />
                     </button>
                     <button
+                      onClick={() => handlePermissions(item)}
                       className="p-1 hover:bg-gray-200 rounded"
                       title="Permissions"
                     >
