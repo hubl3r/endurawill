@@ -31,7 +31,7 @@ export async function POST(request: Request) {
     }
 
     // Check if user already has 3 estates (as owner or co-owner)
-    const ownedEstatesCount = await prisma.user.count({
+    const userEstates = await prisma.user.findMany({
       where: {
         clerkId: clerkUser.id,
         role: {
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
       }
     });
 
-    if (ownedEstatesCount >= 3) {
+    if (userEstates.length >= 3) {
       return NextResponse.json(
         { error: 'You have reached the maximum of 3 estates. Please contact support to request an increase.' },
         { status: 400 }
