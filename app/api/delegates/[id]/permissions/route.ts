@@ -14,7 +14,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const user = await prisma.user.findUnique({
+    const user = await prisma.user.findFirst({
       where: { clerkId: clerkUser.id },
       include: { tenant: true }
     });
@@ -55,7 +55,7 @@ export async function PATCH(
 
     const data = await request.json();
 
-    const user = await prisma.user.findUnique({
+    const user = await prisma.user.findFirst({
       where: { clerkId: clerkUser.id },
       include: { tenant: true }
     });
@@ -122,7 +122,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const user = await prisma.user.findUnique({
+    const user = await prisma.user.findFirst({
       where: { clerkId: clerkUser.id },
       include: { tenant: true }
     });
