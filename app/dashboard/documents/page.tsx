@@ -17,6 +17,8 @@ import {
   MessageSquare,
   Shield,
   ArrowLeft,
+  FileText,
+  Edit,
 } from 'lucide-react';
 import DocumentUpload from '@/components/DocumentUpload';
 
