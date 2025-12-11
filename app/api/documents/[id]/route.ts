@@ -38,21 +38,28 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
-    // If it's a folder, check if it has children
+    // If it's a folder, delete all contents first
     if (document.isFolder) {
-      const childCount = await prisma.document.count({
-        where: { parentId: documentId },
-      });
+      // Recursively delete all children
+      const deleteFolder = async (folderId: string) => {
+        const children = await prisma.document.findMany({
+          where: { parentId: folderId },
+        });
 
-      if (childCount > 0) {
-        return NextResponse.json(
-          { error: 'Cannot delete folder with contents. Please delete contents first.' },
-          { status: 400 }
-        );
-      }
+        for (const child of children) {
+          if (child.isFolder) {
+            await deleteFolder(child.id);
+          }
+          await prisma.document.delete({
+            where: { id: child.id },
+          });
+        }
+      };
+
+      await deleteFolder(documentId);
     }
 
-    // Delete the document
+    // Delete the document/folder
     await prisma.document.delete({
       where: { id: documentId },
     });
