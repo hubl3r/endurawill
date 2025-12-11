@@ -173,29 +173,52 @@ export default function DocumentsPage(): JSX.Element {
   };
 
   const createFolder = async () => {
+    if (!selectedFolder) {
+      alert('Please select a folder first');
+      return;
+    }
+
     const folderName = prompt('Enter folder name:');
     if (!folderName) return;
 
     try {
+      // Determine parent and type based on selected folder
+      let parentId = null;
+      let documentType = 'will';
+
+      if (selectedFolder.startsWith('category-')) {
+        // Creating a top-level folder under a category
+        parentId = null;
+        documentType = selectedFolder.replace('category-', '');
+      } else {
+        // Creating a subfolder under an existing folder
+        const parentFolder = documents.find(d => d.id === selectedFolder);
+        if (parentFolder) {
+          parentId = selectedFolder;
+          documentType = parentFolder.type;
+        }
+      }
+
       const response = await fetch('/api/documents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: folderName,
           isFolder: true,
-          parentId: selectedFolder?.startsWith('category-') ? null : selectedFolder,
-          type: selectedFolder?.startsWith('category-') 
-            ? selectedFolder.replace('category-', '') 
-            : documents.find(d => d.id === selectedFolder)?.type || 'will',
+          parentId,
+          type: documentType,
         }),
       });
 
       const data = await response.json();
       if (data.success) {
-        fetchDocuments();
+        await fetchDocuments();
+      } else {
+        alert(data.error || 'Failed to create folder');
       }
     } catch (error) {
       console.error('Error creating folder:', error);
+      alert('Failed to create folder');
     }
   };
 
