@@ -85,6 +85,8 @@ export default function DashboardLayout({
         { id: 'assets', label: 'Assets', href: '/dashboard/assets' },
         { id: 'liabilities', label: 'Liabilities', href: '/dashboard/liabilities' },
         { id: 'beneficiaries', label: 'Beneficiaries', href: '/dashboard/beneficiaries' },
+        { id: 'accounts', label: 'Accounts', href: '/dashboard/accounts' },
+        { id: 'vitals', label: 'Vitals', href: '/dashboard/vitals' },
       ]
     },
     {
@@ -153,7 +155,8 @@ export default function DashboardLayout({
       label: 'Final Arrangements',
       icon: Mail,
       items: [
-        { id: 'create-final', label: 'Create/Edit', href: '/dashboard/final-arrangements' }
+        { id: 'final-arrangements', label: 'Arrangements', href: '/dashboard/final-arrangements' },
+        { id: 'final-letters', label: 'Letters to Survivors', href: '/dashboard/letters' }
       ]
     },
     {
@@ -163,14 +166,6 @@ export default function DashboardLayout({
       items: [
         { id: 'my-documents', label: 'My Documents', href: '/dashboard/vault' },
         { id: 'upload', label: 'Upload New', href: '/dashboard/vault/upload' }
-      ]
-    },
-    {
-      id: 'letters',
-      label: 'Letters to Survivors',
-      icon: Mail,
-      items: [
-        { id: 'create-letter', label: 'Create/Edit Letters', href: '/dashboard/letters' }
       ]
     }
   ];
