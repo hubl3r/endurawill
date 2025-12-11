@@ -29,6 +29,7 @@ interface DashboardLayoutProps {
     role: 'primary_owner' | 'co_owner' | 'delegate';
   }[];
   onEstateChange?: (estateId: string) => void;
+  onCreateEstateClick?: () => void;
 }
 
 export default function DashboardLayout({ 
@@ -38,7 +39,8 @@ export default function DashboardLayout({
   onViewChange,
   currentEstate,
   availableEstates = [],
-  onEstateChange
+  onEstateChange,
+  onCreateEstateClick
 }: DashboardLayoutProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -126,6 +128,7 @@ export default function DashboardLayout({
             currentEstate={currentEstate}
             availableEstates={availableEstates}
             onEstateChange={onEstateChange}
+            onCreateEstateClick={onCreateEstateClick}
           />
         </aside>
 
@@ -145,6 +148,7 @@ export default function DashboardLayout({
                 currentEstate={currentEstate}
                 availableEstates={availableEstates}
                 onEstateChange={onEstateChange}
+                onCreateEstateClick={onCreateEstateClick}
               />
             </aside>
           </>
