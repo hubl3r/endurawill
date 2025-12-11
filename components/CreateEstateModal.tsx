@@ -44,7 +44,18 @@ export default function CreateEstateModal({
         }),
       });
 
-      const data = await response.json();
+      let data;
+      const contentType = response.headers.get('content-type');
+      
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        // Not JSON - likely an error page
+        const text = await response.text();
+        console.error('Non-JSON response:', text);
+        setError('Server error. Please check console for details.');
+        return;
+      }
 
       if (response.ok && data.success) {
         onEstateCreated({
@@ -60,7 +71,7 @@ export default function CreateEstateModal({
       }
     } catch (err) {
       console.error('Error creating estate:', err);
-      setError('An error occurred while creating the estate');
+      setError(err instanceof Error ? err.message : 'An error occurred while creating the estate');
     } finally {
       setIsCreating(false);
     }
