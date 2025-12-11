@@ -2,6 +2,86 @@ import { prisma } from '@/lib/prisma';
 import { currentUser } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const clerkUser = await currentUser();
+    
+    if (!clerkUser) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { clerkId: clerkUser.id },
+      include: { tenant: true }
+    });
+
+    if (!user?.tenant) {
+      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
+    }
+
+    const { id: documentId } = await params;
+    const body = await request.json();
+    const { title } = body;
+
+    if (!title) {
+      return NextResponse.json({ error: 'Title is required' }, { status: 400 });
+    }
+
+    // Get the document
+    const document = await prisma.document.findUnique({
+      where: { id: documentId },
+    });
+
+    if (!document) {
+      return NextResponse.json({ error: 'Document not found' }, { status: 404 });
+    }
+
+    // Verify ownership
+    if (document.tenantId !== user.tenant.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    }
+
+    // Update the document
+    const updated = await prisma.document.update({
+      where: { id: documentId },
+      data: { 
+        title,
+        modifiedById: user.id,
+      },
+    });
+
+    // Create audit log
+    await prisma.auditLog.create({
+      data: {
+        tenantId: user.tenant.id,
+        userId: user.id,
+        actorType: 'user',
+        actorName: user.fullName,
+        action: document.isFolder ? 'folder_renamed' : 'document_renamed',
+        category: 'document',
+        result: 'success',
+        resourceType: 'document',
+        resourceId: documentId,
+        details: {
+          oldTitle: document.title,
+          newTitle: title,
+        },
+      },
+    });
+
+    return NextResponse.json({ success: true, document: updated });
+  } catch (error) {
+    console.error('Error updating document:', error);
+    return NextResponse.json(
+      { error: 'Failed to update document' },
+      { status: 500 }
+    );
+  }
+}
+
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
