@@ -16,13 +16,16 @@ import {
   Settings,
   BookOpen,
   CheckSquare,
-  Home
+  Home,
+  FolderOpen,
 } from 'lucide-react';
 import Link from 'next/link';
 
 interface DashboardLayoutProps {
   children: ReactNode;
   onChecklistClick?: () => void;
+  selectedView?: string;
+  onViewChange?: (view: string) => void;
 }
 
 interface SidebarSection {
@@ -32,13 +35,19 @@ interface SidebarSection {
   items: {
     id: string;
     label: string;
-    href: string;
+    href?: string;
+    view?: string;
     badge?: string;
   }[];
 }
 
-export default function DashboardLayout({ children, onChecklistClick }: DashboardLayoutProps) {
-  const [expandedSections, setExpandedSections] = useState<string[]>(['profile']);
+export default function DashboardLayout({ 
+  children, 
+  onChecklistClick,
+  selectedView = 'overview',
+  onViewChange 
+}: DashboardLayoutProps) {
+  const [expandedSections, setExpandedSections] = useState<string[]>(['main', 'estate', 'documents', 'profile']);
 
   const toggleSection = (sectionId: string) => {
     setExpandedSections(prev =>
@@ -48,7 +57,48 @@ export default function DashboardLayout({ children, onChecklistClick }: Dashboar
     );
   };
 
+  const handleViewClick = (view: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    if (onViewChange) {
+      onViewChange(view);
+    }
+  };
+
   const sidebarSections: SidebarSection[] = [
+    {
+      id: 'main',
+      label: 'Main',
+      icon: Home,
+      items: [
+        { id: 'overview', label: 'Overview', view: 'overview' },
+      ]
+    },
+    {
+      id: 'estate',
+      label: 'Estate',
+      icon: Building2,
+      items: [
+        { id: 'estate-overview', label: 'Estate Overview', href: '/dashboard/estate/overview' },
+        { id: 'assets', label: 'Assets', href: '/dashboard/assets' },
+        { id: 'liabilities', label: 'Liabilities', href: '/dashboard/liabilities' },
+        { id: 'beneficiaries', label: 'Beneficiaries', href: '/dashboard/beneficiaries' },
+      ]
+    },
+    {
+      id: 'documents',
+      label: 'Documents',
+      icon: FolderOpen,
+      items: [
+        { id: 'all-documents', label: 'All Documents', view: 'documents' },
+        { id: 'wills-docs', label: 'Wills', view: 'documents-wills' },
+        { id: 'vitals-docs', label: 'Vitals', view: 'documents-vitals' },
+        { id: 'healthcare-docs', label: 'Healthcare Directives', view: 'documents-healthcare' },
+        { id: 'poa-docs', label: 'Power of Attorney', view: 'documents-poa' },
+        { id: 'trusts-docs', label: 'Trusts', view: 'documents-trusts' },
+        { id: 'letters-docs', label: 'Letters', view: 'documents-letters' },
+        { id: 'permissions', label: 'Permissions', href: '/dashboard/documents/permissions' },
+      ]
+    },
     {
       id: 'profile',
       label: 'My Profile',
@@ -129,20 +179,27 @@ export default function DashboardLayout({ children, onChecklistClick }: Dashboar
         <div className="px-6 py-4">
           <div className="flex justify-between items-center">
             {/* Logo */}
-            <Link href="/dashboard" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+            <button
+              onClick={(e) => handleViewClick('overview', e)}
+              className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+            >
               <Shield className="h-8 w-8 text-blue-600" />
               <span className="text-2xl font-bold text-gray-900">Endurawill</span>
-            </Link>
+            </button>
 
             {/* Header Navigation */}
             <div className="flex items-center gap-6">
-              <Link
-                href="/dashboard"
-                className="flex items-center gap-2 text-gray-700 hover:text-blue-600 transition-colors"
+              <button
+                onClick={(e) => handleViewClick('overview', e)}
+                className={`flex items-center gap-2 transition-colors ${
+                  selectedView === 'overview'
+                    ? 'text-blue-600'
+                    : 'text-gray-700 hover:text-blue-600'
+                }`}
               >
                 <Home className="h-5 w-5" />
                 <span className="hidden md:inline">Dashboard</span>
-              </Link>
+              </button>
               
               <button
                 onClick={onChecklistClick}
@@ -203,18 +260,37 @@ export default function DashboardLayout({ children, onChecklistClick }: Dashboar
                     {isExpanded && (
                       <div className="ml-8 mt-1 space-y-1">
                         {section.items.map((item) => (
-                          <Link
-                            key={item.id}
-                            href={item.href}
-                            className="flex items-center justify-between px-3 py-2 text-sm text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          >
-                            <span>{item.label}</span>
-                            {item.badge && (
-                              <span className="bg-gray-200 text-gray-700 text-xs px-2 py-0.5 rounded-full">
-                                {item.badge}
-                              </span>
-                            )}
-                          </Link>
+                          item.view ? (
+                            <button
+                              key={item.id}
+                              onClick={(e) => handleViewClick(item.view!, e)}
+                              className={`w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg transition-colors ${
+                                selectedView === item.view
+                                  ? 'text-blue-600 bg-blue-50 font-medium'
+                                  : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50'
+                              }`}
+                            >
+                              <span>{item.label}</span>
+                              {item.badge && (
+                                <span className="bg-gray-200 text-gray-700 text-xs px-2 py-0.5 rounded-full">
+                                  {item.badge}
+                                </span>
+                              )}
+                            </button>
+                          ) : (
+                            <Link
+                              key={item.id}
+                              href={item.href!}
+                              className="flex items-center justify-between px-3 py-2 text-sm text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            >
+                              <span>{item.label}</span>
+                              {item.badge && (
+                                <span className="bg-gray-200 text-gray-700 text-xs px-2 py-0.5 rounded-full">
+                                  {item.badge}
+                                </span>
+                              )}
+                            </Link>
+                          )
                         ))}
                       </div>
                     )}
@@ -226,7 +302,7 @@ export default function DashboardLayout({ children, onChecklistClick }: Dashboar
         </aside>
 
         {/* Main Content */}
-        <main className="flex-1 p-8">
+        <main className="flex-1">
           {children}
         </main>
       </div>
