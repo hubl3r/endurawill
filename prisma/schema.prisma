@@ -48,7 +48,7 @@ model User {
   id         String   @id @default(uuid())
   tenantId   String
   tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  clerkId    String   @unique
+  clerkId    String   // Removed @unique - allows one person to have multiple estates
   
   // Role & Permissions
   role       String   // 'primary_owner', 'co_owner', 'delegate'
@@ -87,7 +87,7 @@ model User {
   // Invitations sent
   invitedDelegates Delegate[] @relation("InvitedBy")
   
-  @@unique([tenantId, clerkId])
+  @@unique([tenantId, clerkId]) // Compound unique - one person can have multiple estates
   @@index([clerkId])
   @@index([tenantId])
   @@index([role])
