@@ -18,6 +18,7 @@ import {
   Shield,
   ArrowLeft,
 } from 'lucide-react';
+import DocumentUpload from '@/components/DocumentUpload';
 
 interface Document {
   id: string;
@@ -29,6 +30,7 @@ interface Document {
   fileSize: number | null;
   fileName: string | null;
   fileType: string | null;
+  fileUrl: string | null;
   createdAt: string;
   createdById: string | null;
   _count: {
@@ -58,6 +60,8 @@ export default function DocumentsPage(): JSX.Element {
   const [loading, setLoading] = useState(true);
   const [tenantName, setTenantName] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [currentDocumentType, setCurrentDocumentType] = useState<string>('will');
 
   useEffect(() => {
     fetchDocuments();
@@ -182,6 +186,69 @@ export default function DocumentsPage(): JSX.Element {
     }
   };
 
+  const openUploadModal = () => {
+    if (currentFolderId === null || currentFolderId === 'root') {
+      alert('Please select a category first');
+      return;
+    }
+
+    // Determine document type from current location
+    let docType = 'will';
+    if (currentFolderId.startsWith('category-')) {
+      docType = currentFolderId.replace('category-', '');
+    } else {
+      const folder = documents.find(d => d.id === currentFolderId);
+      if (folder) {
+        docType = folder.type;
+      }
+    }
+    
+    setCurrentDocumentType(docType);
+    setShowUploadModal(true);
+  };
+
+  const handleUploadComplete = async (document: any) => {
+    setShowUploadModal(false);
+    await fetchDocuments();
+  };
+
+  const handleDelete = async (documentId: string, title: string) => {
+    if (!confirm(`Are you sure you want to delete "${title}"?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/documents/${documentId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        await fetchDocuments();
+      } else {
+        const data = await response.json();
+        alert(data.error || 'Failed to delete document');
+      }
+    } catch (error) {
+      console.error('Error deleting document:', error);
+      alert('Failed to delete document');
+    }
+  };
+
+  const handleDownload = async (document: Document) => {
+    if (!document.fileUrl) {
+      alert('No file to download');
+      return;
+    }
+
+    try {
+      // Open file URL in new tab to trigger download
+      window.open(document.fileUrl, '_blank');
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      alert('Failed to download file');
+    }
+  };
+
   const formatFileSize = (bytes: number | null): string => {
     if (!bytes) return '-';
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
@@ -227,6 +294,7 @@ export default function DocumentsPage(): JSX.Element {
               New Folder
             </button>
             <button
+              onClick={openUploadModal}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={currentFolderId === null || currentFolderId === 'root'}
             >
@@ -286,7 +354,10 @@ export default function DocumentsPage(): JSX.Element {
                   <Plus className="h-4 w-4" />
                   Create Folder
                 </button>
-                <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                <button 
+                  onClick={openUploadModal}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
                   <Upload className="h-4 w-4" />
                   Upload File
                 </button>
@@ -350,6 +421,7 @@ export default function DocumentsPage(): JSX.Element {
                   </div>
                   <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
+                      onClick={() => handleDownload(item)}
                       className="p-1 hover:bg-gray-200 rounded"
                       title="Download"
                     >
@@ -374,6 +446,7 @@ export default function DocumentsPage(): JSX.Element {
                       <Shield className="h-4 w-4 text-gray-600" />
                     </button>
                     <button
+                      onClick={() => handleDelete(item.id, item.title)}
                       className="p-1 hover:bg-red-100 rounded"
                       title="Delete"
                     >
@@ -388,6 +461,20 @@ export default function DocumentsPage(): JSX.Element {
           </div>
         )}
       </div>
+
+      {/* Upload Modal */}
+      {showUploadModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="max-w-2xl w-full">
+            <DocumentUpload
+              documentType={currentDocumentType}
+              parentId={currentFolderId?.startsWith('category-') ? null : currentFolderId}
+              onUploadComplete={handleUploadComplete}
+              onClose={() => setShowUploadModal(false)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
