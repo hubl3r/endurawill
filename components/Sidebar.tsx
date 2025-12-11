@@ -47,6 +47,7 @@ interface SidebarProps {
     role: 'primary_owner' | 'co_owner' | 'delegate';
   }[];
   onEstateChange?: (estateId: string) => void;
+  onCreateEstateClick?: () => void;
 }
 
 export default function Sidebar({
@@ -57,6 +58,7 @@ export default function Sidebar({
   currentEstate,
   availableEstates = [],
   onEstateChange,
+  onCreateEstateClick,
 }: SidebarProps) {
   const [expandedSections, setExpandedSections] = useState<string[]>(['main', 'estate', 'vault', 'profile']);
   const [showEstateSwitcher, setShowEstateSwitcher] = useState(false);
@@ -266,9 +268,9 @@ export default function Sidebar({
 
           {/* Create/Join Estate Button - Always Visible */}
           <div className="mt-2 pt-2 border-t border-gray-200">
-            <Link
-              href="/dashboard/estate/create"
+            <button
               onClick={() => {
+                onCreateEstateClick?.();
                 if (isMobile && onClose) {
                   onClose();
                 }
@@ -277,7 +279,7 @@ export default function Sidebar({
             >
               <Plus className="h-4 w-4" />
               Create or Join Estate
-            </Link>
+            </button>
           </div>
         </div>
       )}
