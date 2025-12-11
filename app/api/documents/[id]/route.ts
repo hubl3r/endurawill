@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const clerkUser = await currentUser();
@@ -22,7 +22,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
     }
 
-    const documentId = params.id;
+    const { id: documentId } = await params;
 
     // Get the document
     const document = await prisma.document.findUnique({
