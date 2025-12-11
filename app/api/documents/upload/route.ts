@@ -34,8 +34,10 @@ export async function POST(request: Request) {
 
     const formData = await request.formData();
     const file = formData.get('file') as File;
-    const documentType = formData.get('type') as string; // wills, vitals, healthcare, etc.
+    const documentType = formData.get('type') as string;
     const title = formData.get('title') as string;
+    const description = formData.get('description') as string | null;
+    const parentId = formData.get('parentId') as string | null;
     
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
@@ -90,6 +92,9 @@ export async function POST(request: Request) {
         createdById: user.id,
         type: documentType,
         title: title || file.name,
+        description: description || null,
+        parentId: parentId || null,
+        isFolder: false,
         status: 'draft',
         version: 1,
         fileUrl: blob.url,
@@ -111,7 +116,12 @@ export async function POST(request: Request) {
         resourceType: 'document',
         resourceId: document.id,
         result: 'success',
-        timestamp: new Date()
+        details: {
+          title: document.title,
+          type: document.type,
+          parentId: parentId,
+          fileSize: file.size,
+        },
       }
     });
 
@@ -123,7 +133,8 @@ export async function POST(request: Request) {
         type: document.type,
         url: document.fileUrl,
         size: document.fileSize,
-        uploadedAt: document.createdAt
+        uploadedAt: document.createdAt,
+        parentId: document.parentId,
       }
     });
   } catch (error) {
