@@ -46,10 +46,21 @@ export default function DashboardPage() {
         if (data.success && data.estates.length > 0) {
           setAvailableEstates(data.estates);
           
-          // Set current estate (first one by default, or keep existing if still valid)
-          if (!currentEstate || !data.estates.find((e: any) => e.id === currentEstate.id)) {
-            setCurrentEstate(data.estates[0]);
+          // Check if there's a stored estate preference
+          const storedEstateId = localStorage.getItem('selectedEstateId');
+          
+          if (storedEstateId) {
+            // Use the stored estate if it exists in the list
+            const storedEstate = data.estates.find((e: any) => e.id === storedEstateId);
+            if (storedEstate) {
+              setCurrentEstate(storedEstate);
+              return;
+            }
           }
+          
+          // Otherwise, use the first one (default behavior)
+          setCurrentEstate(data.estates[0]);
+          localStorage.setItem('selectedEstateId', data.estates[0].id);
         }
       }
     } catch (error) {
@@ -107,19 +118,20 @@ export default function DashboardPage() {
     const estate = availableEstates.find(e => e.id === estateId);
     if (!estate) return;
 
+    // Store the selection in localStorage
+    localStorage.setItem('selectedEstateId', estateId);
+
     // Update current estate
     setCurrentEstate(estate);
 
-    // TODO: In a real implementation, you'd want to:
-    // 1. Switch the user's active tenant context on the server
-    // 2. Reload all data for the new estate
-    // For now, we'll just update the UI and rely on the tenantId being used in API calls
-    
     // Reload the page to get fresh data for the new estate
     window.location.reload();
   };
 
   const handleEstateCreated = (estate: { id: string; name: string; role: string }) => {
+    // Store the new estate as selected
+    localStorage.setItem('selectedEstateId', estate.id);
+    
     // Add to available estates
     const newEstate = {
       id: estate.id,
