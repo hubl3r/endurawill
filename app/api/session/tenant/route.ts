@@ -18,7 +18,7 @@ import { rateLimiters } from '@/lib/ratelimit';
  */
 export async function POST(request: Request) {
   try {
-    const clerkUser = await currentUser();
+    const clerkUser: Awaited<ReturnType<typeof currentUser>> = await currentUser();
     
     if (!clerkUser) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -140,7 +140,7 @@ export async function POST(request: Request) {
  */
 export async function GET() {
   try {
-    const clerkUser = await currentUser();
+    const clerkUser: Awaited<ReturnType<typeof currentUser>> = await currentUser();
     
     if (!clerkUser) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
