@@ -1,31 +1,26 @@
 import { prisma } from '@/lib/prisma';
-import { currentUser } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
+import { getAuthenticatedUserAndTenant } from '@/lib/tenant-context';
+import { rateLimiters } from '@/lib/ratelimit';
 
 export async function GET(request: Request) {
   try {
-    const clerkUser = await currentUser();
+    // Get authenticated user and validated tenant (from Redis, secure)
+    const auth = await getAuthenticatedUserAndTenant();
     
-    if (!clerkUser) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!auth) {
+      return NextResponse.json({ error: 'Unauthorized or no active estate selected' }, { status: 401 });
     }
+
+    const { user, tenant, tenantId } = auth;
 
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type');
     const status = searchParams.get('status');
-    const includeTree = searchParams.get('tree') === 'true'; // New: for folder tree view
-
-    const user = await prisma.user.findFirst({
-      where: { clerkId: clerkUser.id },
-      include: { tenant: true }
-    });
-
-    if (!user?.tenant) {
-      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
-    }
+    const includeTree = searchParams.get('tree') === 'true';
 
     const whereClause: any = {
-      tenantId: user.tenant.id
+      tenantId: tenantId, // ← Uses active tenant from Redis
     };
 
     if (type) whereClause.type = type;
@@ -52,13 +47,13 @@ export async function GET(request: Request) {
         success: true, 
         documents,
         tenant: {
-          id: user.tenant.id,
-          name: user.tenant.name,
+          id: tenant.id,
+          name: tenant.name,
         },
       });
     }
 
-    // Standard list view (existing functionality)
+    // Standard list view
     const documents = await prisma.document.findMany({
       where: whereClause,
       select: {
@@ -89,23 +84,26 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const clerkUser = await currentUser();
+    // Get authenticated user and validated tenant
+    const auth = await getAuthenticatedUserAndTenant();
     
-    if (!clerkUser) {
+    if (!auth) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { user, tenant, tenantId, clerkUser } = auth;
+
+    // Rate limiting: 50 document creations per hour
+    const { success } = await rateLimiters.documentUpload.limit(clerkUser.id);
+    if (!success) {
+      return NextResponse.json(
+        { error: 'Rate limit exceeded. Please try again later.' },
+        { status: 429 }
+      );
     }
 
     const body = await request.json();
     const { title, parentId, isFolder, type: documentType, description } = body;
-
-    const user = await prisma.user.findFirst({
-      where: { clerkId: clerkUser.id },
-      include: { tenant: true }
-    });
-
-    if (!user?.tenant) {
-      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
-    }
 
     // Verify folder depth if creating a folder
     if (isFolder && parentId) {
@@ -115,8 +113,16 @@ export async function POST(request: Request) {
       while (currentParentId && depth < 4) {
         const parent = await prisma.document.findUnique({
           where: { id: currentParentId },
-          select: { parentId: true, isFolder: true },
+          select: { parentId: true, isFolder: true, tenantId: true },
         });
+        
+        // Security: Verify parent belongs to same tenant
+        if (parent?.tenantId !== tenantId) {
+          return NextResponse.json(
+            { error: 'Access denied' },
+            { status: 403 }
+          );
+        }
         
         if (!parent?.isFolder) {
           return NextResponse.json(
@@ -150,7 +156,7 @@ export async function POST(request: Request) {
         type: documentType || 'will',
         parentId: parentId || null,
         status: 'draft',
-        tenantId: user.tenant.id,
+        tenantId: tenantId, // ← Uses active tenant from Redis
         createdById: user.id,
       },
       include: {
@@ -165,7 +171,7 @@ export async function POST(request: Request) {
     // Create audit log
     await prisma.auditLog.create({
       data: {
-        tenantId: user.tenant.id,
+        tenantId: tenantId,
         userId: user.id,
         actorType: 'user',
         actorName: user.fullName,
