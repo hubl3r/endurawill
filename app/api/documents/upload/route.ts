@@ -1,7 +1,8 @@
 import { put } from '@vercel/blob';
 import { prisma } from '@/lib/prisma';
-import { currentUser } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
+import { getAuthenticatedUserAndTenant } from '@/lib/tenant-context';
+import { rateLimiters } from '@/lib/ratelimit';
 
 /**
  * POST /api/documents/upload
@@ -9,26 +10,29 @@ import { NextResponse } from 'next/server';
  */
 export async function POST(request: Request) {
   try {
-    const clerkUser = await currentUser();
+    // Get authenticated user and validated tenant
+    const auth = await getAuthenticatedUserAndTenant();
     
-    if (!clerkUser) {
+    if (!auth) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const user = await prisma.user.findFirst({
-      where: { clerkId: clerkUser.id },
-      include: { tenant: true }
-    });
-
-    if (!user?.tenant) {
-      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
-    }
+    const { user, tenant, tenantId, clerkUser } = auth;
 
     // Only owners can upload documents
     if (user.role !== 'primary_owner' && user.role !== 'co_owner') {
       return NextResponse.json(
         { error: 'Only estate owners can upload documents' },
         { status: 403 }
+      );
+    }
+
+    // Rate limiting: 50 uploads per hour
+    const { success } = await rateLimiters.documentUpload.limit(clerkUser.id);
+    if (!success) {
+      return NextResponse.json(
+        { error: 'Upload rate limit exceeded. Please try again later.' },
+        { status: 429 }
       );
     }
 
@@ -45,6 +49,26 @@ export async function POST(request: Request) {
 
     if (!documentType) {
       return NextResponse.json({ error: 'Document type required' }, { status: 400 });
+    }
+
+    // If parentId is provided, verify it belongs to this tenant
+    if (parentId) {
+      const parent = await prisma.document.findUnique({
+        where: { id: parentId },
+        select: { tenantId: true, isFolder: true },
+      });
+
+      if (!parent) {
+        return NextResponse.json({ error: 'Parent folder not found' }, { status: 404 });
+      }
+
+      if (parent.tenantId !== tenantId) {
+        return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+      }
+
+      if (!parent.isFolder) {
+        return NextResponse.json({ error: 'Parent must be a folder' }, { status: 400 });
+      }
     }
 
     // Validate file size (max 50MB)
@@ -77,7 +101,7 @@ export async function POST(request: Request) {
     // Generate file path with tenant isolation
     const timestamp = Date.now();
     const sanitizedFilename = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-    const blobPath = `${user.tenant.id}/${documentType}/${timestamp}-${sanitizedFilename}`;
+    const blobPath = `${tenantId}/${documentType}/${timestamp}-${sanitizedFilename}`;
 
     // Upload to Vercel Blob
     const blob = await put(blobPath, file, {
@@ -88,7 +112,7 @@ export async function POST(request: Request) {
     // Create document record in database
     const document = await prisma.document.create({
       data: {
-        tenantId: user.tenant.id,
+        tenantId: tenantId, // ← Active tenant from Redis
         createdById: user.id,
         type: documentType,
         title: title || file.name,
@@ -107,7 +131,7 @@ export async function POST(request: Request) {
     // Create audit log
     await prisma.auditLog.create({
       data: {
-        tenantId: user.tenant.id,
+        tenantId: tenantId,
         userId: user.id,
         actorType: 'user',
         actorName: user.fullName,
