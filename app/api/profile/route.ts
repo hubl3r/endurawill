@@ -165,25 +165,41 @@ export async function POST(request: Request) {
       });
     }
 
-    // Upsert user
-    const user = await prisma.user.upsert({
-      where: { clerkId: clerkUser.id },
-      update: {
-        fullName: data.fullName,
-        email: clerkUser.emailAddresses[0]?.emailAddress || '',
-        dob: birthDate,
-      },
-      create: {
+    // Find existing user or create new one
+    let user = await prisma.user.findFirst({
+      where: { 
         clerkId: clerkUser.id,
-        tenantId: tenant.id,
-        role: 'primary_owner',
-        isPrimary: true,
-        fullName: data.fullName,
-        email: clerkUser.emailAddresses[0]?.emailAddress || '',
-        dob: birthDate,
+        tenantId: tenant.id 
       },
       include: { profile: true }
     });
+
+    if (user) {
+      // Update existing user
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          fullName: data.fullName,
+          email: clerkUser.emailAddresses[0]?.emailAddress || '',
+          dob: birthDate,
+        },
+        include: { profile: true }
+      });
+    } else {
+      // Create new user
+      user = await prisma.user.create({
+        data: {
+          clerkId: clerkUser.id,
+          tenantId: tenant.id,
+          role: 'primary_owner',
+          isPrimary: true,
+          fullName: data.fullName,
+          email: clerkUser.emailAddresses[0]?.emailAddress || '',
+          dob: birthDate,
+        },
+        include: { profile: true }
+      });
+    }
 
     // Upsert profile
     const profile = await prisma.profile.upsert({
