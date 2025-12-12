@@ -16,7 +16,7 @@ export async function GET(request: Request) {
     const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 200);
     const offset = parseInt(searchParams.get('offset') || '0');
 
-    const user = await prisma.user.findUnique({
+    const user = await prisma.user.findFirst({
       where: { clerkId: clerkUser.id },
       include: { tenant: true }
     });
