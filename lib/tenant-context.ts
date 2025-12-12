@@ -43,16 +43,24 @@ export async function setActiveTenantId(
       };
     }
 
-    // Store in Redis with 24-hour expiration
+    // Direct Redis write (separated set and expire)
     const redis = getRedis();
-    const cacheKey = `user:${clerkUserId}:activeTenant`;
-    await redis.set(cacheKey, tenantId, { ex: 86400 }); // 24 hours
-
-    console.log('[setActiveTenantId] Successfully set tenant:', tenantId, 'for user:', clerkUserId);
+    const key = `user:${clerkUserId}:activeTenant`;
+    
+    await redis.set(key, tenantId);
+    await redis.expire(key, 86400);
+    
+    // Verify immediately
+    const verify = await redis.get(key);
+    console.log('[SET] Wrote:', tenantId, '| Verified:', verify, '| Match:', verify === tenantId);
+    
+    if (verify !== tenantId) {
+      throw new Error('Redis write failed verification');
+    }
 
     return { success: true };
   } catch (error) {
-    console.error('Error setting active tenant:', error);
+    console.error('[SET ERROR]:', error);
     return {
       success: false,
       error: 'Failed to set active tenant',
