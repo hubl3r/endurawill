@@ -10,7 +10,7 @@ export async function GET() {
   }
 
   try {
-    const user = await prisma.user.findUnique({
+    const user = await prisma.user.findFirst({
       where: { clerkId: clerkUser.id },
       include: { 
         profile: true,

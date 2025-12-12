@@ -16,7 +16,7 @@ export async function PATCH(request: Request) {
 
     const data = await request.json();
 
-    const user = await prisma.user.findUnique({
+    const user = await prisma.user.findFirst({
       where: { clerkId: clerkUser.id },
       include: { tenant: true }
     });

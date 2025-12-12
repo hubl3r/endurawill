@@ -15,7 +15,7 @@ export async function GET(request: Request) {
     const status = searchParams.get('status');
     const includeTree = searchParams.get('tree') === 'true'; // New: for folder tree view
 
-    const user = await prisma.user.findUnique({
+    const user = await prisma.user.findFirst({
       where: { clerkId: clerkUser.id },
       include: { tenant: true }
     });
@@ -98,7 +98,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { title, parentId, isFolder, type: documentType, description } = body;
 
-    const user = await prisma.user.findUnique({
+    const user = await prisma.user.findFirst({
       where: { clerkId: clerkUser.id },
       include: { tenant: true }
     });
