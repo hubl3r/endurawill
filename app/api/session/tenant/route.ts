@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { currentUser } from '@clerk/nextjs/server';
+import type { User } from '@clerk/nextjs/server';
 import { setActiveTenantId, invalidateEstateCache } from '@/lib/tenant-context';
 import { prisma } from '@/lib/prisma';
 import { rateLimiters } from '@/lib/ratelimit';
