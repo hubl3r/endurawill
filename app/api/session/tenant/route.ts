@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { currentUser } from '@clerk/nextjs/server';
-import type { User } from '@clerk/nextjs/server';
 import { setActiveTenantId, invalidateEstateCache } from '@/lib/tenant-context';
 import { prisma } from '@/lib/prisma';
 import { rateLimiters } from '@/lib/ratelimit';
@@ -18,15 +17,15 @@ import { rateLimiters } from '@/lib/ratelimit';
  */
 export async function POST(request: Request) {
   try {
-    const user = await currentUser();
+    const clerkUser = await currentUser();
     
-    if (!user) {
+    if (!clerkUser) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Rate limiting: 10 tenant switches per hour
     const { success, remaining, reset } = await rateLimiters.tenantSwitch.limit(
-      user.id
+      clerkUser.id
     );
 
     if (!success) {
@@ -58,13 +57,13 @@ export async function POST(request: Request) {
     }
 
     // Get current tenant before switching (for audit log)
-    const currentUser = await prisma.user.findFirst({
-      where: { clerkId: user.id },
+    const currentUserRecord = await prisma.user.findFirst({
+      where: { clerkId: clerkUser.id },
       include: { tenant: true },
     });
 
     // Set active tenant (validates access internally)
-    const result = await setActiveTenantId(user.id, tenantId);
+    const result = await setActiveTenantId(clerkUser.id, tenantId);
 
     if (!result.success) {
       return NextResponse.json(
@@ -74,15 +73,15 @@ export async function POST(request: Request) {
     }
 
     // Get the new user record for audit logging
-    const newUser = await prisma.user.findFirst({
+    const newUserRecord = await prisma.user.findFirst({
       where: {
-        clerkId: user.id,
+        clerkId: clerkUser.id,
         tenantId: tenantId,
       },
       include: { tenant: true },
     });
 
-    if (!newUser) {
+    if (!newUserRecord) {
       return NextResponse.json(
         { error: 'Failed to retrieve user record' },
         { status: 500 }
@@ -93,19 +92,19 @@ export async function POST(request: Request) {
     await prisma.auditLog.create({
       data: {
         tenantId: tenantId,
-        userId: newUser.id,
+        userId: newUserRecord.id,
         actorType: 'user',
-        actorName: newUser.fullName,
+        actorName: newUserRecord.fullName,
         action: 'tenant_switched',
         category: 'security',
         result: 'success',
         resourceType: 'tenant',
         resourceId: tenantId,
         details: {
-          fromTenantId: currentUser?.tenantId,
-          fromTenantName: currentUser?.tenant.name,
+          fromTenantId: currentUserRecord?.tenantId,
+          fromTenantName: currentUserRecord?.tenant.name,
           toTenantId: tenantId,
-          toTenantName: newUser.tenant.name,
+          toTenantName: newUserRecord.tenant.name,
           userConsented: true,
           timestamp: new Date().toISOString(),
         },
@@ -117,12 +116,12 @@ export async function POST(request: Request) {
     });
 
     // Invalidate estate cache
-    await invalidateEstateCache(user.id);
+    await invalidateEstateCache(clerkUser.id);
 
     return NextResponse.json({
       success: true,
       tenantId: tenantId,
-      tenantName: newUser.tenant.name,
+      tenantName: newUserRecord.tenant.name,
       message: 'Active estate switched successfully',
     });
   } catch (error) {
@@ -140,18 +139,18 @@ export async function POST(request: Request) {
  */
 export async function GET() {
   try {
-    const user: Awaited<ReturnType<typeof currentUser>> = await currentUser();
+    const clerkUser = await currentUser();
     
-    if (!user) {
+    if (!clerkUser) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const user = await prisma.user.findFirst({
-      where: { clerkId: user.id },
+    const userRecord = await prisma.user.findFirst({
+      where: { clerkId: clerkUser.id },
       include: { tenant: true },
     });
 
-    if (!user) {
+    if (!userRecord) {
       return NextResponse.json(
         { error: 'User not found' },
         { status: 404 }
@@ -160,9 +159,9 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
-      tenantId: user.tenantId,
-      tenantName: user.tenant.name,
-      role: user.role,
+      tenantId: userRecord.tenantId,
+      tenantName: userRecord.tenant.name,
+      role: userRecord.role,
     });
   } catch (error) {
     console.error('Error getting active tenant:', error);
