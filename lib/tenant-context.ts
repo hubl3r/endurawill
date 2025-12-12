@@ -71,27 +71,38 @@ export async function getAuthenticatedUserAndTenant() {
   const clerkUser = await currentUser();
   
   if (!clerkUser) {
+    console.log('[TenantContext] No Clerk user found');
     return null;
   }
+
+  console.log('[TenantContext] ClerkUser ID:', clerkUser.id);
 
   // Get active tenant from Redis (server-side, secure)
   let activeTenantId = await getActiveTenantId(clerkUser.id);
 
+  console.log('[TenantContext] Active tenant from Redis:', activeTenantId);
+
   // If no active tenant is set, get the first one they have access to
   if (!activeTenantId) {
+    console.log('[TenantContext] No active tenant in Redis, getting first estate');
     const firstUser = await prisma.user.findFirst({
       where: { clerkId: clerkUser.id },
       include: { tenant: true },
     });
 
     if (!firstUser) {
+      console.log('[TenantContext] No user records found');
       return null;
     }
+
+    console.log('[TenantContext] Using first estate:', firstUser.tenant.id, firstUser.tenant.name);
 
     // Set this as their active tenant
     activeTenantId = firstUser.tenantId;
     await setActiveTenantId(clerkUser.id, activeTenantId);
   }
+
+  console.log('[TenantContext] Fetching user record for tenant:', activeTenantId);
 
   // Validate user has access to this tenant (CRITICAL SECURITY CHECK)
   const user = await prisma.user.findFirst({
@@ -106,10 +117,17 @@ export async function getAuthenticatedUserAndTenant() {
   });
 
   if (!user) {
+    console.log('[TenantContext] User does not have access to tenant:', activeTenantId);
     // User lost access to this tenant, clear it
     await redis.del(`user:${clerkUser.id}:activeTenant`);
     return null;
   }
+
+  console.log('[TenantContext] Successfully authenticated:', {
+    tenantId: activeTenantId,
+    tenantName: user.tenant.name,
+    userRole: user.role
+  });
 
   return {
     clerkUser,
