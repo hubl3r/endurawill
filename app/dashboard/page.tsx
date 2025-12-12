@@ -46,21 +46,19 @@ export default function DashboardPage() {
         if (data.success && data.estates.length > 0) {
           setAvailableEstates(data.estates);
           
-          // Check if there's a stored estate preference
-          const storedEstateId = localStorage.getItem('selectedEstateId');
-          
-          if (storedEstateId) {
-            // Use the stored estate if it exists in the list
-            const storedEstate = data.estates.find((e: any) => e.id === storedEstateId);
-            if (storedEstate) {
-              setCurrentEstate(storedEstate);
+          // Get current active tenant from server
+          const activeResponse = await fetch('/api/session/tenant');
+          if (activeResponse.ok) {
+            const activeData = await activeResponse.json();
+            const activeEstate = data.estates.find((e: any) => e.id === activeData.tenantId);
+            if (activeEstate) {
+              setCurrentEstate(activeEstate);
               return;
             }
           }
           
-          // Otherwise, use the first one (default behavior)
+          // Default to first estate
           setCurrentEstate(data.estates[0]);
-          localStorage.setItem('selectedEstateId', data.estates[0].id);
         }
       }
     } catch (error) {
@@ -118,34 +116,49 @@ export default function DashboardPage() {
     const estate = availableEstates.find(e => e.id === estateId);
     if (!estate) return;
 
-    // Store the selection in localStorage
-    localStorage.setItem('selectedEstateId', estateId);
+    try {
+      // Call API to switch tenant (server-side, secure)
+      const response = await fetch('/api/session/tenant', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenantId: estateId }),
+      });
 
-    // Update current estate
-    setCurrentEstate(estate);
+      if (!response.ok) {
+        const data = await response.json();
+        console.error('Failed to switch estate:', data.error);
+        alert(data.error || 'Failed to switch estate');
+        return;
+      }
 
-    // Reload the page to get fresh data for the new estate
-    window.location.reload();
+      // Success - reload page to get fresh data
+      window.location.reload();
+    } catch (error) {
+      console.error('Error switching estate:', error);
+      alert('Failed to switch estate. Please try again.');
+    }
   };
 
-  const handleEstateCreated = (estate: { id: string; name: string; role: string }) => {
-    // Store the new estate as selected
-    localStorage.setItem('selectedEstateId', estate.id);
-    
-    // Add to available estates
-    const newEstate = {
-      id: estate.id,
-      name: estate.name,
-      role: estate.role as 'primary_owner' | 'co_owner' | 'delegate'
-    };
-    
-    setAvailableEstates(prev => [...prev, newEstate]);
-    
-    // Switch to the new estate
-    setCurrentEstate(newEstate);
-    
-    // Reload to get fresh data
-    window.location.reload();
+  const handleEstateCreated = async (estate: { id: string; name: string; role: string }) => {
+    try {
+      // Set the new estate as active via API
+      const response = await fetch('/api/session/tenant', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenantId: estate.id }),
+      });
+
+      if (!response.ok) {
+        console.error('Failed to set new estate as active');
+      }
+
+      // Reload to show new estate
+      window.location.reload();
+    } catch (error) {
+      console.error('Error setting new estate:', error);
+      // Still reload - the estate was created
+      window.location.reload();
+    }
   };
 
   const renderView = () => {
