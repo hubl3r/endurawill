@@ -1,173 +1,206 @@
-import { NextResponse } from 'next/server';
 import { currentUser } from '@clerk/nextjs/server';
-import { setActiveTenantId, invalidateEstateCache } from '@/lib/tenant-context';
 import { prisma } from '@/lib/prisma';
-import { rateLimiters } from '@/lib/ratelimit';
+import { getRedis } from './redis';
 
 /**
- * POST /api/session/tenant
- * Set the active tenant for the current user
- * 
- * Body: { tenantId: string }
- * 
- * Security:
- * - Rate limited to 10 switches per hour
- * - Validates user has access to tenant
- * - Logs all switches for audit trail
+ * Get the active tenant ID for the current user
+ * Returns from Redis cache (server-side), never from client
  */
-export async function POST(request: Request) {
+export async function getActiveTenantId(clerkUserId: string): Promise<string | null> {
+  const redis = getRedis();
+  const cacheKey = `user:${clerkUserId}:activeTenant`;
+  
   try {
-    const clerkUser = await currentUser();
-    
-    if (!clerkUser) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Rate limiting: 10 tenant switches per hour
-    const { success, remaining, reset } = await rateLimiters.tenantSwitch.limit(
-      clerkUser.id
-    );
-
-    if (!success) {
-      return NextResponse.json(
-        {
-          error: 'Too many tenant switches. Please try again later.',
-          remaining: 0,
-          reset: reset,
-        },
-        { 
-          status: 429,
-          headers: {
-            'X-RateLimit-Limit': '10',
-            'X-RateLimit-Remaining': '0',
-            'X-RateLimit-Reset': reset.toString(),
-          }
-        }
-      );
-    }
-
-    const body = await request.json();
-    const { tenantId } = body;
-
-    if (!tenantId) {
-      return NextResponse.json(
-        { error: 'tenantId is required' },
-        { status: 400 }
-      );
-    }
-
-    // Get current tenant before switching (for audit log)
-    const currentUserRecord = await prisma.user.findFirst({
-      where: { clerkId: clerkUser.id },
-      include: { tenant: true },
-    });
-
-    // Set active tenant (validates access internally)
-    const result = await setActiveTenantId(clerkUser.id, tenantId);
-
-    if (!result.success) {
-      return NextResponse.json(
-        { error: result.error },
-        { status: 403 }
-      );
-    }
-
-    // Get the new user record for audit logging
-    const newUserRecord = await prisma.user.findFirst({
-      where: {
-        clerkId: clerkUser.id,
-        tenantId: tenantId,
-      },
-      include: { tenant: true },
-    });
-
-    if (!newUserRecord) {
-      return NextResponse.json(
-        { error: 'Failed to retrieve user record' },
-        { status: 500 }
-      );
-    }
-
-    // Create audit log
-    await prisma.auditLog.create({
-      data: {
-        tenantId: tenantId,
-        userId: newUserRecord.id,
-        actorType: 'user',
-        actorName: newUserRecord.fullName,
-        action: 'tenant_switched',
-        category: 'security',
-        result: 'success',
-        resourceType: 'tenant',
-        resourceId: tenantId,
-        details: {
-          fromTenantId: currentUserRecord?.tenantId,
-          fromTenantName: currentUserRecord?.tenant.name,
-          toTenantId: tenantId,
-          toTenantName: newUserRecord.tenant.name,
-          userConsented: true,
-          timestamp: new Date().toISOString(),
-        },
-        ipAddress: request.headers.get('x-forwarded-for') || 
-                   request.headers.get('x-real-ip') || 
-                   'unknown',
-        userAgent: request.headers.get('user-agent') || 'unknown',
-      },
-    });
-
-    // Invalidate estate cache
-    await invalidateEstateCache(clerkUser.id);
-
-    return NextResponse.json({
-      success: true,
-      tenantId: tenantId,
-      tenantName: newUserRecord.tenant.name,
-      message: 'Active estate switched successfully',
-    });
+    const tenantId = await redis.get<string>(cacheKey);
+    return tenantId;
   } catch (error) {
-    console.error('Error switching tenant:', error);
-    return NextResponse.json(
-      { error: 'Failed to switch estate' },
-      { status: 500 }
-    );
+    console.error('Error fetching active tenant from Redis:', error);
+    return null;
   }
 }
 
 /**
- * GET /api/session/tenant
- * Get the current active tenant
+ * Set the active tenant ID for the current user
+ * Validates user has access before storing
  */
-export async function GET() {
+export async function setActiveTenantId(
+  clerkUserId: string,
+  tenantId: string
+): Promise<{ success: boolean; error?: string }> {
   try {
-    const clerkUser = await currentUser();
-    
-    if (!clerkUser) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // CRITICAL: Verify user has access to this tenant
+    const user = await prisma.user.findFirst({
+      where: {
+        clerkId: clerkUserId,
+        tenantId: tenantId,
+      },
+    });
+
+    if (!user) {
+      return {
+        success: false,
+        error: 'Access denied: You do not have access to this estate',
+      };
     }
 
-    const userRecord = await prisma.user.findFirst({
+    // Direct Redis write (separated set and expire)
+    const redis = getRedis();
+    const key = `user:${clerkUserId}:activeTenant`;
+    
+    await redis.set(key, tenantId);
+    await redis.expire(key, 86400);
+    
+    // Verify immediately
+    const verify = await redis.get(key);
+    console.log('[SET] Wrote:', tenantId, '| Verified:', verify, '| Match:', verify === tenantId);
+    
+    if (verify !== tenantId) {
+      throw new Error('Redis write failed verification');
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('[SET ERROR]:', error);
+    return {
+      success: false,
+      error: 'Failed to set active tenant',
+    };
+  }
+}
+
+/**
+ * Get the validated user and tenant for the current request
+ * This is the main function ALL API routes should use
+ * 
+ * Returns null if:
+ * - User is not authenticated
+ * - No active tenant is set
+ * - User doesn't have access to the active tenant
+ */
+export async function getAuthenticatedUserAndTenant() {
+  const clerkUser = await currentUser();
+  
+  if (!clerkUser) {
+    console.log('[TenantContext] No Clerk user found');
+    return null;
+  }
+
+  console.log('[TenantContext] ClerkUser ID:', clerkUser.id);
+
+  // Get active tenant from Redis (server-side, secure)
+  let activeTenantId = await getActiveTenantId(clerkUser.id);
+
+  console.log('[TenantContext] Active tenant from Redis:', activeTenantId);
+
+  // If no active tenant is set, get the first one they have access to
+  if (!activeTenantId) {
+    console.log('[TenantContext] No active tenant in Redis, getting first estate');
+    const firstUser = await prisma.user.findFirst({
       where: { clerkId: clerkUser.id },
       include: { tenant: true },
     });
 
-    if (!userRecord) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
+    if (!firstUser) {
+      console.log('[TenantContext] No user records found');
+      return null;
     }
 
-    return NextResponse.json({
-      success: true,
-      tenantId: userRecord.tenantId,
-      tenantName: userRecord.tenant.name,
-      role: userRecord.role,
-    });
-  } catch (error) {
-    console.error('Error getting active tenant:', error);
-    return NextResponse.json(
-      { error: 'Failed to get active estate' },
-      { status: 500 }
-    );
+    console.log('[TenantContext] Using first estate:', firstUser.tenant.id, firstUser.tenant.name);
+
+    // Set this as their active tenant
+    activeTenantId = firstUser.tenantId;
+    await setActiveTenantId(clerkUser.id, activeTenantId);
   }
+
+  console.log('[TenantContext] Fetching user record for tenant:', activeTenantId);
+
+  // Validate user has access to this tenant (CRITICAL SECURITY CHECK)
+  const user = await prisma.user.findFirst({
+    where: {
+      clerkId: clerkUser.id,
+      tenantId: activeTenantId,
+    },
+    include: {
+      tenant: true,
+      profile: true,
+    },
+  });
+
+  if (!user) {
+    console.log('[TenantContext] User does not have access to tenant:', activeTenantId);
+    // User lost access to this tenant, clear it
+    const redis = getRedis();
+    await redis.del(`user:${clerkUser.id}:activeTenant`);
+    return null;
+  }
+
+  console.log('[TenantContext] Successfully authenticated:', {
+    tenantId: activeTenantId,
+    tenantName: user.tenant.name,
+    userRole: user.role
+  });
+
+  return {
+    clerkUser,
+    user,
+    tenant: user.tenant,
+    tenantId: activeTenantId,
+  };
+}
+
+/**
+ * Clear the active tenant (used on logout or security events)
+ */
+export async function clearActiveTenant(clerkUserId: string): Promise<void> {
+  const redis = getRedis();
+  const cacheKey = `user:${clerkUserId}:activeTenant`;
+  await redis.del(cacheKey);
+}
+
+/**
+ * Get all estates the user has access to
+ * Caches result for 5 minutes
+ */
+export async function getUserEstates(clerkUserId: string) {
+  const redis = getRedis();
+  const cacheKey = `user:${clerkUserId}:estates`;
+  
+  // Try cache first
+  const cached = await redis.get<any[]>(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  // Fetch from database
+  const userRecords = await prisma.user.findMany({
+    where: { clerkId: clerkUserId },
+    include: { tenant: true },
+    orderBy: [
+      { isPrimary: 'desc' },
+      { createdAt: 'desc' },
+    ],
+  });
+
+  const estates = userRecords.map(record => ({
+    id: record.tenant.id,
+    name: record.tenant.name || `Estate of ${record.fullName}`,
+    type: record.tenant.type,
+    role: record.role,
+    isPrimary: record.isPrimary,
+    userId: record.id,
+  }));
+
+  // Cache for 5 minutes
+  await redis.set(cacheKey, JSON.stringify(estates), { ex: 300 });
+
+  return estates;
+}
+
+/**
+ * Invalidate estate cache (call when estates change)
+ */
+export async function invalidateEstateCache(clerkUserId: string): Promise<void> {
+  const redis = getRedis();
+  const cacheKey = `user:${clerkUserId}:estates`;
+  await redis.del(cacheKey);
 }
