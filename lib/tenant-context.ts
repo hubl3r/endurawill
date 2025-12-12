@@ -2,13 +2,12 @@ import { currentUser } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
 import { getRedis } from './redis';
 
-const redis = getRedis();
-
 /**
  * Get the active tenant ID for the current user
  * Returns from Redis cache (server-side), never from client
  */
 export async function getActiveTenantId(clerkUserId: string): Promise<string | null> {
+  const redis = getRedis();
   const cacheKey = `user:${clerkUserId}:activeTenant`;
   
   try {
@@ -45,8 +44,11 @@ export async function setActiveTenantId(
     }
 
     // Store in Redis with 24-hour expiration
+    const redis = getRedis();
     const cacheKey = `user:${clerkUserId}:activeTenant`;
     await redis.set(cacheKey, tenantId, { ex: 86400 }); // 24 hours
+
+    console.log('[setActiveTenantId] Successfully set tenant:', tenantId, 'for user:', clerkUserId);
 
     return { success: true };
   } catch (error) {
@@ -119,6 +121,7 @@ export async function getAuthenticatedUserAndTenant() {
   if (!user) {
     console.log('[TenantContext] User does not have access to tenant:', activeTenantId);
     // User lost access to this tenant, clear it
+    const redis = getRedis();
     await redis.del(`user:${clerkUser.id}:activeTenant`);
     return null;
   }
@@ -141,6 +144,7 @@ export async function getAuthenticatedUserAndTenant() {
  * Clear the active tenant (used on logout or security events)
  */
 export async function clearActiveTenant(clerkUserId: string): Promise<void> {
+  const redis = getRedis();
   const cacheKey = `user:${clerkUserId}:activeTenant`;
   await redis.del(cacheKey);
 }
@@ -150,6 +154,7 @@ export async function clearActiveTenant(clerkUserId: string): Promise<void> {
  * Caches result for 5 minutes
  */
 export async function getUserEstates(clerkUserId: string) {
+  const redis = getRedis();
   const cacheKey = `user:${clerkUserId}:estates`;
   
   // Try cache first
@@ -187,6 +192,7 @@ export async function getUserEstates(clerkUserId: string) {
  * Invalidate estate cache (call when estates change)
  */
 export async function invalidateEstateCache(clerkUserId: string): Promise<void> {
+  const redis = getRedis();
   const cacheKey = `user:${clerkUserId}:estates`;
   await redis.del(cacheKey);
 }
