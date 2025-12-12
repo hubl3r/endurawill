@@ -1,26 +1,20 @@
 import { prisma } from '@/lib/prisma';
-import { currentUser } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
+import { getAuthenticatedUserAndTenant } from '@/lib/tenant-context';
 
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const clerkUser = await currentUser();
+    // Get authenticated user and validated tenant
+    const auth = await getAuthenticatedUserAndTenant();
     
-    if (!clerkUser) {
+    if (!auth) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const user = await prisma.user.findFirst({
-      where: { clerkId: clerkUser.id },
-      include: { tenant: true }
-    });
-
-    if (!user?.tenant) {
-      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
-    }
+    const { user, tenantId } = auth;
 
     const { id: documentId } = await params;
     const body = await request.json();
@@ -39,9 +33,9 @@ export async function PATCH(
       return NextResponse.json({ error: 'Document not found' }, { status: 404 });
     }
 
-    // Verify ownership
-    if (document.tenantId !== user.tenant.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    // Security: Verify document belongs to active tenant
+    if (document.tenantId !== tenantId) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
     // Update the document
@@ -56,7 +50,7 @@ export async function PATCH(
     // Create audit log
     await prisma.auditLog.create({
       data: {
-        tenantId: user.tenant.id,
+        tenantId: tenantId,
         userId: user.id,
         actorType: 'user',
         actorName: user.fullName,
@@ -87,20 +81,14 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const clerkUser = await currentUser();
+    // Get authenticated user and validated tenant
+    const auth = await getAuthenticatedUserAndTenant();
     
-    if (!clerkUser) {
+    if (!auth) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const user = await prisma.user.findFirst({
-      where: { clerkId: clerkUser.id },
-      include: { tenant: true }
-    });
-
-    if (!user?.tenant) {
-      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
-    }
+    const { user, tenantId } = auth;
 
     const { id: documentId } = await params;
 
@@ -113,17 +101,20 @@ export async function DELETE(
       return NextResponse.json({ error: 'Document not found' }, { status: 404 });
     }
 
-    // Verify ownership
-    if (document.tenantId !== user.tenant.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    // Security: Verify document belongs to active tenant
+    if (document.tenantId !== tenantId) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
     // If it's a folder, delete all contents first
     if (document.isFolder) {
-      // Recursively delete all children
+      // Recursively delete all children (with tenant verification)
       const deleteFolder = async (folderId: string) => {
         const children = await prisma.document.findMany({
-          where: { parentId: folderId },
+          where: { 
+            parentId: folderId,
+            tenantId: tenantId, // ← Security: only delete from this tenant
+          },
         });
 
         for (const child of children) {
@@ -147,7 +138,7 @@ export async function DELETE(
     // Create audit log
     await prisma.auditLog.create({
       data: {
-        tenantId: user.tenant.id,
+        tenantId: tenantId,
         userId: user.id,
         actorType: 'user',
         actorName: user.fullName,
