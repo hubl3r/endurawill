@@ -18,15 +18,15 @@ import { rateLimiters } from '@/lib/ratelimit';
  */
 export async function POST(request: Request) {
   try {
-    const clerkUser: Awaited<ReturnType<typeof currentUser>> = await currentUser();
+    const user = await currentUser();
     
-    if (!clerkUser) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Rate limiting: 10 tenant switches per hour
     const { success, remaining, reset } = await rateLimiters.tenantSwitch.limit(
-      clerkUser.id
+      user.id
     );
 
     if (!success) {
@@ -59,12 +59,12 @@ export async function POST(request: Request) {
 
     // Get current tenant before switching (for audit log)
     const currentUser = await prisma.user.findFirst({
-      where: { clerkId: clerkUser.id },
+      where: { clerkId: user.id },
       include: { tenant: true },
     });
 
     // Set active tenant (validates access internally)
-    const result = await setActiveTenantId(clerkUser.id, tenantId);
+    const result = await setActiveTenantId(user.id, tenantId);
 
     if (!result.success) {
       return NextResponse.json(
@@ -76,7 +76,7 @@ export async function POST(request: Request) {
     // Get the new user record for audit logging
     const newUser = await prisma.user.findFirst({
       where: {
-        clerkId: clerkUser.id,
+        clerkId: user.id,
         tenantId: tenantId,
       },
       include: { tenant: true },
@@ -117,7 +117,7 @@ export async function POST(request: Request) {
     });
 
     // Invalidate estate cache
-    await invalidateEstateCache(clerkUser.id);
+    await invalidateEstateCache(user.id);
 
     return NextResponse.json({
       success: true,
@@ -140,14 +140,14 @@ export async function POST(request: Request) {
  */
 export async function GET() {
   try {
-    const clerkUser: Awaited<ReturnType<typeof currentUser>> = await currentUser();
+    const user: Awaited<ReturnType<typeof currentUser>> = await currentUser();
     
-    if (!clerkUser) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const user = await prisma.user.findFirst({
-      where: { clerkId: clerkUser.id },
+      where: { clerkId: user.id },
       include: { tenant: true },
     });
 
