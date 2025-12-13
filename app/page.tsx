@@ -24,6 +24,7 @@ export default function Home() {
               <a href="#features" className="text-gray-700 hover:text-blue-600">Features</a>
               <a href="#how-it-works" className="text-gray-700 hover:text-blue-600">How It Works</a>
               <a href="#pricing" className="text-gray-700 hover:text-blue-600">Pricing</a>
+              <a href="/learn" className="text-gray-700 hover:text-blue-600">Learning Center</a>
               <SignedIn>
                 <UserButton afterSignOutUrl="/" />
               </SignedIn>
@@ -57,6 +58,7 @@ export default function Home() {
                 <a href="#features" className="text-gray-700 hover:text-blue-600">Features</a>
                 <a href="#how-it-works" className="text-gray-700 hover:text-blue-600">How It Works</a>
                 <a href="#pricing" className="text-gray-700 hover:text-blue-600">Pricing</a>
+                <a href="/learn" className="text-gray-700 hover:text-blue-600">Learning Center</a>
                 <SignedIn>
                   <UserButton afterSignOutUrl="/" />
                 </SignedIn>
