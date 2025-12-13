@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { BookOpen, Search, ChevronRight } from 'lucide-react';
+import { BookOpen, Search, ChevronRight, ChevronLeft } from 'lucide-react';
 import Link from 'next/link';
 
 const topics = [
@@ -19,22 +19,24 @@ const topics = [
 
 export default function LearningCenter() {
   const [searchTerm, setSearchTerm] = useState('');
-  
+
   const filteredTopics = topics.filter(topic =>
     topic.title.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
-    <header className="border-b border-gray-200 py-4">
-  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center">
-    <Link href="/" className="text-blue-600 hover:text-blue-800 flex items-center font-semibold">
-      <ChevronLeft className="h-5 w-5 mr-1" /> Back to Home
-    </Link>
-  </div>
-  </header>
-      <div className="min-h-screen bg-white">
-        {/* Hero */}
-        <section className="bg-gradient-to-br from-blue-50 to-indigo-50 py-20 text-center">
+    <div className="min-h-screen bg-white">
+      {/* Header with Back Button */}
+      <header className="border-b border-gray-200 py-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center">
+          <Link href="/" className="text-blue-600 hover:text-blue-800 flex items-center font-semibold">
+            <ChevronLeft className="h-5 w-5 mr-1" /> Back to Home
+          </Link>
+        </div>
+      </header>
+
+      {/* Hero */}
+      <section className="bg-gradient-to-br from-blue-50 to-indigo-50 py-20 text-center">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <BookOpen className="h-16 w-16 text-blue-600 mx-auto mb-4" />
           <h1 className="text-4xl font-bold text-gray-900 mb-4">Learning Center</h1>
@@ -85,6 +87,13 @@ export default function LearningCenter() {
           </div>
         </div>
       </section>
+
+      {/* Disclaimer Footer */}
+      <footer className="bg-gray-50 py-6 text-center text-gray-600 text-sm border-t border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <p>This content is for general educational purposes only and does not constitute legal advice. Always consult with a qualified attorney for advice specific to your circumstances.</p>
+        </div>
+      </footer>
     </div>
   );
 }
