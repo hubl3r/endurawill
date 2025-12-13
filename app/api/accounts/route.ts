@@ -6,7 +6,7 @@ import { encryptFields, decryptFields } from '@/lib/encryption';
 import { updatePaymentStatuses } from '@/lib/update-payment-statuses';
 
 // Sensitive fields that need encryption
-const ENCRYPTED_ACCOUNT_FIELDS = ['loginUsername', 'loginPassword'] as const;
+const ENCRYPTED_ACCOUNT_FIELDS = ['loginUsername', 'loginPassword'];
 
 /**
  * GET /api/accounts
