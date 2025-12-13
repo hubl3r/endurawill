@@ -98,7 +98,7 @@ export default function DashboardLayout({
               </button>
 
               <Link
-                href="/dashboard/learning-center"
+                href="/dashboard/learn"
                 className="hidden md:flex items-center gap-2 text-gray-700 hover:text-blue-600 transition-colors"
               >
                 <BookOpen className="h-5 w-5" />
