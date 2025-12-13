@@ -4,9 +4,9 @@ import { getAuthenticatedUserAndTenant } from '@/lib/tenant-context';
 import { decryptFields } from '@/lib/encryption';
 
 type RouteContext = {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 };
 
 /**
@@ -28,7 +28,7 @@ export async function GET(
     }
 
     const { user, tenantId } = auth;
-    const { id } = params;
+    const { id } = await params;
 
     // Fetch account with all details
     const account = await prisma.account.findFirst({
@@ -119,7 +119,7 @@ export async function PUT(
     }
 
     const { user, tenantId } = auth;
-    const { id } = params;
+    const { id } = await params;
 
     // Verify account exists and belongs to this tenant
     const existingAccount = await prisma.account.findFirst({
@@ -240,7 +240,7 @@ export async function DELETE(
     }
 
     const { user, tenantId } = auth;
-    const { id } = params;
+    const { id } = await params;
 
     // Verify account exists and belongs to this tenant
     const account = await prisma.account.findFirst({
