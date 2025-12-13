@@ -7,6 +7,7 @@ import ChecklistModal from '@/components/ChecklistModal';
 import DocumentsView from '@/components/DocumentsView';
 import OverviewView from '@/components/OverviewView';
 import CreateEstateModal from '@/components/CreateEstateModal';
+import AccountsView from '@/components/AccountsView';
 
 export default function DashboardPage() {
   const [isChecklistOpen, setIsChecklistOpen] = useState(false);
