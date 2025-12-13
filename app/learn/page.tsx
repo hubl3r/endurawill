@@ -25,9 +25,16 @@ export default function LearningCenter() {
   );
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Hero */}
-      <section className="bg-gradient-to-br from-blue-50 to-indigo-50 py-20 text-center">
+    <header className="border-b border-gray-200 py-4">
+  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center">
+    <Link href="/" className="text-blue-600 hover:text-blue-800 flex items-center font-semibold">
+      <ChevronLeft className="h-5 w-5 mr-1" /> Back to Home
+    </Link>
+  </div>
+  </header>
+      <div className="min-h-screen bg-white">
+        {/* Hero */}
+        <section className="bg-gradient-to-br from-blue-50 to-indigo-50 py-20 text-center">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <BookOpen className="h-16 w-16 text-blue-600 mx-auto mb-4" />
           <h1 className="text-4xl font-bold text-gray-900 mb-4">Learning Center</h1>
