@@ -295,7 +295,7 @@ export default function AccountsPage(): JSX.Element {
                       {category.accounts.map(account => {
                         const Icon = getCategoryIcon(account.category);
                         const statusColor = getPaymentStatusColor(account.nextPaymentDate);
-                        const StatusIcon = getPaymentStatusIcon(account.nextPaymentDate);
+                        const statusIcon = getPaymentStatusIcon(account.nextPaymentDate);
                         
                         return (
                           <div
@@ -335,7 +335,7 @@ export default function AccountsPage(): JSX.Element {
                                 <div className="text-right">
                                   <div className="text-gray-500 text-xs">Next Payment</div>
                                   <div className={`font-medium flex items-center gap-1 ${statusColor}`}>
-                                    <StatusIcon />
+                                    <statusIcon />
                                     {formatDate(account.nextPaymentDate)}
                                   </div>
                                 </div>
