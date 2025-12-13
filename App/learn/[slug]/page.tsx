@@ -3,6 +3,12 @@ import Link from 'next/link';
 import { ChevronLeft } from 'lucide-react';
 import { learningArticles } from '@/lib/learningArticles';
 
+export function generateStaticParams() {
+  return Object.keys(learningArticles).map((slug) => ({
+    slug,
+  }));
+}
+
 type PageProps = {
   params: {
     slug: string;
