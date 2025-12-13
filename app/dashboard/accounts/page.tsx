@@ -335,7 +335,7 @@ export default function AccountsPage(): JSX.Element {
                                 <div className="text-right">
                                   <div className="text-gray-500 text-xs">Next Payment</div>
                                   <div className={`font-medium flex items-center gap-1 ${statusColor}`}>
-                                    <statusIcon />
+                                    {statusIcon}
                                     {formatDate(account.nextPaymentDate)}
                                   </div>
                                 </div>
