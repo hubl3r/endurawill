@@ -1,46 +1,20 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { ChevronLeft } from 'lucide-react';
+import { learningArticles } from '@/lib/learningArticles';
 
-// Temporary in-memory article source.
-// This should later be replaced with MDX or a CMS-backed data source.
-const articles: Record<
-  string,
-  {
-    title: string;
-    description: string;
-    lastUpdated: string;
-    content: Array<{ heading?: string; body: string }>;
-  }
-> = {
-  'what-is-a-last-will-and-testament': {
-    title: 'What Is a Last Will and Testament?',
-    description:
-      'An overview of what a last will and testament is, what it does, and why it is a foundational estate planning document.',
-    lastUpdated: 'January 2025',
-    content: [
-      {
-        body:
-          'A last will and testament is a legal document that outlines how a person’s assets should be distributed after their death. It also allows you to name an executor, appoint guardians for minor children, and provide other final instructions.',
-      },
-      {
-        heading: 'What a Will Can Do',
-        body:
-          'A will can specify who receives your property, designate guardians for minor children, and name an executor to manage your estate. Without a will, these decisions are typically made according to state law.',
-      },
-      {
-        heading: 'What a Will Cannot Do',
-        body:
-          'Certain assets, such as retirement accounts or life insurance policies with named beneficiaries, generally pass outside of a will. A will also does not avoid probate.',
-      },
-    ],
-  },
+type PageProps = {
+  params: {
+    slug: string;
+  };
 };
 
-export function generateMetadata({ params }: { params: { slug: string } }) {
-  const article = articles[params.slug];
+export function generateMetadata({ params }: PageProps) {
+  const article = learningArticles[params.slug];
 
-  if (!article) return {};
+  if (!article) {
+    return {};
+  }
 
   return {
     title: `${article.title} | Estate Planning Learning Center`,
@@ -48,10 +22,12 @@ export function generateMetadata({ params }: { params: { slug: string } }) {
   };
 }
 
-export default function ArticlePage({ params }: { params: { slug: string } }) {
-  const article = articles[params.slug];
+export default function ArticlePage({ params }: PageProps) {
+  const article = learningArticles[params.slug];
 
-  if (!article) notFound();
+  if (!article) {
+    notFound();
+  }
 
   return (
     <div className="min-h-screen bg-white">
@@ -60,9 +36,10 @@ export default function ArticlePage({ params }: { params: { slug: string } }) {
         <div className="max-w-3xl mx-auto px-4">
           <Link
             href="/learn"
-            className="text-blue-600 hover:text-blue-800 flex items-center font-semibold"
+            className="flex items-center font-semibold text-blue-600 hover:text-blue-800"
           >
-            <ChevronLeft className="h-5 w-5 mr-1" /> Back to Learning Center
+            <ChevronLeft className="h-5 w-5 mr-1" />
+            Back to Learning Center
           </Link>
         </div>
       </header>
@@ -74,7 +51,7 @@ export default function ArticlePage({ params }: { params: { slug: string } }) {
             {article.title}
           </h1>
 
-          <p className="text-gray-500 text-sm mb-8">
+          <p className="text-sm text-gray-500 mb-8">
             Last updated: {article.lastUpdated}
           </p>
 
@@ -95,10 +72,10 @@ export default function ArticlePage({ params }: { params: { slug: string } }) {
         {/* Disclaimer */}
         <div className="mt-12 border-t border-gray-200 pt-6 text-sm text-gray-600">
           <p>
-            This article is provided for general educational purposes only and
-            does not constitute legal advice. Estate planning laws vary by state
-            and individual circumstances. Consult a qualified attorney for
-            advice specific to your situation.
+            This content is provided for general educational purposes only and
+            does not constitute legal advice. Estate planning laws vary by
+            state. Consult a qualified attorney regarding your specific
+            circumstances.
           </p>
         </div>
       </main>
