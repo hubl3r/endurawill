@@ -125,7 +125,7 @@ export default function Sidebar({
         { id: 'assets', label: 'Assets', href: '/dashboard/assets' },
         { id: 'liabilities', label: 'Liabilities', href: '/dashboard/liabilities' },
         { id: 'beneficiaries', label: 'Beneficiaries', href: '/dashboard/beneficiaries' },
-        { id: 'accounts', label: 'Accounts', href: '/dashboard/accounts' },
+        { id: 'accounts', label: 'Accounts', view: 'accounts' },
         { id: 'vitals', label: 'Vitals', href: '/dashboard/vitals' },
       ]
     },
