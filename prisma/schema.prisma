@@ -1,6 +1,6 @@
 // Endurawill - Production-Ready Database Schema
 // Built for scale, audit trails, and granular permissions
-// Version: 2.0
+// Version: 2.1 - Added Account Management System
 
 generator client {
   provider = "prisma-client-js"
@@ -9,6 +9,34 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+// Account Management Enums (NEW)
+enum PaymentFrequency {
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+  QUARTERLY
+  SEMI_ANNUALLY
+  ANNUALLY
+  ONE_TIME
+  OTHER
+}
+
+enum PaymentStatus {
+  UPCOMING
+  PAID
+  PAST_DUE
+  PARTIAL
+}
+
+enum CalculationMode {
+  AUTOMATIC
+  MANUAL
 }
 
 // ============================================
@@ -37,6 +65,10 @@ model Tenant {
   delegates         Delegate[]
   settings          TenantSettings?
   auditLogs         AuditLog[]
+  
+  // NEW: Account Management Relations
+  accounts          Account[]
+  paymentHistory    PaymentHistory[]
   
   @@index([type])
 }
@@ -86,6 +118,10 @@ model User {
   
   // Invitations sent
   invitedDelegates Delegate[] @relation("InvitedBy")
+  
+  // NEW: Account Management Relations
+  createdAccounts   Account[] @relation("AccountCreatedBy")
+  modifiedAccounts  Account[] @relation("AccountModifiedBy")
   
   @@unique([tenantId, clerkId]) // Compound unique - one person can have multiple estates
   @@index([clerkId])
@@ -688,4 +724,199 @@ model DocumentAccess {
   @@index([accessorId])
   @@index([timestamp])
   @@index([action])
+}
+
+// ============================================
+// ACCOUNT MANAGEMENT SYSTEM (NEW)
+// ============================================
+
+model Account {
+  id                  String            @id @default(uuid())
+  tenantId            String
+  tenant              Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  // Category (flexible string with suggestions)
+  category            String            // Financial Accounts, Credit & Loans, Vehicles, Insurance, etc.
+  subcategory         String?
+  
+  // Basic Info
+  accountName         String
+  companyName         String
+  companyAddress      String?
+  companyPhone        String?
+  companyWebsite      String?
+  
+  // Login Credentials (ENCRYPTED - store as encrypted strings)
+  loginUsername       String?           // Will be encrypted before storage
+  loginPassword       String?           // Will be encrypted before storage
+  
+  // Payment Schedule
+  paymentFrequency    PaymentFrequency  @default(MONTHLY)
+  customSchedule      Json?             // For OTHER frequency: {type, dates/days}
+  anticipatedAmount   Decimal?          @db.Decimal(10, 2)
+  nextPaymentDate     DateTime?
+  
+  // Balance Tracking
+  calculationMode     CalculationMode?  @default(MANUAL)
+  balanceRemaining    Decimal?          @db.Decimal(12, 2)
+  
+  // Metadata
+  notes               String?           @db.Text
+  isActive            Boolean           @default(true)
+  
+  // Tracking (matches Document pattern)
+  createdById         String?
+  createdBy           User?             @relation("AccountCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  modifiedById        String?
+  modifiedBy          User?             @relation("AccountModifiedBy", fields: [modifiedById], references: [id], onDelete: SetNull)
+  
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  
+  // Relations
+  paymentHistory      PaymentHistory[]
+  financialDetails    FinancialAccountDetails?
+  loanDetails         LoanAccountDetails?
+  vehicleDetails      VehicleAccountDetails?
+  insuranceDetails    InsuranceAccountDetails?
+  propertyDetails     PropertyAccountDetails?
+  
+  @@index([tenantId, category])
+  @@index([tenantId, nextPaymentDate])
+  @@index([tenantId, isActive])
+  @@index([createdById])
+  @@index([modifiedById])
+}
+
+model PaymentHistory {
+  id                String        @id @default(uuid())
+  accountId         String
+  account           Account       @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  tenantId          String
+  tenant            Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  // Payment Details
+  dueDate           DateTime
+  paidDate          DateTime?
+  scheduledAmount   Decimal       @db.Decimal(10, 2)
+  paidAmount        Decimal?      @db.Decimal(10, 2)
+  status            PaymentStatus @default(UPCOMING)
+  
+  // Amortization Details (for automatic calculation mode)
+  balanceAfter      Decimal?      @db.Decimal(12, 2)
+  principalPaid     Decimal?      @db.Decimal(10, 2)
+  interestPaid      Decimal?      @db.Decimal(10, 2)
+  
+  notes             String?       @db.Text
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  
+  @@index([accountId, dueDate])
+  @@index([tenantId, status])
+  @@index([tenantId, dueDate])
+}
+
+model FinancialAccountDetails {
+  id                String   @id @default(uuid())
+  accountId         String   @unique
+  account           Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  
+  // Encrypted Sensitive Data
+  accountNumber     String?  // Will be encrypted before storage
+  routingNumber     String?  // Will be encrypted before storage
+  
+  // Account Info
+  institutionType   String?  // Bank, Credit Union, Online
+  accountType       String?  // Checking, Savings, Investment, Money Market, CD, etc.
+  currentBalance    Decimal? @db.Decimal(12, 2)
+  interestRate      Decimal? @db.Decimal(5, 2) // APY percentage
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model LoanAccountDetails {
+  id                String   @id @default(uuid())
+  accountId         String   @unique
+  account           Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  
+  // Encrypted Sensitive Data
+  accountNumber     String?  // Will be encrypted before storage
+  
+  // Loan Terms (for automatic calculation)
+  principalAmount   Decimal? @db.Decimal(12, 2)
+  currentBalance    Decimal? @db.Decimal(12, 2)
+  interestRate      Decimal? @db.Decimal(5, 2) // APR percentage
+  loanTerm          Int?     // Total months
+  maturityDate      DateTime?
+  minimumPayment    Decimal? @db.Decimal(10, 2)
+  
+  // Loan Type
+  loanType          String?  // Mortgage, Auto, Personal, Student, Credit Card, HELOC, etc.
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model VehicleAccountDetails {
+  id                  String   @id @default(uuid())
+  accountId           String   @unique
+  account             Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  
+  // Vehicle Info
+  vin                 String?  // Will be encrypted before storage
+  make                String?
+  model               String?
+  year                Int?
+  licensePlate        String?
+  
+  // Loan Info
+  loanAmount          Decimal? @db.Decimal(12, 2)
+  registrationExpires DateTime?
+  
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model InsuranceAccountDetails {
+  id                String   @id @default(uuid())
+  accountId         String   @unique
+  account           Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  
+  // Policy Info
+  policyNumber      String?  // Will be encrypted before storage
+  policyType        String?  // Life, Health, Auto, Home, Umbrella, Disability, etc.
+  coverageAmount    Decimal? @db.Decimal(12, 2)
+  deductible        Decimal? @db.Decimal(10, 2)
+  
+  // Dates
+  policyStart       DateTime?
+  policyEnd         DateTime?
+  
+  // Additional Info
+  beneficiaries     String?  @db.Text
+  agentName         String?
+  agentContact      String?
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model PropertyAccountDetails {
+  id                String   @id @default(uuid())
+  accountId         String   @unique
+  account           Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  
+  // Property Info
+  propertyAddress   String?
+  unitNumber        String?
+  propertyType      String?  // Primary Residence, Rental, Storage, Commercial, Parking
+  
+  // Loan/Lease Info
+  loanAmount        Decimal? @db.Decimal(12, 2)
+  interestRate      Decimal? @db.Decimal(5, 2)
+  leaseEndDate      DateTime?
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }
