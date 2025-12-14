@@ -20,6 +20,7 @@ import {
   CheckCircle,
   Clock,
 } from 'lucide-react';
+import CreateAccountModal from '@/components/CreateAccountModal';
 
 interface Account {
   id: string;
@@ -73,6 +74,11 @@ export default function AccountsView(): JSX.Element {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleAccountCreated = async (account: any) => {
+    setShowCreateModal(false);
+    await fetchAccounts();
   };
 
   const handleDelete = async (accountId: string, accountName: string) => {
@@ -383,20 +389,14 @@ export default function AccountsView(): JSX.Element {
         )}
       </div>
 
-      {/* Create Account Modal - Placeholder */}
+      {/* Create Account Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-lg p-6 max-w-2xl w-full">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-gray-900">Add Account</h2>
-              <button
-                onClick={() => setShowCreateModal(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <Plus className="h-5 w-5 rotate-45" />
-              </button>
-            </div>
-            <p className="text-gray-600">Create Account Form - Coming next!</p>
+          <div className="max-w-2xl w-full">
+            <CreateAccountModal
+              onAccountCreated={handleAccountCreated}
+              onClose={() => setShowCreateModal(false)}
+            />
           </div>
         </div>
       )}
