@@ -21,6 +21,11 @@ import {
   ChevronDown,
   ChevronRight,
 } from 'lucide-react';
+  companyAddress: string | null;
+  companyPhone: string | null;
+  companyWebsite: string | null;
+  calculationMode: string | null;
+  notes: string | null;
 import CreateAccountModal from '@/components/CreateAccountModal';
 
 interface Account {
@@ -67,7 +72,7 @@ export default function AccountsView(): JSX.Element {
   const [sortBy, setSortBy] = useState('category');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
-  const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
+  const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
 
   useEffect(() => {
