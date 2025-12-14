@@ -152,9 +152,9 @@ export default function AccountsView(): JSX.Element {
     
     const daysUntil = getDaysUntilPayment(nextPaymentDate);
     
-    if (daysUntil < 0) return 'text-red-600'; // Past due
-    if (daysUntil <= 7) return 'text-orange-600'; // Due this week
-    return 'text-gray-600'; // Upcoming
+    if (daysUntil < 0) return 'text-red-600';
+    if (daysUntil <= 7) return 'text-orange-600';
+    return 'text-gray-600';
   };
 
   const getPaymentStatusIcon = (nextPaymentDate: string | null) => {
@@ -162,9 +162,9 @@ export default function AccountsView(): JSX.Element {
     
     const daysUntil = getDaysUntilPayment(nextPaymentDate);
     
-    if (daysUntil < 0) return <AlertCircle className="h-4 w-4" />; // Past due
-    if (daysUntil <= 7) return <Clock className="h-4 w-4" />; // Due soon
-    return <Clock className="h-4 w-4" />; // Upcoming
+    if (daysUntil < 0) return <AlertCircle className="h-4 w-4" />;
+    if (daysUntil <= 7) return <Clock className="h-4 w-4" />;
+    return <Clock className="h-4 w-4" />;
   };
 
   const formatCurrency = (amount: number | null): string => {
@@ -214,7 +214,7 @@ export default function AccountsView(): JSX.Element {
     
     switch (sortBy) {
       case 'category':
-        return sorted; // Will be grouped by category later
+        return sorted;
       
       case 'name':
         return sorted.sort((a, b) => a.accountName.localeCompare(b.accountName));
@@ -259,7 +259,6 @@ export default function AccountsView(): JSX.Element {
     count: sortedAccounts.filter(a => a.category === cat.id).length,
   }));
 
-  // Calculate stats based on filtered accounts
   const totalMonthlyPayments = sortedAccounts
     .filter(a => a.paymentFrequency === 'MONTHLY' && a.anticipatedAmount)
     .reduce((sum, a) => sum + Number(a.anticipatedAmount || 0), 0);
@@ -276,34 +275,29 @@ export default function AccountsView(): JSX.Element {
     );
   }
 
-  // Show flat list view when sorted (not by category)
   const showFlatList = sortBy !== 'category';
 
   return (
     <div className="h-full flex flex-col">
-      {/* Header */}
       <div className="border-b border-gray-200 px-4 md:px-6 py-4 bg-white">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Accounts</h1>
             <p className="text-sm text-gray-500 mt-1">Track your financial accounts and payment schedules</p>
           </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => {
-                setEditingAccount(null);
-                setShowCreateModal(true);
-              }}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">Add Account</span>
-              <span className="sm:hidden">Add</span>
-            </button>
-          </div>
+          <button
+            onClick={() => {
+              setEditingAccount(null);
+              setShowCreateModal(true);
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline">Add Account</span>
+            <span className="sm:hidden">Add</span>
+          </button>
         </div>
 
-        {/* Search and Filters */}
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -337,7 +331,6 @@ export default function AccountsView(): JSX.Element {
         </div>
       </div>
 
-      {/* Stats Overview */}
       <div className="border-b border-gray-200 px-4 md:px-6 py-4 bg-gray-50">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
           <div className="bg-white p-3 md:p-4 rounded-lg border border-gray-200">
@@ -365,7 +358,6 @@ export default function AccountsView(): JSX.Element {
         </div>
       </div>
 
-      {/* Content Area */}
       <div className="flex-1 overflow-auto p-4 md:p-6 bg-white">
         {sortedAccounts.length === 0 ? (
           <div className="text-center py-16">
@@ -389,7 +381,6 @@ export default function AccountsView(): JSX.Element {
             )}
           </div>
         ) : showFlatList ? (
-          // Flat List View (when sorted)
           <div className="space-y-2">
             {sortedAccounts.map(account => {
               const statusColor = getPaymentStatusColor(account.nextPaymentDate);
@@ -453,7 +444,6 @@ export default function AccountsView(): JSX.Element {
             })}
           </div>
         ) : (
-          // Category Grouped View (default)
           <div className="space-y-4">
             {accountsByCategory
               .filter(cat => cat.count > 0)
@@ -576,7 +566,6 @@ export default function AccountsView(): JSX.Element {
         )}
       </div>
 
-      {/* Create/Edit Account Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="max-w-2xl w-full">
@@ -592,7 +581,6 @@ export default function AccountsView(): JSX.Element {
         </div>
       )}
 
-      {/* Account Detail Modal (for list view clicks) */}
       {selectedAccount && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
