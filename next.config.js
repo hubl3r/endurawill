@@ -1,10 +1,14 @@
+// next.config.js
 /** @type {import('next').NextConfig} */
 const withMDX = require('@next/mdx')({
-  extension: /\.(md|mdx)$/,
+  extension: /\.mdx$/,
 });
 
-const nextConfig = {
-  pageExtensions: ['ts', 'tsx', 'md', 'mdx'],
-};
+const nextConfig = withMDX({
+  pageExtensions: ['ts', 'tsx', 'mdx'],
+  experimental: {
+    turbo: false, // disables Turbopack
+  },
+});
 
-module.exports = withMDX(nextConfig);
+module.exports = nextConfig;
