@@ -163,6 +163,10 @@ export default function DashboardPage() {
   };
 
   const renderView = () => {
+    if (selectedView === 'accounts') {
+      return <AccountsView />;
+    }
+    
     if (selectedView === 'documents') {
       return <DocumentsView />;
     }
