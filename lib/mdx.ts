@@ -1,36 +1,19 @@
-import fs from 'fs';
-import path from 'path';
+// lib/mdx.ts
+import WhatIsAWT from '../content/learn/what-is-a-last-will-and-testament.mdx';
 
-const CONTENT_PATH = path.join(process.cwd(), 'content/learn');
+export const mdxArticles = {
+  'what-is-a-last-will-and-testament': WhatIsAWT,
+};
 
 export function getMdxSlugs() {
-  if (!fs.existsSync(CONTENT_PATH)) {
-    return [];
-  }
-
-  return fs
-    .readdirSync(CONTENT_PATH)
-    .filter((file) => file.endsWith('.mdx'))
-    .map((file) => file.replace(/\.mdx$/, ''));
+  return Object.keys(mdxArticles);
 }
 
-/**
- * Vercel-safe dynamic import: use relative path, not alias
- */
 export async function getMdxBySlug(slug: string) {
-  const fullPath = path.join(CONTENT_PATH, `${slug}.mdx`);
+  const Content = mdxArticles[slug];
+  if (!Content) return null;
 
-  if (!fs.existsSync(fullPath)) {
-    return null;
-  }
-
-  // Vercel-safe relative path import
-  const { default: Content, metadata } = await import(
-    `../../../content/learn/${slug}.mdx`
-  );
-
-  return {
-    Content,
-    metadata,
-  };
+  // MDX metadata can still be exported from the MDX file
+  const { metadata } = Content as any;
+  return { Content, metadata };
 }
