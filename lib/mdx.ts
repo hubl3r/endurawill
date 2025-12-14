@@ -9,11 +9,11 @@ export function getMdxSlugs() {
   return Object.keys(mdxArticles);
 }
 
-export async function getMdxBySlug(slug: string) {
+export function getMdxBySlug(slug: string) {
   const Content = mdxArticles[slug];
   if (!Content) return null;
 
   // MDX metadata can still be exported from the MDX file
-  const { metadata } = Content as any;
+  const metadata = (Content as any).metadata || { title: 'Untitled' };
   return { Content, metadata };
 }
