@@ -15,11 +15,13 @@ type PageProps = {
  * Pre-build all MDX article pages at build time
  */
 export function generateStaticParams() {
-  return getMdxSlugs().map((slug) => ({ slug }));
+  const slugs = getMdxSlugs();
+  console.log('GENERATED SLUGS:', slugs);
+  return slugs.map((slug) => ({ slug }));
 }
 
 /**
- * Per-article SEO metadata
+ * Optional: Per-article SEO metadata
  */
 export async function generateMetadata({ params }: PageProps) {
   const mdx = await getMdxBySlug(params.slug);
@@ -75,7 +77,7 @@ export default async function ArticlePage({ params }: PageProps) {
             <Content />
           </div>
 
-          {/* Compliant CTA */}
+          {/* CTA */}
           <LearningCTA />
 
           {/* Disclaimer */}
