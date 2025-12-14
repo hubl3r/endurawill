@@ -18,7 +18,8 @@ import {
   TrendingUp,
   AlertCircle,
   Clock,
-  ArrowUpDown,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import CreateAccountModal from '@/components/CreateAccountModal';
 
@@ -51,6 +52,7 @@ const ACCOUNT_CATEGORIES = [
 ];
 
 const SORT_OPTIONS = [
+  { value: 'category', label: 'By Category (Default)' },
   { value: 'name', label: 'Alphabetical' },
   { value: 'nextDue', label: 'Next Due Date' },
   { value: 'dueThisWeek', label: 'Due This Week' },
@@ -62,8 +64,11 @@ export default function AccountsView(): JSX.Element {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [sortBy, setSortBy] = useState('name');
+  const [sortBy, setSortBy] = useState('category');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingAccount, setEditingAccount] = useState<Account | null>(null);
+  const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     fetchAccounts();
@@ -86,7 +91,19 @@ export default function AccountsView(): JSX.Element {
 
   const handleAccountCreated = async (account: any) => {
     setShowCreateModal(false);
+    setEditingAccount(null);
     await fetchAccounts();
+  };
+
+  const handleEdit = (account: Account) => {
+    setEditingAccount(account);
+    setShowCreateModal(true);
+  };
+
+  const handleAccountClick = (account: Account) => {
+    if (sortBy !== 'category') {
+      setSelectedAccount(account);
+    }
   };
 
   const handleDelete = async (accountId: string, accountName: string) => {
@@ -111,10 +128,22 @@ export default function AccountsView(): JSX.Element {
     }
   };
 
+  const toggleCategory = (categoryId: string) => {
+    const newExpanded = new Set(expandedCategories);
+    if (newExpanded.has(categoryId)) {
+      newExpanded.delete(categoryId);
+    } else {
+      newExpanded.add(categoryId);
+    }
+    setExpandedCategories(newExpanded);
+  };
+
   const getDaysUntilPayment = (nextPaymentDate: string | null): number => {
     if (!nextPaymentDate) return Infinity;
     const today = new Date();
+    today.setHours(0, 0, 0, 0);
     const paymentDate = new Date(nextPaymentDate);
+    paymentDate.setHours(0, 0, 0, 0);
     return Math.ceil((paymentDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
   };
 
@@ -125,7 +154,7 @@ export default function AccountsView(): JSX.Element {
     
     if (daysUntil < 0) return 'text-red-600'; // Past due
     if (daysUntil <= 7) return 'text-orange-600'; // Due this week
-    return 'text-gray-600'; // Upcoming (not green until paid)
+    return 'text-gray-600'; // Upcoming
   };
 
   const getPaymentStatusIcon = (nextPaymentDate: string | null) => {
@@ -155,6 +184,10 @@ export default function AccountsView(): JSX.Element {
     });
   };
 
+  const formatFrequency = (frequency: string): string => {
+    return frequency.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
+  };
+
   const getCategoryIcon = (category: string) => {
     const cat = ACCOUNT_CATEGORIES.find(c => c.id === category);
     return cat?.icon || DollarSign;
@@ -180,6 +213,9 @@ export default function AccountsView(): JSX.Element {
     const sorted = [...accounts];
     
     switch (sortBy) {
+      case 'category':
+        return sorted; // Will be grouped by category later
+      
       case 'name':
         return sorted.sort((a, b) => a.accountName.localeCompare(b.accountName));
       
@@ -240,6 +276,9 @@ export default function AccountsView(): JSX.Element {
     );
   }
 
+  // Show flat list view when sorted (not by category)
+  const showFlatList = sortBy !== 'category';
+
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
@@ -251,7 +290,10 @@ export default function AccountsView(): JSX.Element {
           </div>
           <div className="flex items-center gap-3">
             <button
-              onClick={() => setShowCreateModal(true)}
+              onClick={() => {
+                setEditingAccount(null);
+                setShowCreateModal(true);
+              }}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
             >
               <Plus className="h-4 w-4" />
@@ -329,14 +371,14 @@ export default function AccountsView(): JSX.Element {
           <div className="text-center py-16">
             <CreditCard className="h-16 w-16 mx-auto mb-4 text-gray-300" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">
-              {searchQuery || selectedCategory || sortBy !== 'name' ? 'No accounts found' : 'No accounts yet'}
+              {searchQuery || selectedCategory || sortBy !== 'category' ? 'No accounts found' : 'No accounts yet'}
             </h3>
             <p className="text-gray-500 mb-4">
-              {searchQuery || selectedCategory || sortBy !== 'name'
+              {searchQuery || selectedCategory || sortBy !== 'category'
                 ? 'Try adjusting your filters' 
                 : 'Start by adding your first account'}
             </p>
-            {!searchQuery && !selectedCategory && sortBy === 'name' && (
+            {!searchQuery && !selectedCategory && sortBy === 'category' && (
               <button
                 onClick={() => setShowCreateModal(true)}
                 className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 mx-auto"
@@ -346,108 +388,187 @@ export default function AccountsView(): JSX.Element {
               </button>
             )}
           </div>
+        ) : showFlatList ? (
+          // Flat List View (when sorted)
+          <div className="space-y-2">
+            {sortedAccounts.map(account => {
+              const statusColor = getPaymentStatusColor(account.nextPaymentDate);
+              const statusIcon = getPaymentStatusIcon(account.nextPaymentDate);
+              
+              return (
+                <div
+                  key={account.id}
+                  onClick={() => handleAccountClick(account)}
+                  className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer group"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-gray-900">{account.accountName}</div>
+                    <div className="text-sm text-gray-500">{account.companyName}</div>
+                  </div>
+                  
+                  <div className="flex items-center gap-6 text-sm">
+                    {account.anticipatedAmount && (
+                      <div className="text-right">
+                        <div className="font-medium text-gray-900">
+                          {formatCurrency(account.anticipatedAmount)}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {account.nextPaymentDate && (
+                      <div className="text-right">
+                        <div className={`font-medium flex items-center gap-1 ${statusColor}`}>
+                          {statusIcon}
+                          <span className="hidden sm:inline">{formatDate(account.nextPaymentDate)}</span>
+                          <span className="sm:hidden">{new Date(account.nextPaymentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 ml-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEdit(account);
+                      }}
+                      className="p-1 hover:bg-gray-200 rounded"
+                      title="Edit"
+                    >
+                      <Edit className="h-4 w-4 text-gray-600" />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(account.id, account.accountName);
+                      }}
+                      className="p-1 hover:bg-red-100 rounded"
+                      title="Delete"
+                    >
+                      <Trash2 className="h-4 w-4 text-red-600" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         ) : (
-          <div className="space-y-6">
+          // Category Grouped View (default)
+          <div className="space-y-4">
             {accountsByCategory
               .filter(cat => cat.count > 0)
               .map(category => {
                 const Icon = category.icon;
+                const isExpanded = expandedCategories.has(category.id);
+                
                 return (
                   <div key={category.id}>
-                    <div className="flex items-center gap-2 mb-3">
-                      <Icon className={`h-5 w-5 text-${category.color}-600`} />
-                      <h2 className="text-base md:text-lg font-semibold text-gray-900">{category.id}</h2>
-                      <span className="text-sm text-gray-500">({category.count})</span>
-                    </div>
+                    <button
+                      onClick={() => toggleCategory(category.id)}
+                      className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Icon className={`h-5 w-5 text-${category.color}-600`} />
+                        <h2 className="text-base md:text-lg font-semibold text-gray-900">{category.id}</h2>
+                        <span className="text-sm text-gray-500">({category.count})</span>
+                      </div>
+                      {isExpanded ? (
+                        <ChevronDown className="h-5 w-5 text-gray-400" />
+                      ) : (
+                        <ChevronRight className="h-5 w-5 text-gray-400" />
+                      )}
+                    </button>
                     
-                    <div className="grid grid-cols-1 gap-3">
-                      {category.accounts.map(account => {
-                        const Icon = getCategoryIcon(account.category);
-                        const statusColor = getPaymentStatusColor(account.nextPaymentDate);
-                        const statusIcon = getPaymentStatusIcon(account.nextPaymentDate);
-                        
-                        return (
-                          <div
-                            key={account.id}
-                            className="flex flex-col md:flex-row md:items-center gap-3 md:gap-4 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 group"
-                          >
-                            <Icon className={`h-8 w-8 text-${getCategoryColor(account.category)}-500 flex-shrink-0 hidden md:block`} />
-                            
-                            <div className="flex-1 min-w-0">
-                              <div className="font-medium text-gray-900">{account.accountName}</div>
-                              <div className="text-sm text-gray-500">{account.companyName}</div>
-                              {account.subcategory && (
-                                <div className="text-xs text-gray-400 mt-1">{account.subcategory}</div>
-                              )}
-                            </div>
-
-                            <div className="flex flex-wrap gap-4 md:gap-6 text-sm">
-                              {account.anticipatedAmount && (
-                                <div className="text-left md:text-right">
-                                  <div className="text-gray-500 text-xs">Payment</div>
-                                  <div className="font-medium text-gray-900">
-                                    {formatCurrency(account.anticipatedAmount)}
-                                  </div>
-                                </div>
-                              )}
+                    {isExpanded && (
+                      <div className="mt-2 space-y-2 ml-4">
+                        {category.accounts.map(account => {
+                          const Icon = getCategoryIcon(account.category);
+                          const statusColor = getPaymentStatusColor(account.nextPaymentDate);
+                          const statusIcon = getPaymentStatusIcon(account.nextPaymentDate);
+                          
+                          return (
+                            <div
+                              key={account.id}
+                              className="flex flex-col md:flex-row md:items-center gap-3 md:gap-4 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 group"
+                            >
+                              <Icon className={`h-8 w-8 text-${getCategoryColor(account.category)}-500 flex-shrink-0 hidden md:block`} />
                               
-                              {account.balanceRemaining && (
-                                <div className="text-left md:text-right">
-                                  <div className="text-gray-500 text-xs">Balance</div>
-                                  <div className="font-medium text-gray-900">
-                                    {formatCurrency(account.balanceRemaining)}
-                                  </div>
-                                </div>
-                              )}
-                              
-                              {account.nextPaymentDate && (
-                                <div className="text-left md:text-right">
-                                  <div className="text-gray-500 text-xs">Next Payment</div>
-                                  <div className={`font-medium flex items-center gap-1 ${statusColor}`}>
-                                    {statusIcon}
-                                    <span className="hidden sm:inline">{formatDate(account.nextPaymentDate)}</span>
-                                    <span className="sm:hidden">{new Date(account.nextPaymentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
-                                  </div>
-                                </div>
-                              )}
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium text-gray-900">{account.accountName}</div>
+                                <div className="text-sm text-gray-500">{account.companyName}</div>
+                                {account.subcategory && (
+                                  <div className="text-xs text-gray-400 mt-1">{account.subcategory}</div>
+                                )}
+                              </div>
 
-                              <div className="text-left md:text-right">
-                                <div className="text-gray-500 text-xs">Frequency</div>
-                                <div className="font-medium text-gray-900 text-xs md:text-sm">
-                                  {account.paymentFrequency.replace('_', ' ')}
+                              <div className="flex flex-wrap gap-4 md:gap-6 text-sm">
+                                {account.anticipatedAmount && (
+                                  <div className="text-left md:text-right">
+                                    <div className="text-gray-500 text-xs">Payment</div>
+                                    <div className="font-medium text-gray-900">
+                                      {formatCurrency(account.anticipatedAmount)}
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                {account.balanceRemaining && (
+                                  <div className="text-left md:text-right">
+                                    <div className="text-gray-500 text-xs">Balance</div>
+                                    <div className="font-medium text-gray-900">
+                                      {formatCurrency(account.balanceRemaining)}
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                {account.nextPaymentDate && (
+                                  <div className="text-left md:text-right">
+                                    <div className="text-gray-500 text-xs">Next Payment</div>
+                                    <div className={`font-medium flex items-center gap-1 ${statusColor}`}>
+                                      {statusIcon}
+                                      <span className="hidden sm:inline">{formatDate(account.nextPaymentDate)}</span>
+                                      <span className="sm:hidden">{new Date(account.nextPaymentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                                    </div>
+                                  </div>
+                                )}
+
+                                <div className="text-left md:text-right">
+                                  <div className="text-gray-500 text-xs">Frequency</div>
+                                  <div className="font-medium text-gray-900 text-xs md:text-sm">
+                                    {formatFrequency(account.paymentFrequency)}
+                                  </div>
                                 </div>
                               </div>
-                            </div>
 
-                            <div className="flex items-center gap-2 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                              <button
-                                onClick={() => {/* TODO: Edit modal */}}
-                                className="p-1 hover:bg-gray-200 rounded"
-                                title="Edit"
-                              >
-                                <Edit className="h-4 w-4 text-gray-600" />
-                              </button>
-                              <button
-                                className="p-1 hover:bg-gray-200 rounded"
-                                title="View Payments"
-                              >
-                                <Calendar className="h-4 w-4 text-gray-600" />
-                              </button>
-                              <button
-                                onClick={() => handleDelete(account.id, account.accountName)}
-                                className="p-1 hover:bg-red-100 rounded"
-                                title="Delete"
-                              >
-                                <Trash2 className="h-4 w-4 text-red-600" />
-                              </button>
-                              <button className="p-1 hover:bg-gray-200 rounded hidden md:block">
-                                <MoreVertical className="h-4 w-4 text-gray-600" />
-                              </button>
+                              <div className="flex items-center gap-2 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                                <button
+                                  onClick={() => handleEdit(account)}
+                                  className="p-1 hover:bg-gray-200 rounded"
+                                  title="Edit"
+                                >
+                                  <Edit className="h-4 w-4 text-gray-600" />
+                                </button>
+                                <button
+                                  className="p-1 hover:bg-gray-200 rounded"
+                                  title="View Payments"
+                                >
+                                  <Calendar className="h-4 w-4 text-gray-600" />
+                                </button>
+                                <button
+                                  onClick={() => handleDelete(account.id, account.accountName)}
+                                  className="p-1 hover:bg-red-100 rounded"
+                                  title="Delete"
+                                >
+                                  <Trash2 className="h-4 w-4 text-red-600" />
+                                </button>
+                                <button className="p-1 hover:bg-gray-200 rounded hidden md:block">
+                                  <MoreVertical className="h-4 w-4 text-gray-600" />
+                                </button>
+                              </div>
                             </div>
-                          </div>
-                        );
-                      })}
-                    </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -455,14 +576,101 @@ export default function AccountsView(): JSX.Element {
         )}
       </div>
 
-      {/* Create Account Modal */}
+      {/* Create/Edit Account Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="max-w-2xl w-full">
             <CreateAccountModal
+              account={editingAccount}
               onAccountCreated={handleAccountCreated}
-              onClose={() => setShowCreateModal(false)}
+              onClose={() => {
+                setShowCreateModal(false);
+                setEditingAccount(null);
+              }}
             />
+          </div>
+        </div>
+      )}
+
+      {/* Account Detail Modal (for list view clicks) */}
+      {selectedAccount && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-gray-900">{selectedAccount.accountName}</h2>
+              <button
+                onClick={() => setSelectedAccount(null)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <Plus className="h-5 w-5 rotate-45" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <div className="text-sm text-gray-500">Company</div>
+                <div className="font-medium text-gray-900">{selectedAccount.companyName}</div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <div className="text-sm text-gray-500">Category</div>
+                  <div className="font-medium text-gray-900">{selectedAccount.category}</div>
+                </div>
+                {selectedAccount.subcategory && (
+                  <div>
+                    <div className="text-sm text-gray-500">Subcategory</div>
+                    <div className="font-medium text-gray-900">{selectedAccount.subcategory}</div>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                {selectedAccount.anticipatedAmount && (
+                  <div>
+                    <div className="text-sm text-gray-500">Payment Amount</div>
+                    <div className="font-medium text-gray-900">{formatCurrency(selectedAccount.anticipatedAmount)}</div>
+                  </div>
+                )}
+                <div>
+                  <div className="text-sm text-gray-500">Frequency</div>
+                  <div className="font-medium text-gray-900">{formatFrequency(selectedAccount.paymentFrequency)}</div>
+                </div>
+              </div>
+
+              {selectedAccount.nextPaymentDate && (
+                <div>
+                  <div className="text-sm text-gray-500">Next Payment Date</div>
+                  <div className="font-medium text-gray-900">{formatDate(selectedAccount.nextPaymentDate)}</div>
+                </div>
+              )}
+
+              {selectedAccount.balanceRemaining && (
+                <div>
+                  <div className="text-sm text-gray-500">Balance Remaining</div>
+                  <div className="font-medium text-gray-900">{formatCurrency(selectedAccount.balanceRemaining)}</div>
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={() => {
+                    setEditingAccount(selectedAccount);
+                    setSelectedAccount(null);
+                    setShowCreateModal(true);
+                  }}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  Edit Account
+                </button>
+                <button
+                  onClick={() => setSelectedAccount(null)}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
