@@ -5,12 +5,15 @@ type PageProps = {
   params: { slug: string };
 };
 
-export function generateStaticParams() {
-  return getMdxSlugs().map((slug) => ({ slug }));
+// Make this async to satisfy Next.js type expectations
+export async function generateStaticParams() {
+  const slugs = await getMdxSlugs();
+  return slugs.map((slug) => ({ slug }));
 }
 
-export default function ArticlePage({ params }: PageProps) {
-  const mdx = getMdxBySlug(params.slug);
+// Mark page component as async if getMdxBySlug might fetch data
+export default async function ArticlePage({ params }: PageProps) {
+  const mdx = await getMdxBySlug(params.slug);
   if (!mdx) notFound();
 
   const { Content, metadata } = mdx;
