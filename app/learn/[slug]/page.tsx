@@ -1,13 +1,13 @@
 import { notFound } from 'next/navigation';
 import { getMdxBySlug, getMdxSlugs } from '@/lib/mdx';
 
-// Async function returning a Promise array
+// Return a Promise array — Next.js expects async generateStaticParams
 export async function generateStaticParams() {
   const slugs = await getMdxSlugs();
   return slugs.map((slug) => ({ slug }));
 }
 
-// Page component must be async if using async data fetching
+// Let Next.js infer the PageProps type
 export default async function ArticlePage({ params }: { params: { slug: string } }) {
   const mdx = await getMdxBySlug(params.slug);
   if (!mdx) notFound();
