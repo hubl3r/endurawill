@@ -2,26 +2,20 @@
 
 import { useState, useEffect } from 'react';
 import { 
-  CreditCard,
   Plus,
   Search,
-  MoreVertical,
+  X,
   Edit,
   Trash2,
-  DollarSign,
   Calendar,
-  Building2,
-  Car,
-  Shield,
-  Home,
-  Wallet,
-  TrendingUp,
   AlertCircle,
   Clock,
   ChevronDown,
   ChevronRight,
+  CreditCard,
 } from 'lucide-react';
 import CreateAccountModal from '@/components/CreateAccountModal';
+import { ACCOUNT_CATEGORIES } from '@/lib/accountConstants';
 
 interface Account {
   id: string;
@@ -32,29 +26,20 @@ interface Account {
   companyAddress: string | null;
   companyPhone: string | null;
   companyWebsite: string | null;
+  accountNumber: string | null;
   paymentFrequency: string;
   anticipatedAmount: number | null;
   nextPaymentDate: string | null;
   calculationMode: string | null;
   balanceRemaining: number | null;
   notes: string | null;
+  status: string;
   isActive: boolean;
   createdAt: string;
   _count: {
     paymentHistory: number;
   };
 }
-
-const ACCOUNT_CATEGORIES = [
-  { id: 'Financial Accounts', icon: Wallet, color: 'blue' },
-  { id: 'Credit & Loans', icon: CreditCard, color: 'purple' },
-  { id: 'Vehicles & Transportation', icon: Car, color: 'green' },
-  { id: 'Insurance', icon: Shield, color: 'orange' },
-  { id: 'Real Estate & Property', icon: Home, color: 'red' },
-  { id: 'Utilities', icon: Building2, color: 'cyan' },
-  { id: 'Subscriptions & Memberships', icon: TrendingUp, color: 'pink' },
-  { id: 'Other', icon: DollarSign, color: 'gray' },
-];
 
 const SORT_OPTIONS = [
   { value: 'category', label: 'By Category (Default)' },
@@ -74,6 +59,7 @@ export default function AccountsView(): JSX.Element {
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+  const [preselectedCategory, setPreselectedCategory] = useState<string | null>(null);
 
   useEffect(() => {
     fetchAccounts();
@@ -97,6 +83,7 @@ export default function AccountsView(): JSX.Element {
   const handleAccountCreated = async (account: any) => {
     setShowCreateModal(false);
     setEditingAccount(null);
+    setPreselectedCategory(null);
     await fetchAccounts();
   };
 
@@ -109,6 +96,12 @@ export default function AccountsView(): JSX.Element {
     if (sortBy !== 'category') {
       setSelectedAccount(account);
     }
+  };
+
+  const handleCategoryAdd = (categoryId: string) => {
+    setPreselectedCategory(categoryId);
+    setEditingAccount(null);
+    setShowCreateModal(true);
   };
 
   const handleDelete = async (accountId: string, accountName: string) => {
@@ -141,6 +134,10 @@ export default function AccountsView(): JSX.Element {
       newExpanded.add(categoryId);
     }
     setExpandedCategories(newExpanded);
+  };
+
+  const clearSearch = () => {
+    setSearchQuery('');
   };
 
   const getDaysUntilPayment = (nextPaymentDate: string | null): number => {
@@ -190,12 +187,12 @@ export default function AccountsView(): JSX.Element {
   };
 
   const formatFrequency = (frequency: string): string => {
-    return frequency.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
+    return frequency.replaceAll('_', ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
   };
 
   const getCategoryIcon = (category: string) => {
     const cat = ACCOUNT_CATEGORIES.find(c => c.id === category);
-    return cat?.icon || DollarSign;
+    return cat?.icon || CreditCard;
   };
 
   const getCategoryColor = (category: string) => {
@@ -293,6 +290,7 @@ export default function AccountsView(): JSX.Element {
           <button
             onClick={() => {
               setEditingAccount(null);
+              setPreselectedCategory(null);
               setShowCreateModal(true);
             }}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
@@ -311,8 +309,16 @@ export default function AccountsView(): JSX.Element {
               placeholder="Search accounts..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
+            {searchQuery && (
+              <button
+                onClick={clearSearch}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
           </div>
           <select
             value={selectedCategory || ''}
@@ -345,7 +351,7 @@ export default function AccountsView(): JSX.Element {
           <div className="bg-white p-3 md:p-4 rounded-lg border border-gray-200">
             <div className="text-xs md:text-sm text-gray-600 mb-1">Active</div>
             <div className="text-xl md:text-2xl font-bold text-green-600">
-              {sortedAccounts.filter(a => a.isActive).length}
+              {sortedAccounts.filter(a => a.status === 'ACTIVE').length}
             </div>
           </div>
           <div className="bg-white p-3 md:p-4 rounded-lg border border-gray-200">
@@ -458,21 +464,28 @@ export default function AccountsView(): JSX.Element {
                 
                 return (
                   <div key={category.id}>
-                    <button
-                      onClick={() => toggleCategory(category.id)}
-                      className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
-                    >
-                      <div className="flex items-center gap-2">
+                    <div className="flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-lg">
+                      <button
+                        onClick={() => toggleCategory(category.id)}
+                        className="flex items-center gap-2 flex-1"
+                      >
                         <Icon className={`h-5 w-5 text-${category.color}-600`} />
                         <h2 className="text-base md:text-lg font-semibold text-gray-900">{category.id}</h2>
                         <span className="text-sm text-gray-500">({category.count})</span>
-                      </div>
-                      {isExpanded ? (
-                        <ChevronDown className="h-5 w-5 text-gray-400" />
-                      ) : (
-                        <ChevronRight className="h-5 w-5 text-gray-400" />
-                      )}
-                    </button>
+                        {isExpanded ? (
+                          <ChevronDown className="h-5 w-5 text-gray-400 ml-auto" />
+                        ) : (
+                          <ChevronRight className="h-5 w-5 text-gray-400 ml-auto" />
+                        )}
+                      </button>
+                      <button
+                        onClick={() => handleCategoryAdd(category.id)}
+                        className="ml-2 p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        title={`Add ${category.id} account`}
+                      >
+                        <Plus className="h-4 w-4" />
+                      </button>
+                    </div>
                     
                     {isExpanded && (
                       <div className="mt-2 space-y-2 ml-4">
@@ -555,9 +568,6 @@ export default function AccountsView(): JSX.Element {
                                 >
                                   <Trash2 className="h-4 w-4 text-red-600" />
                                 </button>
-                                <button className="p-1 hover:bg-gray-200 rounded hidden md:block">
-                                  <MoreVertical className="h-4 w-4 text-gray-600" />
-                                </button>
                               </div>
                             </div>
                           );
@@ -576,10 +586,12 @@ export default function AccountsView(): JSX.Element {
           <div className="max-w-2xl w-full">
             <CreateAccountModal
               account={editingAccount}
+              preselectedCategory={preselectedCategory}
               onAccountCreated={handleAccountCreated}
               onClose={() => {
                 setShowCreateModal(false);
                 setEditingAccount(null);
+                setPreselectedCategory(null);
               }}
             />
           </div>
@@ -595,7 +607,7 @@ export default function AccountsView(): JSX.Element {
                 onClick={() => setSelectedAccount(null)}
                 className="text-gray-400 hover:text-gray-600"
               >
-                <Plus className="h-5 w-5 rotate-45" />
+                <X className="h-5 w-5" />
               </button>
             </div>
 
