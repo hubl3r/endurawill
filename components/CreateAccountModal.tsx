@@ -1,9 +1,25 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, CheckCircle, AlertCircle, CreditCard, DollarSign } from 'lucide-react';
 
 interface CreateAccountModalProps {
+  account?: {
+    id: string;
+    accountName: string;
+    companyName: string;
+    category: string;
+    subcategory: string | null;
+    companyAddress: string | null;
+    companyPhone: string | null;
+    companyWebsite: string | null;
+    paymentFrequency: string;
+    anticipatedAmount: number | null;
+    nextPaymentDate: string | null;
+    calculationMode: string | null;
+    balanceRemaining: number | null;
+    notes: string | null;
+  } | null;
   onAccountCreated?: (account: any) => void;
   onClose?: () => void;
 }
@@ -37,6 +53,7 @@ const SUBCATEGORIES: Record<string, string[]> = {
 };
 
 const PAYMENT_FREQUENCIES = [
+  { value: 'NONE', label: 'None (Information Only)' },
   { value: 'WEEKLY', label: 'Weekly' },
   { value: 'BIWEEKLY', label: 'Biweekly (Every 2 weeks)' },
   { value: 'MONTHLY', label: 'Monthly' },
@@ -47,39 +64,43 @@ const PAYMENT_FREQUENCIES = [
   { value: 'OTHER', label: 'Other (Custom schedule)' },
 ];
 
-export default function CreateAccountModal({ onAccountCreated, onClose }: CreateAccountModalProps) {
+export default function CreateAccountModal({ account, onAccountCreated, onClose }: CreateAccountModalProps) {
+  const isEditing = !!account;
+  
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
 
   // Basic Info
-  const [category, setCategory] = useState('');
-  const [subcategory, setSubcategory] = useState('');
+  const [category, setCategory] = useState(account?.category || '');
+  const [subcategory, setSubcategory] = useState(account?.subcategory || '');
   const [customCategory, setCustomCategory] = useState('');
-  const [accountName, setAccountName] = useState('');
-  const [companyName, setCompanyName] = useState('');
+  const [accountName, setAccountName] = useState(account?.accountName || '');
+  const [companyName, setCompanyName] = useState(account?.companyName || '');
   
   // Contact Info
-  const [companyAddress, setCompanyAddress] = useState('');
-  const [companyPhone, setCompanyPhone] = useState('');
-  const [companyWebsite, setCompanyWebsite] = useState('');
+  const [companyAddress, setCompanyAddress] = useState(account?.companyAddress || '');
+  const [companyPhone, setCompanyPhone] = useState(account?.companyPhone || '');
+  const [companyWebsite, setCompanyWebsite] = useState(account?.companyWebsite || '');
   
   // Login Credentials
   const [loginUsername, setLoginUsername] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   
   // Payment Info
-  const [paymentFrequency, setPaymentFrequency] = useState('MONTHLY');
-  const [anticipatedAmount, setAnticipatedAmount] = useState('');
-  const [nextPaymentDate, setNextPaymentDate] = useState('');
+  const [paymentFrequency, setPaymentFrequency] = useState(account?.paymentFrequency || 'MONTHLY');
+  const [anticipatedAmount, setAnticipatedAmount] = useState(account?.anticipatedAmount?.toString() || '');
+  const [nextPaymentDate, setNextPaymentDate] = useState(
+    account?.nextPaymentDate ? new Date(account.nextPaymentDate).toISOString().split('T')[0] : ''
+  );
   
   // Balance Tracking
-  const [calculationMode, setCalculationMode] = useState('MANUAL');
-  const [balanceRemaining, setBalanceRemaining] = useState('');
+  const [calculationMode, setCalculationMode] = useState(account?.calculationMode || 'MANUAL');
+  const [balanceRemaining, setBalanceRemaining] = useState(account?.balanceRemaining?.toString() || '');
   
   // Notes
-  const [notes, setNotes] = useState('');
+  const [notes, setNotes] = useState(account?.notes || '');
 
   const handleSubmit = async () => {
     // Validation
@@ -112,8 +133,11 @@ export default function CreateAccountModal({ onAccountCreated, onClose }: Create
         notes: notes || null,
       };
 
-      const response = await fetch('/api/accounts', {
-        method: 'POST',
+      const url = isEditing ? `/api/accounts/${account.id}` : '/api/accounts';
+      const method = isEditing ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(accountData),
       });
@@ -129,12 +153,12 @@ export default function CreateAccountModal({ onAccountCreated, onClose }: Create
       } else {
         const error = await response.json();
         setSubmitStatus('error');
-        setErrorMessage(error.error || 'Failed to create account');
+        setErrorMessage(error.error || `Failed to ${isEditing ? 'update' : 'create'} account`);
       }
     } catch (error) {
-      console.error('Error creating account:', error);
+      console.error(`Error ${isEditing ? 'updating' : 'creating'} account:`, error);
       setSubmitStatus('error');
-      setErrorMessage('An error occurred while creating the account');
+      setErrorMessage(`An error occurred while ${isEditing ? 'updating' : 'creating'} the account`);
     } finally {
       setIsSubmitting(false);
     }
@@ -168,7 +192,7 @@ export default function CreateAccountModal({ onAccountCreated, onClose }: Create
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 max-h-[90vh] overflow-y-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-xl font-bold text-gray-900">Add Account</h2>
+          <h2 className="text-xl font-bold text-gray-900">{isEditing ? 'Edit Account' : 'Add Account'}</h2>
           <p className="text-sm text-gray-500 mt-1">Step {step} of 3</p>
         </div>
         {onClose && (
@@ -199,7 +223,7 @@ export default function CreateAccountModal({ onAccountCreated, onClose }: Create
       {submitStatus === 'success' && (
         <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3">
           <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />
-          <p className="text-green-900 font-medium">Account created successfully!</p>
+          <p className="text-green-900 font-medium">Account {isEditing ? 'updated' : 'created'} successfully!</p>
         </div>
       )}
 
@@ -370,88 +394,92 @@ export default function CreateAccountModal({ onAccountCreated, onClose }: Create
             </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Payment Amount (optional)
-              </label>
-              <div className="relative">
-                <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <input
-                  type="number"
-                  step="0.01"
-                  value={anticipatedAmount}
-                  onChange={(e) => setAnticipatedAmount(e.target.value)}
-                  placeholder="0.00"
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
+          {paymentFrequency !== 'NONE' && (
+            <>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Payment Amount (optional)
+                  </label>
+                  <div className="relative">
+                    <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={anticipatedAmount}
+                      onChange={(e) => setAnticipatedAmount(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Next Payment Date (optional)
+                  </label>
+                  <input
+                    type="date"
+                    value={nextPaymentDate}
+                    onChange={(e) => setNextPaymentDate(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
               </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Next Payment Date (optional)
-              </label>
-              <input
-                type="date"
-                value={nextPaymentDate}
-                onChange={(e) => setNextPaymentDate(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-          </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Balance Tracking
-            </label>
-            <div className="space-y-2">
-              <label className="flex items-center gap-3 p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
-                <input
-                  type="radio"
-                  name="calculationMode"
-                  value="MANUAL"
-                  checked={calculationMode === 'MANUAL'}
-                  onChange={(e) => setCalculationMode(e.target.value)}
-                  className="w-4 h-4 text-blue-600"
-                />
-                <div>
-                  <div className="font-medium text-gray-900">Manual</div>
-                  <div className="text-sm text-gray-500">I'll update the balance manually</div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Balance Tracking
+                </label>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-3 p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
+                    <input
+                      type="radio"
+                      name="calculationMode"
+                      value="MANUAL"
+                      checked={calculationMode === 'MANUAL'}
+                      onChange={(e) => setCalculationMode(e.target.value)}
+                      className="w-4 h-4 text-blue-600"
+                    />
+                    <div>
+                      <div className="font-medium text-gray-900">Manual</div>
+                      <div className="text-sm text-gray-500">I'll update the balance manually</div>
+                    </div>
+                  </label>
+                  <label className="flex items-center gap-3 p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
+                    <input
+                      type="radio"
+                      name="calculationMode"
+                      value="AUTOMATIC"
+                      checked={calculationMode === 'AUTOMATIC'}
+                      onChange={(e) => setCalculationMode(e.target.value)}
+                      className="w-4 h-4 text-blue-600"
+                    />
+                    <div>
+                      <div className="font-medium text-gray-900">Automatic</div>
+                      <div className="text-sm text-gray-500">Calculate based on loan terms (for loans/credit)</div>
+                    </div>
+                  </label>
                 </div>
-              </label>
-              <label className="flex items-center gap-3 p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
-                <input
-                  type="radio"
-                  name="calculationMode"
-                  value="AUTOMATIC"
-                  checked={calculationMode === 'AUTOMATIC'}
-                  onChange={(e) => setCalculationMode(e.target.value)}
-                  className="w-4 h-4 text-blue-600"
-                />
-                <div>
-                  <div className="font-medium text-gray-900">Automatic</div>
-                  <div className="text-sm text-gray-500">Calculate based on loan terms (for loans/credit)</div>
-                </div>
-              </label>
-            </div>
-          </div>
+              </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Current Balance (optional)
-            </label>
-            <div className="relative">
-              <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <input
-                type="number"
-                step="0.01"
-                value={balanceRemaining}
-                onChange={(e) => setBalanceRemaining(e.target.value)}
-                placeholder="0.00"
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-          </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Current Balance (optional)
+                </label>
+                <div className="relative">
+                  <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={balanceRemaining}
+                    onChange={(e) => setBalanceRemaining(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+            </>
+          )}
 
           <div className="flex justify-between gap-3 pt-4">
             <button
@@ -530,7 +558,7 @@ export default function CreateAccountModal({ onAccountCreated, onClose }: Create
               disabled={isSubmitting}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
-              {isSubmitting ? 'Creating Account...' : 'Create Account'}
+              {isSubmitting ? `${isEditing ? 'Updating' : 'Creating'} Account...` : `${isEditing ? 'Update' : 'Create'} Account`}
             </button>
           </div>
         </div>
