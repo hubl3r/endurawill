@@ -745,6 +745,7 @@ model Account {
   companyAddress      String?
   companyPhone        String?
   companyWebsite      String?
+  accountNumber       String? //NEW
   
   // Login Credentials (ENCRYPTED - store as encrypted strings)
   loginUsername       String?           // Will be encrypted before storage
@@ -763,6 +764,11 @@ model Account {
   // Metadata
   notes               String?           @db.Text
   isActive            Boolean           @default(true)
+  status              String            @default("ACTIVE") //NEW
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  createdBy           String?
+  modifiedBy          String?
   
   // Tracking (matches Document pattern)
   createdById         String?
@@ -780,6 +786,8 @@ model Account {
   vehicleDetails      VehicleAccountDetails?
   insuranceDetails    InsuranceAccountDetails?
   propertyDetails     PropertyAccountDetails?
+  creator             User?    @relation("AccountCreator", fields: [createdBy], references: [id]) //NEW
+  modifier            User?    @relation("AccountModifier", fields: [modifiedBy], references: [id]) //NEW
   
   @@index([tenantId, category])
   @@index([tenantId, nextPaymentDate])
