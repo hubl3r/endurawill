@@ -787,8 +787,8 @@ model Account {
   vehicleDetails      VehicleAccountDetails?
   insuranceDetails    InsuranceAccountDetails?
   propertyDetails     PropertyAccountDetails?
-  creator             User?    @relation("AccountsCreated", fields: [createdBy], references: [id]) //CHANGED
-  modifier            User?    @relation("AccountsModified", fields: [modifiedBy], references: [id]) //CHANGED
+  creator    User? @relation("AccountCreatedBy", fields: [createdBy], references: [id])//Changed
+  modifier   User? @relation("AccountModifiedBy", fields: [modifiedBy], references: [id])//Changed
   
   @@index([tenantId, category])
   @@index([tenantId, nextPaymentDate])
