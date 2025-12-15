@@ -60,6 +60,8 @@ export default function AccountsView(): JSX.Element {
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [preselectedCategory, setPreselectedCategory] = useState<string | null>(null);
+  const [dateRangeStart, setDateRangeStart] = useState('');
+  const [dateRangeEnd, setDateRangeEnd] = useState('');
 
   useEffect(() => {
     fetchAccounts();
@@ -208,7 +210,32 @@ export default function AccountsView(): JSX.Element {
     
     const matchesCategory = !selectedCategory || account.category === selectedCategory;
     
-    return matchesSearch && matchesCategory;
+    const matchesDateRange = (() => {
+      if (!dateRangeStart && !dateRangeEnd) return true;
+      if (!account.nextPaymentDate) return false;
+      
+      const paymentDate = new Date(account.nextPaymentDate);
+      paymentDate.setHours(0, 0, 0, 0);
+      
+      if (dateRangeStart && dateRangeEnd) {
+        const start = new Date(dateRangeStart);
+        start.setHours(0, 0, 0, 0);
+        const end = new Date(dateRangeEnd);
+        end.setHours(23, 59, 59, 999);
+        return paymentDate >= start && paymentDate <= end;
+      } else if (dateRangeStart) {
+        const start = new Date(dateRangeStart);
+        start.setHours(0, 0, 0, 0);
+        return paymentDate >= start;
+      } else if (dateRangeEnd) {
+        const end = new Date(dateRangeEnd);
+        end.setHours(23, 59, 59, 999);
+        return paymentDate <= end;
+      }
+      return true;
+    })();
+    
+    return matchesSearch && matchesCategory && matchesDateRange;
   });
 
   const sortAccounts = (accounts: Account[]) => {
@@ -265,7 +292,17 @@ export default function AccountsView(): JSX.Element {
     .filter(a => a.paymentFrequency === 'MONTHLY' && a.anticipatedAmount)
     .reduce((sum, a) => sum + Number(a.anticipatedAmount || 0), 0);
 
-  const totalBalance = sortedAccounts
+  // Total Past Due - expenses where payment date has passed
+  const totalPastDue = sortedAccounts
+    .filter(a => {
+      if (!a.nextPaymentDate || !a.balanceRemaining) return false;
+      const daysUntil = getDaysUntilPayment(a.nextPaymentDate);
+      return daysUntil < 0; // Past due
+    })
+    .reduce((sum, a) => sum + Number(a.balanceRemaining || 0), 0);
+
+  // Total Liabilities - all outstanding balances
+  const totalLiabilities = sortedAccounts
     .filter(a => a.balanceRemaining)
     .reduce((sum, a) => sum + Number(a.balanceRemaining || 0), 0);
 
@@ -340,10 +377,40 @@ export default function AccountsView(): JSX.Element {
             ))}
           </select>
         </div>
+
+        <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+          <span className="text-sm text-gray-600 whitespace-nowrap">Due Date:</span>
+          <input
+            type="date"
+            value={dateRangeStart}
+            onChange={(e) => setDateRangeStart(e.target.value)}
+            placeholder="From"
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+          <span className="text-sm text-gray-600">to</span>
+          <input
+            type="date"
+            value={dateRangeEnd}
+            onChange={(e) => setDateRangeEnd(e.target.value)}
+            placeholder="To"
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+          {(dateRangeStart || dateRangeEnd) && (
+            <button
+              onClick={() => {
+                setDateRangeStart('');
+                setDateRangeEnd('');
+              }}
+              className="px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              Clear Dates
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="border-b border-gray-200 px-4 md:px-6 py-4 bg-gray-50">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4">
           <div className="bg-white p-3 md:p-4 rounded-lg border border-gray-200">
             <div className="text-xs md:text-sm text-gray-600 mb-1">Total Accounts</div>
             <div className="text-xl md:text-2xl font-bold text-gray-900">{sortedAccounts.length}</div>
@@ -361,9 +428,15 @@ export default function AccountsView(): JSX.Element {
             </div>
           </div>
           <div className="bg-white p-3 md:p-4 rounded-lg border border-gray-200">
-            <div className="text-xs md:text-sm text-gray-600 mb-1">Total Balance</div>
+            <div className="text-xs md:text-sm text-gray-600 mb-1">Total Past Due</div>
+            <div className="text-xl md:text-2xl font-bold text-red-600">
+              {formatCurrency(totalPastDue)}
+            </div>
+          </div>
+          <div className="bg-white p-3 md:p-4 rounded-lg border border-gray-200">
+            <div className="text-xs md:text-sm text-gray-600 mb-1">Total Liabilities</div>
             <div className="text-xl md:text-2xl font-bold text-purple-600">
-              {formatCurrency(totalBalance)}
+              {formatCurrency(totalLiabilities)}
             </div>
           </div>
         </div>
