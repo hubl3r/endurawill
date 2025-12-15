@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { X, CheckCircle, AlertCircle, CreditCard, DollarSign } from 'lucide-react';
+import { useState } from 'react';
+import { X, CheckCircle, AlertCircle, DollarSign } from 'lucide-react';
+import { ACCOUNT_CATEGORIES, ACCOUNT_STATUSES, SUBCATEGORIES, PAYMENT_FREQUENCIES } from '@/lib/accountConstants';
 
 interface CreateAccountModalProps {
   account?: {
@@ -13,58 +14,26 @@ interface CreateAccountModalProps {
     companyAddress: string | null;
     companyPhone: string | null;
     companyWebsite: string | null;
+    accountNumber: string | null;
     paymentFrequency: string;
     anticipatedAmount: number | null;
     nextPaymentDate: string | null;
     calculationMode: string | null;
     balanceRemaining: number | null;
     notes: string | null;
+    status: string;
   } | null;
+  preselectedCategory?: string | null;
   onAccountCreated?: (account: any) => void;
   onClose?: () => void;
 }
 
-const ACCOUNT_CATEGORIES = [
-  'Financial Accounts',
-  'Credit & Loans',
-  'Vehicles & Transportation',
-  'Insurance',
-  'Real Estate & Property',
-  'Utilities',
-  'Subscriptions & Memberships',
-  'Healthcare & Medical',
-  'Childcare & Education',
-  'Professional Services',
-  'Other Recurring',
-];
-
-const SUBCATEGORIES: Record<string, string[]> = {
-  'Financial Accounts': ['Checking', 'Savings', 'Money Market', 'CD', 'Investment', 'Retirement (401k/IRA)', 'HSA', '529', 'Cryptocurrency'],
-  'Credit & Loans': ['Credit Card', 'Personal Loan', 'Student Loan', 'HELOC', 'Business Loan', 'Medical Debt'],
-  'Real Estate & Property': ['Mortgage', 'Property Tax', 'HOA Fees', 'Rent', 'Storage Unit', 'Parking Space'],
-  'Vehicles & Transportation': ['Auto Loan', 'Lease Payment', 'Motorcycle/RV/Boat', 'Truck Payment', 'Registration', 'Toll Pass'],
-  'Insurance': ['Life', 'Health', 'Dental', 'Vision', 'Auto', 'Home/Renters', 'Umbrella', 'Disability', 'Long-term Care', 'Pet'],
-  'Utilities': ['Electric', 'Gas', 'Water/Sewer', 'Trash/Recycling', 'Internet', 'Mobile Phone', 'Landline', 'Cable/Satellite'],
-  'Subscriptions & Memberships': ['Streaming', 'Software', 'News/Magazines', 'Gym', 'Club Membership', 'Amazon Prime/Costco', 'Cloud Storage'],
-  'Healthcare & Medical': ['Prescription', 'Medical Equipment', 'Therapy', 'Dental/Orthodontic', 'Payment Plan'],
-  'Childcare & Education': ['Daycare', 'Tuition', 'Tutoring', 'Lessons', 'School Lunch'],
-  'Professional Services': ['Lawn Care', 'Cleaning', 'Pest Control', 'Security', 'Legal', 'Accounting', 'Financial Advisor'],
-  'Other Recurring': ['Charitable Donations', 'Alimony/Child Support', 'Pet Care', 'Domain/Hosting', 'PO Box'],
-};
-
-const PAYMENT_FREQUENCIES = [
-  { value: 'NONE', label: 'None (Information Only)' },
-  { value: 'WEEKLY', label: 'Weekly' },
-  { value: 'BIWEEKLY', label: 'Biweekly (Every 2 weeks)' },
-  { value: 'MONTHLY', label: 'Monthly' },
-  { value: 'QUARTERLY', label: 'Quarterly (Every 3 months)' },
-  { value: 'SEMI_ANNUALLY', label: 'Semi-annually (Twice a year)' },
-  { value: 'ANNUALLY', label: 'Annually (Once a year)' },
-  { value: 'ONE_TIME', label: 'One-time' },
-  { value: 'OTHER', label: 'Other (Custom schedule)' },
-];
-
-export default function CreateAccountModal({ account, onAccountCreated, onClose }: CreateAccountModalProps) {
+export default function CreateAccountModal({ 
+  account, 
+  preselectedCategory,
+  onAccountCreated, 
+  onClose 
+}: CreateAccountModalProps) {
   const isEditing = !!account;
   
   const [step, setStep] = useState(1);
@@ -73,11 +42,12 @@ export default function CreateAccountModal({ account, onAccountCreated, onClose 
   const [errorMessage, setErrorMessage] = useState('');
 
   // Basic Info
-  const [category, setCategory] = useState(account?.category || '');
+  const [category, setCategory] = useState(account?.category || preselectedCategory || '');
   const [subcategory, setSubcategory] = useState(account?.subcategory || '');
   const [customCategory, setCustomCategory] = useState('');
   const [accountName, setAccountName] = useState(account?.accountName || '');
   const [companyName, setCompanyName] = useState(account?.companyName || '');
+  const [accountNumber, setAccountNumber] = useState(account?.accountNumber || '');
   
   // Contact Info
   const [companyAddress, setCompanyAddress] = useState(account?.companyAddress || '');
@@ -98,6 +68,9 @@ export default function CreateAccountModal({ account, onAccountCreated, onClose 
   // Balance Tracking
   const [calculationMode, setCalculationMode] = useState(account?.calculationMode || 'MANUAL');
   const [balanceRemaining, setBalanceRemaining] = useState(account?.balanceRemaining?.toString() || '');
+  
+  // Status
+  const [status, setStatus] = useState(account?.status || 'ACTIVE');
   
   // Notes
   const [notes, setNotes] = useState(account?.notes || '');
@@ -120,6 +93,7 @@ export default function CreateAccountModal({ account, onAccountCreated, onClose 
         subcategory: subcategory || null,
         accountName,
         companyName,
+        accountNumber: accountNumber || null,
         companyAddress: companyAddress || null,
         companyPhone: companyPhone || null,
         companyWebsite: companyWebsite || null,
@@ -130,6 +104,7 @@ export default function CreateAccountModal({ account, onAccountCreated, onClose 
         nextPaymentDate: nextPaymentDate || null,
         calculationMode,
         balanceRemaining: balanceRemaining ? parseFloat(balanceRemaining) : null,
+        status,
         notes: notes || null,
       };
 
@@ -171,6 +146,7 @@ export default function CreateAccountModal({ account, onAccountCreated, onClose 
     setCustomCategory('');
     setAccountName('');
     setCompanyName('');
+    setAccountNumber('');
     setCompanyAddress('');
     setCompanyPhone('');
     setCompanyWebsite('');
@@ -181,12 +157,14 @@ export default function CreateAccountModal({ account, onAccountCreated, onClose 
     setNextPaymentDate('');
     setCalculationMode('MANUAL');
     setBalanceRemaining('');
+    setStatus('ACTIVE');
     setNotes('');
     setSubmitStatus('idle');
     setErrorMessage('');
   };
 
   const availableSubcategories = category ? SUBCATEGORIES[category] || [] : [];
+  const categoryList = ACCOUNT_CATEGORIES.map(cat => cat.id);
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 max-h-[90vh] overflow-y-auto">
@@ -252,7 +230,7 @@ export default function CreateAccountModal({ account, onAccountCreated, onClose 
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="">Select a category...</option>
-              {ACCOUNT_CATEGORIES.map(cat => (
+              {categoryList.map(cat => (
                 <option key={cat} value={cat}>{cat}</option>
               ))}
               <option value="custom">Other (Custom)</option>
@@ -294,13 +272,26 @@ export default function CreateAccountModal({ account, onAccountCreated, onClose 
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Account Name *
+              Account Title *
             </label>
             <input
               type="text"
               value={accountName}
               onChange={(e) => setAccountName(e.target.value)}
               placeholder="e.g., Main Checking Account"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Account Number (optional)
+            </label>
+            <input
+              type="text"
+              value={accountNumber}
+              onChange={(e) => setAccountNumber(e.target.value)}
+              placeholder="e.g., ****1234"
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
@@ -316,6 +307,21 @@ export default function CreateAccountModal({ account, onAccountCreated, onClose 
               placeholder="e.g., Chase Bank"
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Status
+            </label>
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              {ACCOUNT_STATUSES.map(s => (
+                <option key={s.value} value={s.value}>{s.label}</option>
+              ))}
+            </select>
           </div>
 
           <div>
@@ -456,7 +462,7 @@ export default function CreateAccountModal({ account, onAccountCreated, onClose 
                     />
                     <div>
                       <div className="font-medium text-gray-900">Automatic</div>
-                      <div className="text-sm text-gray-500">Calculate based on loan terms (for loans/credit)</div>
+                      <div className="text-sm text-gray-500">Calculate based on loan terms</div>
                     </div>
                   </label>
                 </div>
@@ -503,7 +509,7 @@ export default function CreateAccountModal({ account, onAccountCreated, onClose 
         <div className="space-y-4">
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
             <p className="text-sm text-blue-900">
-              <strong>🔒 Secure:</strong> Login credentials are encrypted before storage and can only be viewed in the secure vault.
+              <strong>🔒 Secure:</strong> Login credentials are encrypted before storage.
             </p>
           </div>
 
@@ -541,7 +547,7 @@ export default function CreateAccountModal({ account, onAccountCreated, onClose 
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={4}
-              placeholder="Add any additional notes about this account..."
+              placeholder="Add any additional notes..."
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
             />
           </div>
@@ -558,7 +564,7 @@ export default function CreateAccountModal({ account, onAccountCreated, onClose 
               disabled={isSubmitting}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
-              {isSubmitting ? `${isEditing ? 'Updating' : 'Creating'} Account...` : `${isEditing ? 'Update' : 'Create'} Account`}
+              {isSubmitting ? `${isEditing ? 'Updating' : 'Creating'}...` : `${isEditing ? 'Update' : 'Create'} Account`}
             </button>
           </div>
         </div>
