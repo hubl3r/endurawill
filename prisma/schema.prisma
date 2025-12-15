@@ -81,6 +81,8 @@ model User {
   tenantId   String
   tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   clerkId    String   // Removed @unique - allows one person to have multiple estates
+  createdAccounts     Account[] @relation("AccountsCreated") //NEW
+  modifiedAccounts    Account[] @relation("AccountsModified")  //NEW
   
   // Role & Permissions
   role       String   // 'primary_owner', 'co_owner', 'delegate'
@@ -786,8 +788,8 @@ model Account {
   vehicleDetails      VehicleAccountDetails?
   insuranceDetails    InsuranceAccountDetails?
   propertyDetails     PropertyAccountDetails?
-  creator             User?    @relation("AccountCreator", fields: [createdBy], references: [id]) //NEW
-  modifier            User?    @relation("AccountModifier", fields: [modifiedBy], references: [id]) //NEW
+  creator             User?    @relation("AccountsCreated", fields: [createdBy], references: [id]) //CHANGED
+  modifier            User?    @relation("AccountsModified", fields: [modifiedBy], references: [id]) //CHANGED
   
   @@index([tenantId, category])
   @@index([tenantId, nextPaymentDate])
