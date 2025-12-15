@@ -81,8 +81,7 @@ model User {
   tenantId   String
   tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   clerkId    String   // Removed @unique - allows one person to have multiple estates
-  createdAccounts     Account[] @relation("AccountsCreated") //NEW
-  modifiedAccounts    Account[] @relation("AccountsModified")  //NEW
+
   
   // Role & Permissions
   role       String   // 'primary_owner', 'co_owner', 'delegate'
