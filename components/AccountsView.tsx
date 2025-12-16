@@ -288,9 +288,36 @@ export default function AccountsView(): JSX.Element {
     count: sortedAccounts.filter(a => a.category === cat.id).length,
   }));
 
+  // Helper: Convert payment frequency to monthly amount
+  const convertToMonthly = (amount: number, frequency: string): number => {
+    switch (frequency) {
+      case 'WEEKLY':
+        return amount * 4.33; // 52 weeks / 12 months
+      case 'BIWEEKLY':
+        return amount * 2.17; // 26 pays / 12 months
+      case 'MONTHLY':
+        return amount * 1;
+      case 'QUARTERLY':
+        return amount / 3;
+      case 'SEMI_ANNUALLY':
+        return amount / 6;
+      case 'ANNUALLY':
+        return amount / 12;
+      case 'NONE':
+      case 'ONE_TIME':
+      case 'OTHER':
+      default:
+        return 0; // Don't include in monthly calculations
+    }
+  };
+
+  // Calculate total monthly payments (all frequencies converted to monthly, active accounts only)
   const totalMonthlyPayments = sortedAccounts
-    .filter(a => a.paymentFrequency === 'MONTHLY' && a.anticipatedAmount)
-    .reduce((sum, a) => sum + Number(a.anticipatedAmount || 0), 0);
+    .filter(a => a.isActive && a.anticipatedAmount && a.status === 'ACTIVE')
+    .reduce((sum, a) => {
+      const monthlyAmount = convertToMonthly(Number(a.anticipatedAmount || 0), a.paymentFrequency);
+      return sum + monthlyAmount;
+    }, 0);
 
   // Total Past Due - expenses where payment date has passed
   const totalPastDue = sortedAccounts
@@ -469,13 +496,22 @@ export default function AccountsView(): JSX.Element {
             {sortedAccounts.map(account => {
               const statusColor = getPaymentStatusColor(account.nextPaymentDate);
               const statusIcon = getPaymentStatusIcon(account.nextPaymentDate);
+              const isIncomplete = !account.anticipatedAmount || account.paymentFrequency === 'NONE';
               
               return (
                 <div
                   key={account.id}
                   onClick={() => handleAccountClick(account)}
-                  className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer group"
+                  className="relative flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer group"
                 >
+                  {/* Incomplete indicator */}
+                  {isIncomplete && (
+                    <div 
+                      className="absolute top-0 right-0 w-0 h-0 border-t-[12px] border-t-orange-400 border-l-[12px] border-l-transparent rounded-tr-lg"
+                      title="Missing payment frequency or amount"
+                    />
+                  )}
+                  
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-gray-900">{account.accountName}</div>
                     <div className="text-sm text-gray-500">{account.companyName}</div>
@@ -566,12 +602,21 @@ export default function AccountsView(): JSX.Element {
                           const Icon = getCategoryIcon(account.category);
                           const statusColor = getPaymentStatusColor(account.nextPaymentDate);
                           const statusIcon = getPaymentStatusIcon(account.nextPaymentDate);
+                          const isIncomplete = !account.anticipatedAmount || account.paymentFrequency === 'NONE';
                           
                           return (
                             <div
                               key={account.id}
-                              className="flex flex-col md:flex-row md:items-center gap-3 md:gap-4 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 group"
+                              className="relative flex flex-col md:flex-row md:items-center gap-3 md:gap-4 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 group"
                             >
+                              {/* Incomplete indicator - small orange corner */}
+                              {isIncomplete && (
+                                <div 
+                                  className="absolute top-0 right-0 w-0 h-0 border-t-[12px] border-t-orange-400 border-l-[12px] border-l-transparent rounded-tr-lg"
+                                  title="Missing payment frequency or amount"
+                                />
+                              )}
+                              
                               <Icon className={`h-8 w-8 text-${getCategoryColor(account.category)}-500 flex-shrink-0 hidden md:block`} />
                               
                               <div className="flex-1 min-w-0">
@@ -754,4 +799,4 @@ export default function AccountsView(): JSX.Element {
       )}
     </div>
   );
-}
+  }
