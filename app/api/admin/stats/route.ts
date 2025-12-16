@@ -63,14 +63,10 @@ export async function GET(request: Request) {
     const tenantsWithDetails = await Promise.all(
       tenants.map(async (tenant) => {
         const [delegateCount, lastActivity] = await Promise.all([
-          prisma.user.count({
+          // Count delegates for this tenant
+          prisma.delegate.count({
             where: {
-              tenantMemberships: {
-                some: {
-                  tenantId: tenant.id,
-                  role: 'DELEGATE',
-                },
-              },
+              tenantId: tenant.id,
             },
           }),
           prisma.auditLog.findFirst({
