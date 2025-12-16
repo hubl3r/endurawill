@@ -44,6 +44,14 @@ interface AdminStats {
     newPayments: number;
     lastWeek: string;
   };
+  recentAccounts: Array<{
+    id: string;
+    accountName: string;
+    companyName: string;
+    estateName: string;
+    createdByName: string;
+    createdAt: string;
+  }>;
 }
 
 export default function AdminPage() {
@@ -207,6 +215,56 @@ export default function AdminPage() {
                 <div className="text-2xl font-bold text-gray-900">{stats.database.auditLogsSize}</div>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Tenants/Estates List */}
+        <div className="bg-white rounded-lg border border-gray-200 mb-8">
+          <div className="p-6 border-b border-gray-200">
+            <h2 className="text-xl font-bold text-gray-900">Recent Accounts (Last 30 Days)</h2>
+            <p className="text-sm text-gray-600 mt-1">See who's creating accounts</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Account Name</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Company</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estate</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created By</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {stats.recentAccounts.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                      No accounts created in the last 30 days
+                    </td>
+                  </tr>
+                ) : (
+                  stats.recentAccounts.map((account) => (
+                    <tr key={account.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                        {account.accountName}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600">
+                        {account.companyName}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600">
+                        {account.estateName}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600">
+                        {account.createdByName}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600">
+                        {new Date(account.createdAt).toLocaleDateString()} {new Date(account.createdAt).toLocaleTimeString()}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
 
