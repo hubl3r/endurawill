@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import CreateAccountModal from '@/components/CreateAccountModal';
 import DateRangePicker from '@/components/DateRangePicker';
+import PaymentHistoryModal from '@/components/PaymentHistoryModal';
 import { ACCOUNT_CATEGORIES } from '@/lib/accountConstants';
 
 interface Account {
@@ -48,6 +49,7 @@ const SORT_OPTIONS = [
   { value: 'nextDue', label: 'Next Due Date' },
   { value: 'dueThisWeek', label: 'Due This Week' },
   { value: 'dueSoon', label: 'Due Soon (2 weeks)' },
+  { value: 'pastDue', label: 'Past Due' },
 ];
 
 export default function AccountsView(): JSX.Element {
@@ -63,6 +65,8 @@ export default function AccountsView(): JSX.Element {
   const [preselectedCategory, setPreselectedCategory] = useState<string | null>(null);
   const [dateRangeStart, setDateRangeStart] = useState('');
   const [dateRangeEnd, setDateRangeEnd] = useState('');
+  const [showPaymentHistory, setShowPaymentHistory] = useState(false);
+  const [paymentHistoryAccount, setPaymentHistoryAccount] = useState<Account | null>(null);
 
   useEffect(() => {
     fetchAccounts();
@@ -276,6 +280,16 @@ export default function AccountsView(): JSX.Element {
           return daysA - daysB;
         });
       
+      case 'pastDue':
+        return sorted.filter(a => {
+          const days = getDaysUntilPayment(a.nextPaymentDate);
+          return days < 0; // Only show past due
+        }).sort((a, b) => {
+          const daysA = getDaysUntilPayment(a.nextPaymentDate);
+          const daysB = getDaysUntilPayment(b.nextPaymentDate);
+          return daysA - daysB; // Most overdue first
+        });
+      
       default:
         return sorted;
     }
@@ -480,17 +494,22 @@ export default function AccountsView(): JSX.Element {
               {formatCurrency(totalMonthlyPayments)}
             </div>
           </div>
-          <div className="bg-white p-3 md:p-4 rounded-lg border border-gray-200">
+          <button
+            onClick={() => setSortBy('pastDue')}
+            className="bg-white p-3 md:p-4 rounded-lg border border-gray-200 hover:bg-red-50 hover:border-red-300 transition-colors cursor-pointer text-left"
+            title="Click to view past due accounts"
+          >
             <div className="text-xs md:text-sm text-gray-600 mb-1">Total Past Due</div>
             <div className="text-xl md:text-2xl font-bold text-red-600">
               {formatCurrency(totalPastDue)}
             </div>
-          </div>
-          <div className="bg-white p-3 md:p-4 rounded-lg border border-gray-200">
+          </button>
+          <div className="bg-white p-3 md:p-4 rounded-lg border border-gray-200 opacity-50" title="Will show loan balances when loan tracking is added">
             <div className="text-xs md:text-sm text-gray-600 mb-1">Total Liabilities</div>
             <div className="text-xl md:text-2xl font-bold text-purple-600">
-              {formatCurrency(totalLiabilities)}
+              $0.00
             </div>
+            <div className="text-xs text-gray-400 mt-1">Coming soon</div>
           </div>
         </div>
       </div>
@@ -718,6 +737,10 @@ export default function AccountsView(): JSX.Element {
                                   <Edit className="h-4 w-4 text-gray-600" />
                                 </button>
                                 <button
+                                  onClick={() => {
+                                    setPaymentHistoryAccount(account);
+                                    setShowPaymentHistory(true);
+                                  }}
                                   className="p-1 hover:bg-gray-200 rounded"
                                   title="View Payments"
                                 >
@@ -840,6 +863,20 @@ export default function AccountsView(): JSX.Element {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Payment History Modal */}
+      {showPaymentHistory && paymentHistoryAccount && (
+        <PaymentHistoryModal
+          account={paymentHistoryAccount}
+          onClose={() => {
+            setShowPaymentHistory(false);
+            setPaymentHistoryAccount(null);
+          }}
+          onPaymentUpdated={() => {
+            fetchAccounts(); // Refresh accounts to update past due amounts
+          }}
+        />
       )}
     </div>
   );
