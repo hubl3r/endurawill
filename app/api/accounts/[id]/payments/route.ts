@@ -50,7 +50,7 @@ export async function GET(
         tenantId,
       },
       orderBy: {
-        scheduledDate: 'desc',
+        dueDate: 'desc',
       },
     });
 
@@ -140,11 +140,14 @@ export async function POST(
       data: {
         accountId,
         tenantId,
+        dueDate: new Date(scheduledDate),
         scheduledDate: new Date(scheduledDate),
         scheduledAmount: parseFloat(scheduledAmount),
         manualDueDate: manualDueDate ? new Date(manualDueDate) : null,
         originalDueDate: originalDueDate ? new Date(originalDueDate) : null,
+        paidDate: actualDate ? new Date(actualDate) : null,
         actualDate: actualDate ? new Date(actualDate) : null,
+        paidAmount: actualAmount ? parseFloat(actualAmount) : null,
         actualAmount: actualAmount ? parseFloat(actualAmount) : null,
         status: status || 'UPCOMING',
         paymentMethod: paymentMethod || null,
@@ -171,4 +174,4 @@ export async function POST(
       { status: 500 }
     );
   }
-      }
+}
