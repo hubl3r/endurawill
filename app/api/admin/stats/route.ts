@@ -44,7 +44,7 @@ export async function GET(request: Request) {
     const tenants = await prisma.tenant.findMany({
       select: {
         id: true,
-        estateName: true,
+        name: true,
         createdAt: true,
         updatedAt: true,
         _count: {
@@ -82,7 +82,7 @@ export async function GET(request: Request) {
 
         return {
           id: tenant.id,
-          estateName: tenant.estateName,
+          estateName: tenant.name || 'Unnamed Estate',
           createdAt: tenant.createdAt.toISOString(),
           accountCount: tenant._count.accounts,
           userCount: tenant._count.users,
