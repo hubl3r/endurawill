@@ -71,8 +71,8 @@ export async function GET(request: Request) {
           }),
           prisma.auditLog.findFirst({
             where: { tenantId: tenant.id },
-            orderBy: { createdAt: 'desc' },
-            select: { createdAt: true },
+            orderBy: { timestamp: 'desc' },
+            select: { timestamp: true },
           }),
         ]);
 
@@ -83,7 +83,7 @@ export async function GET(request: Request) {
           accountCount: tenant._count.accounts,
           userCount: tenant._count.users,
           delegateCount,
-          lastActivity: lastActivity?.createdAt.toISOString() || '',
+          lastActivity: lastActivity?.timestamp.toISOString() || '',
         };
       })
     );
