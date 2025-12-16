@@ -104,6 +104,45 @@ export async function GET(request: Request) {
       }),
     ]);
 
+    // Get recent accounts (last 30 days) with creator info
+    const thirtyDaysAgoForAccounts = new Date();
+    thirtyDaysAgoForAccounts.setDate(thirtyDaysAgoForAccounts.getDate() - 30);
+    
+    const recentAccounts = await prisma.account.findMany({
+      where: {
+        createdAt: { gte: thirtyDaysAgoForAccounts },
+      },
+      select: {
+        id: true,
+        accountName: true,
+        companyName: true,
+        createdAt: true,
+        tenant: {
+          select: {
+            name: true,
+          },
+        },
+        createdBy: {
+          select: {
+            fullName: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      take: 50, // Limit to 50 most recent
+    });
+
+    const recentAccountsFormatted = recentAccounts.map(account => ({
+      id: account.id,
+      accountName: account.accountName,
+      companyName: account.companyName || 'N/A',
+      estateName: account.tenant?.name || 'Unknown Estate',
+      createdByName: account.createdBy?.fullName || 'Unknown User',
+      createdAt: account.createdAt.toISOString(),
+    }));
+
     // Estimate database sizes (approximate based on record counts)
     // These are rough estimates - actual sizes would require database-specific queries
     const estimateSize = (count: number, avgRecordSize: number) => {
@@ -150,6 +189,7 @@ export async function GET(request: Request) {
         newPayments,
         lastWeek: sevenDaysAgo.toISOString(),
       },
+      recentAccounts: recentAccountsFormatted,
     };
 
     return NextResponse.json(stats);
