@@ -1,3 +1,4 @@
+// /components/CreateAccountModal.tsx
 'use client';
 
 import { useState } from 'react';
@@ -36,49 +37,47 @@ export default function CreateAccountModal({
 }: CreateAccountModalProps) {
   const isEditing = !!account;
   
-  const [step, setStep] = useState(1);
+  const [activeTab, setActiveTab] = useState(0); // 0=Basic, 1=Company, 2=Login, 3=Category-Specific
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
 
-  // Basic Info
+  // Tab 1: Basic Info (required fields)
   const [category, setCategory] = useState(account?.category || preselectedCategory || '');
   const [subcategory, setSubcategory] = useState(account?.subcategory || '');
   const [customCategory, setCustomCategory] = useState('');
   const [accountName, setAccountName] = useState(account?.accountName || '');
   const [companyName, setCompanyName] = useState(account?.companyName || '');
-  const [accountNumber, setAccountNumber] = useState(account?.accountNumber || '');
-  
-  // Contact Info
-  const [companyAddress, setCompanyAddress] = useState(account?.companyAddress || '');
-  const [companyPhone, setCompanyPhone] = useState(account?.companyPhone || '');
-  const [companyWebsite, setCompanyWebsite] = useState(account?.companyWebsite || '');
-  
-  // Login Credentials
-  const [loginUsername, setLoginUsername] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
-  
-  // Payment Info
+  const [status, setStatus] = useState(account?.status || 'ACTIVE');
   const [paymentFrequency, setPaymentFrequency] = useState(account?.paymentFrequency || 'MONTHLY');
   const [anticipatedAmount, setAnticipatedAmount] = useState(account?.anticipatedAmount?.toString() || '');
   const [nextPaymentDate, setNextPaymentDate] = useState(
     account?.nextPaymentDate ? new Date(account.nextPaymentDate).toISOString().split('T')[0] : ''
   );
-  
-  // Balance Tracking
   const [calculationMode, setCalculationMode] = useState(account?.calculationMode || 'MANUAL');
-  const [balanceRemaining, setBalanceRemaining] = useState(account?.balanceRemaining?.toString() || '');
   
-  // Status
-  const [status, setStatus] = useState(account?.status || 'ACTIVE');
+  // Tab 2: Company Details
+  const [companyAddress, setCompanyAddress] = useState(account?.companyAddress || '');
+  const [companyPhone, setCompanyPhone] = useState(account?.companyPhone || '');
+  const [accountNumber, setAccountNumber] = useState(account?.accountNumber || '');
+  const [companyWebsite, setCompanyWebsite] = useState(account?.companyWebsite || '');
   
-  // Notes
+  // Tab 3: Login & Notes
+  const [loginUsername, setLoginUsername] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
   const [notes, setNotes] = useState(account?.notes || '');
+  
+  // Tab 4: Category-Specific Details (placeholder for now)
+  const [balanceRemaining, setBalanceRemaining] = useState(account?.balanceRemaining?.toString() || '');
+
+  // Check if required fields are filled
+  const isFormValid = () => {
+    return !!(accountName && companyName && (category || customCategory));
+  };
 
   const handleSubmit = async () => {
-    // Validation
-    if (!accountName || !companyName || (!category && !customCategory)) {
-      setErrorMessage('Please fill in all required fields');
+    if (!isFormValid()) {
+      setErrorMessage('Please fill in all required fields (Account Title, Company Name, Category)');
       setSubmitStatus('error');
       return;
     }
@@ -140,7 +139,7 @@ export default function CreateAccountModal({
   };
 
   const handleReset = () => {
-    setStep(1);
+    setActiveTab(0);
     setCategory('');
     setSubcategory('');
     setCustomCategory('');
@@ -166,12 +165,22 @@ export default function CreateAccountModal({
   const availableSubcategories = category ? SUBCATEGORIES[category] || [] : [];
   const categoryList = ACCOUNT_CATEGORIES.map(cat => cat.id);
 
+  const tabs = ['Basic Info', 'Company Details', 'Login & Notes', 'Category-Specific'];
+
+  // Helper to get border color based on required field validation
+  const getRequiredFieldClass = (value: string) => {
+    return value ? 
+      'border-gray-300 focus:border-blue-500' : 
+      'border-red-300 focus:border-red-500';
+  };
+
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 max-h-[90vh] overflow-y-auto">
-      <div className="flex items-center justify-between mb-6">
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 max-h-[90vh] flex flex-col">
+      {/* Header */}
+      <div className="flex items-center justify-between p-6 border-b border-gray-200">
         <div>
           <h2 className="text-xl font-bold text-gray-900">{isEditing ? 'Edit Account' : 'Add Account'}</h2>
-          <p className="text-sm text-gray-500 mt-1">Step {step} of 3</p>
+          <p className="text-sm text-gray-500 mt-1">Fill in the account details</p>
         </div>
         {onClose && (
           <button
@@ -183,229 +192,162 @@ export default function CreateAccountModal({
         )}
       </div>
 
-      {/* Progress Bar */}
-      <div className="mb-6">
-        <div className="flex gap-2">
-          {[1, 2, 3].map((s) => (
-            <div
-              key={s}
-              className={`flex-1 h-2 rounded-full ${
-                s <= step ? 'bg-blue-600' : 'bg-gray-200'
+      {/* Tab Navigation */}
+      <div className="border-b border-gray-200 px-6">
+        <div className="flex gap-1 -mb-px overflow-x-auto">
+          {tabs.map((tab, index) => (
+            <button
+              key={index}
+              onClick={() => setActiveTab(index)}
+              className={`px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+                activeTab === index
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
-            />
+            >
+              {tab}
+            </button>
           ))}
         </div>
       </div>
 
-      {/* Success Message */}
-      {submitStatus === 'success' && (
-        <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3">
-          <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />
-          <p className="text-green-900 font-medium">Account {isEditing ? 'updated' : 'created'} successfully!</p>
-        </div>
-      )}
-
-      {/* Error Message */}
-      {submitStatus === 'error' && (
-        <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
-          <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0" />
-          <p className="text-red-900">{errorMessage}</p>
-        </div>
-      )}
-
-      {/* Step 1: Basic Information */}
-      {step === 1 && (
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Category *
-            </label>
-            <select
-              value={category}
-              onChange={(e) => {
-                setCategory(e.target.value);
-                setSubcategory('');
-                setCustomCategory('');
-              }}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="">Select a category...</option>
-              {categoryList.map(cat => (
-                <option key={cat} value={cat}>{cat}</option>
-              ))}
-              <option value="custom">Other (Custom)</option>
-            </select>
+      {/* Status Messages */}
+      <div className="px-6 pt-4">
+        {submitStatus === 'success' && (
+          <div className="mb-4 bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3">
+            <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />
+            <p className="text-green-900 font-medium">Account {isEditing ? 'updated' : 'created'} successfully!</p>
           </div>
+        )}
 
-          {category === 'custom' && (
+        {submitStatus === 'error' && (
+          <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
+            <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0" />
+            <p className="text-red-900">{errorMessage}</p>
+          </div>
+        )}
+      </div>
+
+      {/* Tab Content */}
+      <div className="flex-1 overflow-y-auto px-6 pb-4">
+        {/* TAB 1: BASIC INFO */}
+        {activeTab === 0 && (
+          <div className="space-y-4 py-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Custom Category *
+                Category <span className="text-red-600">*</span>
+              </label>
+              <select
+                value={category}
+                onChange={(e) => {
+                  setCategory(e.target.value);
+                  setSubcategory('');
+                  setCustomCategory('');
+                }}
+                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${getRequiredFieldClass(category || customCategory)}`}
+              >
+                <option value="">Select a category...</option>
+                {categoryList.map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+                <option value="custom">Other (Custom)</option>
+              </select>
+            </div>
+
+            {category === 'custom' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Custom Category <span className="text-red-600">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={customCategory}
+                  onChange={(e) => setCustomCategory(e.target.value)}
+                  placeholder="e.g., Pool Maintenance"
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${getRequiredFieldClass(customCategory)}`}
+                />
+              </div>
+            )}
+
+            {category && category !== 'custom' && availableSubcategories.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Subcategory (optional)
+                </label>
+                <select
+                  value={subcategory}
+                  onChange={(e) => setSubcategory(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">None</option>
+                  {availableSubcategories.map(sub => (
+                    <option key={sub} value={sub}>{sub}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Account Title <span className="text-red-600">*</span>
               </label>
               <input
                 type="text"
-                value={customCategory}
-                onChange={(e) => setCustomCategory(e.target.value)}
-                placeholder="e.g., Pool Maintenance"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                value={accountName}
+                onChange={(e) => setAccountName(e.target.value)}
+                placeholder="e.g., Main Checking Account"
+                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${getRequiredFieldClass(accountName)}`}
               />
             </div>
-          )}
 
-          {category && category !== 'custom' && availableSubcategories.length > 0 && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Subcategory (optional)
+                Company Name <span className="text-red-600">*</span>
+              </label>
+              <input
+                type="text"
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
+                placeholder="e.g., Chase Bank"
+                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${getRequiredFieldClass(companyName)}`}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Status
               </label>
               <select
-                value={subcategory}
-                onChange={(e) => setSubcategory(e.target.value)}
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
-                <option value="">None</option>
-                {availableSubcategories.map(sub => (
-                  <option key={sub} value={sub}>{sub}</option>
+                {ACCOUNT_STATUSES.map(s => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
                 ))}
               </select>
             </div>
-          )}
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Account Title *
-            </label>
-            <input
-              type="text"
-              value={accountName}
-              onChange={(e) => setAccountName(e.target.value)}
-              placeholder="e.g., Main Checking Account"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Account Number (optional)
-            </label>
-            <input
-              type="text"
-              value={accountNumber}
-              onChange={(e) => setAccountNumber(e.target.value)}
-              placeholder="e.g., ****1234"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Company Name *
-            </label>
-            <input
-              type="text"
-              value={companyName}
-              onChange={(e) => setCompanyName(e.target.value)}
-              placeholder="e.g., Chase Bank"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Status
-            </label>
-            <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              {ACCOUNT_STATUSES.map(s => (
-                <option key={s.value} value={s.value}>{s.label}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Company Address (optional)
-            </label>
-            <input
-              type="text"
-              value={companyAddress}
-              onChange={(e) => setCompanyAddress(e.target.value)}
-              placeholder="e.g., 123 Main St, New York, NY 10001"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Phone (optional)
+                Payment Frequency
               </label>
-              <input
-                type="tel"
-                value={companyPhone}
-                onChange={(e) => setCompanyPhone(e.target.value)}
-                placeholder="(555) 123-4567"
+              <select
+                value={paymentFrequency}
+                onChange={(e) => setPaymentFrequency(e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
+              >
+                {PAYMENT_FREQUENCIES.map(freq => (
+                  <option key={freq.value} value={freq.value}>{freq.label}</option>
+                ))}
+              </select>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Website (optional)
-              </label>
-              <input
-                type="url"
-                value={companyWebsite}
-                onChange={(e) => setCompanyWebsite(e.target.value)}
-                placeholder="https://example.com"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-          </div>
 
-          <div className="flex justify-end gap-3 pt-4">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={() => setStep(2)}
-              disabled={!accountName || !companyName || (!category && !customCategory)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
-            >
-              Next: Payment Info
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Step 2: Payment Information */}
-      {step === 2 && (
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Payment Frequency
-            </label>
-            <select
-              value={paymentFrequency}
-              onChange={(e) => setPaymentFrequency(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              {PAYMENT_FREQUENCIES.map(freq => (
-                <option key={freq.value} value={freq.value}>{freq.label}</option>
-              ))}
-            </select>
-          </div>
-
-          {paymentFrequency !== 'NONE' && (
-            <>
-              <div className="grid grid-cols-2 gap-4">
+            {paymentFrequency !== 'NONE' && (
+              <>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Payment Amount (optional)
+                    Anticipated Amount (optional)
                   </label>
                   <div className="relative">
                     <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -419,9 +361,10 @@ export default function CreateAccountModal({
                     />
                   </div>
                 </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Next Payment Date (optional)
+                    Next Payment Due (optional)
                   </label>
                   <input
                     type="date"
@@ -430,145 +373,204 @@ export default function CreateAccountModal({
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
-              </div>
+              </>
+            )}
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Balance Tracking
-                </label>
-                <div className="space-y-2">
-                  <label className="flex items-center gap-3 p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
-                    <input
-                      type="radio"
-                      name="calculationMode"
-                      value="MANUAL"
-                      checked={calculationMode === 'MANUAL'}
-                      onChange={(e) => setCalculationMode(e.target.value)}
-                      className="w-4 h-4 text-blue-600"
-                    />
-                    <div>
-                      <div className="font-medium text-gray-900">Manual</div>
-                      <div className="text-sm text-gray-500">I'll update the balance manually</div>
-                    </div>
-                  </label>
-                  <label className="flex items-center gap-3 p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
-                    <input
-                      type="radio"
-                      name="calculationMode"
-                      value="AUTOMATIC"
-                      checked={calculationMode === 'AUTOMATIC'}
-                      onChange={(e) => setCalculationMode(e.target.value)}
-                      className="w-4 h-4 text-blue-600"
-                    />
-                    <div>
-                      <div className="font-medium text-gray-900">Automatic</div>
-                      <div className="text-sm text-gray-500">Calculate based on loan terms</div>
-                    </div>
-                  </label>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Current Balance (optional)
-                </label>
-                <div className="relative">
-                  <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Calculation Mode
+              </label>
+              <div className="space-y-2">
+                <label className="flex items-center gap-3 p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
                   <input
-                    type="number"
-                    step="0.01"
-                    value={balanceRemaining}
-                    onChange={(e) => setBalanceRemaining(e.target.value)}
-                    placeholder="0.00"
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    type="radio"
+                    name="calculationMode"
+                    value="MANUAL"
+                    checked={calculationMode === 'MANUAL'}
+                    onChange={(e) => setCalculationMode(e.target.value)}
+                    className="w-4 h-4 text-blue-600"
                   />
-                </div>
+                  <div>
+                    <div className="font-medium text-gray-900">Manual</div>
+                    <div className="text-sm text-gray-500">I'll update the balance manually</div>
+                  </div>
+                </label>
+                <label className="flex items-center gap-3 p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
+                  <input
+                    type="radio"
+                    name="calculationMode"
+                    value="AUTOMATIC"
+                    checked={calculationMode === 'AUTOMATIC'}
+                    onChange={(e) => setCalculationMode(e.target.value)}
+                    className="w-4 h-4 text-blue-600"
+                  />
+                  <div>
+                    <div className="font-medium text-gray-900">Automatic</div>
+                    <div className="text-sm text-gray-500">Calculate based on loan terms</div>
+                  </div>
+                </label>
               </div>
-            </>
-          )}
-
-          <div className="flex justify-between gap-3 pt-4">
-            <button
-              onClick={() => setStep(1)}
-              className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              Back
-            </button>
-            <button
-              onClick={() => setStep(3)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              Next: Login & Notes
-            </button>
+            </div>
           </div>
+        )}
+
+        {/* TAB 2: COMPANY DETAILS */}
+        {activeTab === 1 && (
+          <div className="space-y-4 py-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Company Address (optional)
+              </label>
+              <input
+                type="text"
+                value={companyAddress}
+                onChange={(e) => setCompanyAddress(e.target.value)}
+                placeholder="e.g., 123 Main St, New York, NY 10001"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Company Phone (optional)
+              </label>
+              <input
+                type="tel"
+                value={companyPhone}
+                onChange={(e) => setCompanyPhone(e.target.value)}
+                placeholder="(555) 123-4567"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Account Number (optional)
+              </label>
+              <input
+                type="text"
+                value={accountNumber}
+                onChange={(e) => setAccountNumber(e.target.value)}
+                placeholder="e.g., ****1234"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Company Website (optional)
+              </label>
+              <input
+                type="url"
+                value={companyWebsite}
+                onChange={(e) => setCompanyWebsite(e.target.value)}
+                placeholder="https://example.com"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* TAB 3: LOGIN & NOTES */}
+        {activeTab === 2 && (
+          <div className="space-y-4 py-4">
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+              <p className="text-sm text-yellow-800">
+                <strong>Note:</strong> Login credentials are encrypted and stored securely.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Login Username (optional)
+              </label>
+              <input
+                type="text"
+                value={loginUsername}
+                onChange={(e) => setLoginUsername(e.target.value)}
+                placeholder="username or email"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                autoComplete="off"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Login Password (optional)
+              </label>
+              <input
+                type="password"
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                autoComplete="new-password"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Notes (optional)
+              </label>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Add any additional notes or reminders about this account..."
+                rows={6}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* TAB 4: CATEGORY-SPECIFIC DETAILS */}
+        {activeTab === 3 && (
+          <div className="space-y-4 py-4">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <p className="text-sm text-blue-800">
+                Category-specific fields (loans, vehicles, insurance, etc.) will be added here in Phase 3.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Current Balance (optional)
+              </label>
+              <div className="relative">
+                <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                  type="number"
+                  step="0.01"
+                  value={balanceRemaining}
+                  onChange={(e) => setBalanceRemaining(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Footer with action buttons */}
+      <div className="border-t border-gray-200 px-6 py-4 bg-gray-50">
+        <div className="flex justify-between items-center">
+          <button
+            onClick={onClose}
+            disabled={isSubmitting}
+            className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={!isFormValid() || isSubmitting}
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+          >
+            {isSubmitting ? 'Saving...' : isEditing ? 'Update Account' : 'Save & Close'}
+          </button>
         </div>
-      )}
-
-      {/* Step 3: Login Credentials & Notes */}
-      {step === 3 && (
-        <div className="space-y-4">
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-            <p className="text-sm text-blue-900">
-              <strong>🔒 Secure:</strong> Login credentials are encrypted before storage.
-            </p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Login Username (optional)
-            </label>
-            <input
-              type="text"
-              value={loginUsername}
-              onChange={(e) => setLoginUsername(e.target.value)}
-              placeholder="username or email"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Login Password (optional)
-            </label>
-            <input
-              type="password"
-              value={loginPassword}
-              onChange={(e) => setLoginPassword(e.target.value)}
-              placeholder="••••••••"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Notes (optional)
-            </label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={4}
-              placeholder="Add any additional notes..."
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-            />
-          </div>
-
-          <div className="flex justify-between gap-3 pt-4">
-            <button
-              onClick={() => setStep(2)}
-              className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              Back
-            </button>
-            <button
-              onClick={handleSubmit}
-              disabled={isSubmitting}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
-            >
-              {isSubmitting ? `${isEditing ? 'Updating' : 'Creating'}...` : `${isEditing ? 'Update' : 'Create'} Account`}
-            </button>
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 }
