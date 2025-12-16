@@ -78,10 +78,7 @@ export async function POST(
     const remaining = scheduledAmount - totalPaid;
 
     // Determine new status
-    let newStatus = 'PARTIAL';
-    if (remaining <= 0) {
-      newStatus = 'PAID';
-    }
+    const newStatus: 'PARTIAL' | 'PAID' = remaining <= 0 ? 'PAID' : 'PARTIAL';
 
     // Update payment record
     const updatedPayment = await prisma.paymentHistory.update({
