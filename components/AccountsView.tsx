@@ -15,6 +15,7 @@ import {
   CreditCard,
 } from 'lucide-react';
 import CreateAccountModal from '@/components/CreateAccountModal';
+import DateRangePicker from '@/components/DateRangePicker';
 import { ACCOUNT_CATEGORIES } from '@/lib/accountConstants';
 
 interface Account {
@@ -294,7 +295,7 @@ export default function AccountsView(): JSX.Element {
       case 'WEEKLY':
         return amount * 4.33; // 52 weeks / 12 months
       case 'BIWEEKLY':
-        return amount * 2.17; // 26 pays / 12 months
+        return amount * 2.0; // Simplified: 2 payments per month
       case 'MONTHLY':
         return amount * 1;
       case 'QUARTERLY':
@@ -311,6 +312,52 @@ export default function AccountsView(): JSX.Element {
     }
   };
 
+  // Helper: Calculate how many payments are past due for an account
+  const calculatePastDueAmount = (account: Account): number => {
+    if (!account.nextPaymentDate || !account.anticipatedAmount || account.paymentFrequency === 'NONE') {
+      return 0;
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const nextPayment = new Date(account.nextPaymentDate);
+    nextPayment.setHours(0, 0, 0, 0);
+
+    if (nextPayment >= today) {
+      return 0; // Not past due
+    }
+
+    // Calculate how many payment periods have passed
+    const daysPastDue = Math.floor((today.getTime() - nextPayment.getTime()) / (1000 * 60 * 60 * 24));
+    let paymentsPastDue = 0;
+
+    switch (account.paymentFrequency) {
+      case 'WEEKLY':
+        paymentsPastDue = Math.floor(daysPastDue / 7) + 1;
+        break;
+      case 'BIWEEKLY':
+        paymentsPastDue = Math.floor(daysPastDue / 14) + 1;
+        break;
+      case 'MONTHLY':
+        // Approximate: 30 days per month
+        paymentsPastDue = Math.floor(daysPastDue / 30) + 1;
+        break;
+      case 'QUARTERLY':
+        paymentsPastDue = Math.floor(daysPastDue / 90) + 1;
+        break;
+      case 'SEMI_ANNUALLY':
+        paymentsPastDue = Math.floor(daysPastDue / 182) + 1;
+        break;
+      case 'ANNUALLY':
+        paymentsPastDue = Math.floor(daysPastDue / 365) + 1;
+        break;
+      default:
+        paymentsPastDue = 1;
+    }
+
+    return Number(account.anticipatedAmount) * paymentsPastDue;
+  };
+
   // Calculate total monthly payments (all frequencies converted to monthly, active accounts only)
   const totalMonthlyPayments = sortedAccounts
     .filter(a => a.isActive && a.anticipatedAmount && a.status === 'ACTIVE')
@@ -319,16 +366,12 @@ export default function AccountsView(): JSX.Element {
       return sum + monthlyAmount;
     }, 0);
 
-  // Total Past Due - expenses where payment date has passed
+  // Total Past Due - accumulated unpaid payments
   const totalPastDue = sortedAccounts
-    .filter(a => {
-      if (!a.nextPaymentDate || !a.balanceRemaining) return false;
-      const daysUntil = getDaysUntilPayment(a.nextPaymentDate);
-      return daysUntil < 0; // Past due
-    })
-    .reduce((sum, a) => sum + Number(a.balanceRemaining || 0), 0);
+    .reduce((sum, a) => sum + calculatePastDueAmount(a), 0);
 
-  // Total Liabilities - all outstanding balances
+  // Total Liabilities - loan balances (will be populated in Phase 3)
+  // Currently showing balanceRemaining for temporary compatibility
   const totalLiabilities = sortedAccounts
     .filter(a => a.balanceRemaining)
     .reduce((sum, a) => sum + Number(a.balanceRemaining || 0), 0);
@@ -405,34 +448,17 @@ export default function AccountsView(): JSX.Element {
           </select>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-          <span className="text-sm text-gray-600 whitespace-nowrap">Due Date:</span>
-          <input
-            type="date"
-            value={dateRangeStart}
-            onChange={(e) => setDateRangeStart(e.target.value)}
-            placeholder="From"
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        <div className="mt-3">
+          <DateRangePicker
+            startDate={dateRangeStart}
+            endDate={dateRangeEnd}
+            onStartDateChange={setDateRangeStart}
+            onEndDateChange={setDateRangeEnd}
+            onClear={() => {
+              setDateRangeStart('');
+              setDateRangeEnd('');
+            }}
           />
-          <span className="text-sm text-gray-600">to</span>
-          <input
-            type="date"
-            value={dateRangeEnd}
-            onChange={(e) => setDateRangeEnd(e.target.value)}
-            placeholder="To"
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
-          {(dateRangeStart || dateRangeEnd) && (
-            <button
-              onClick={() => {
-                setDateRangeStart('');
-                setDateRangeEnd('');
-              }}
-              className="px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              Clear Dates
-            </button>
-          )}
         </div>
       </div>
 
@@ -497,6 +523,7 @@ export default function AccountsView(): JSX.Element {
               const statusColor = getPaymentStatusColor(account.nextPaymentDate);
               const statusIcon = getPaymentStatusIcon(account.nextPaymentDate);
               const isIncomplete = !account.anticipatedAmount || account.paymentFrequency === 'NONE';
+              const isPastDue = calculatePastDueAmount(account) > 0;
               
               return (
                 <div
@@ -513,7 +540,15 @@ export default function AccountsView(): JSX.Element {
                   )}
                   
                   <div className="flex-1 min-w-0">
-                    <div className="font-medium text-gray-900">{account.accountName}</div>
+                    <div className="font-medium text-gray-900 flex items-center gap-2">
+                      {account.accountName}
+                      {isPastDue && (
+                        <span 
+                          className="inline-block w-2 h-2 bg-red-600 rounded-full"
+                          title="Payment past due"
+                        />
+                      )}
+                    </div>
                     <div className="text-sm text-gray-500">{account.companyName}</div>
                   </div>
                   
@@ -603,6 +638,7 @@ export default function AccountsView(): JSX.Element {
                           const statusColor = getPaymentStatusColor(account.nextPaymentDate);
                           const statusIcon = getPaymentStatusIcon(account.nextPaymentDate);
                           const isIncomplete = !account.anticipatedAmount || account.paymentFrequency === 'NONE';
+                          const isPastDue = calculatePastDueAmount(account) > 0;
                           
                           return (
                             <div
@@ -620,7 +656,15 @@ export default function AccountsView(): JSX.Element {
                               <Icon className={`h-8 w-8 text-${getCategoryColor(account.category)}-500 flex-shrink-0 hidden md:block`} />
                               
                               <div className="flex-1 min-w-0">
-                                <div className="font-medium text-gray-900">{account.accountName}</div>
+                                <div className="font-medium text-gray-900 flex items-center gap-2">
+                                  {account.accountName}
+                                  {isPastDue && (
+                                    <span 
+                                      className="inline-block w-2 h-2 bg-red-600 rounded-full"
+                                      title="Payment past due"
+                                    />
+                                  )}
+                                </div>
                                 <div className="text-sm text-gray-500">{account.companyName}</div>
                                 {account.subcategory && (
                                   <div className="text-xs text-gray-400 mt-1">{account.subcategory}</div>
@@ -799,4 +843,4 @@ export default function AccountsView(): JSX.Element {
       )}
     </div>
   );
-  }
+}
