@@ -8,6 +8,7 @@ import {
   Edit,
   Trash2,
   Calendar,
+  DollarSign,
   AlertCircle,
   Clock,
   ChevronDown,
@@ -67,6 +68,7 @@ export default function AccountsView(): JSX.Element {
   const [dateRangeEnd, setDateRangeEnd] = useState('');
   const [showPaymentHistory, setShowPaymentHistory] = useState(false);
   const [paymentHistoryAccount, setPaymentHistoryAccount] = useState<Account | null>(null);
+  const [showStatsDetail, setShowStatsDetail] = useState<'accounts' | 'payments' | null>(null);
 
   useEffect(() => {
     fetchAccounts();
@@ -477,40 +479,50 @@ export default function AccountsView(): JSX.Element {
       </div>
 
       <div className="border-b border-gray-200 px-4 md:px-6 py-4 bg-gray-50">
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4">
-          <div className="bg-white p-3 md:p-4 rounded-lg border border-gray-200">
-            <div className="text-xs md:text-sm text-gray-600 mb-1">Total Accounts</div>
-            <div className="text-xl md:text-2xl font-bold text-gray-900">{sortedAccounts.length}</div>
-          </div>
-          <div className="bg-white p-3 md:p-4 rounded-lg border border-gray-200">
-            <div className="text-xs md:text-sm text-gray-600 mb-1">Active</div>
-            <div className="text-xl md:text-2xl font-bold text-green-600">
-              {sortedAccounts.filter(a => a.status === 'ACTIVE').length}
-            </div>
-          </div>
-          <div className="bg-white p-3 md:p-4 rounded-lg border border-gray-200">
-            <div className="text-xs md:text-sm text-gray-600 mb-1">Monthly Payments</div>
-            <div className="text-xl md:text-2xl font-bold text-blue-600">
-              {formatCurrency(totalMonthlyPayments)}
-            </div>
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <button
-            onClick={() => setSortBy('pastDue')}
-            className="bg-white p-3 md:p-4 rounded-lg border border-gray-200 hover:bg-red-50 hover:border-red-300 transition-colors cursor-pointer text-left"
-            title="Click to view past due accounts"
+            onClick={() => setShowStatsDetail('accounts')}
+            className="bg-white p-3 md:p-4 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors text-left"
           >
-            <div className="text-xs md:text-sm text-gray-600 mb-1">Total Past Due</div>
-            <div className="text-xl md:text-2xl font-bold text-red-600">
-              {formatCurrency(totalPastDue)}
+            <div className="text-xs md:text-sm text-gray-600 mb-1">Accounts</div>
+            <div className="flex items-baseline gap-3">
+              <div className="text-xl md:text-2xl font-bold text-blue-600">
+                {sortedAccounts.length}
+              </div>
+              <div className="text-sm text-gray-500">
+                Total
+              </div>
+              <div className="text-sm text-green-600 font-semibold ml-auto">
+                {sortedAccounts.filter(a => a.status === 'ACTIVE').length} Active
+              </div>
             </div>
           </button>
-          <div className="bg-white p-3 md:p-4 rounded-lg border border-gray-200 opacity-50" title="Will show loan balances when loan tracking is added">
-            <div className="text-xs md:text-sm text-gray-600 mb-1">Total Liabilities</div>
-            <div className="text-xl md:text-2xl font-bold text-purple-600">
-              $0.00
+          
+          <button
+            onClick={() => setShowStatsDetail('payments')}
+            className="bg-white p-3 md:p-4 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors text-left"
+          >
+            <div className="text-xs md:text-sm text-gray-600 mb-1">Payments</div>
+            <div className="flex items-baseline gap-3">
+              <div className="text-xl md:text-2xl font-bold text-blue-600">
+                {formatCurrency(totalMonthlyPayments)}
+              </div>
+              <div className="text-sm text-gray-500">
+                /month
+              </div>
+              {totalPastDue > 0 && (
+                <div 
+                  className="text-sm text-red-600 font-semibold ml-auto cursor-pointer hover:underline"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSortBy('pastDue');
+                  }}
+                >
+                  {formatCurrency(totalPastDue)} Past Due
+                </div>
+              )}
             </div>
-            <div className="text-xs text-gray-400 mt-1">Coming soon</div>
-          </div>
+          </button>
         </div>
       </div>
 
@@ -662,7 +674,8 @@ export default function AccountsView(): JSX.Element {
                           return (
                             <div
                               key={account.id}
-                              className="relative flex flex-col md:flex-row md:items-center gap-3 md:gap-4 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 group"
+                              onClick={() => handleAccountClick(account)}
+                              className="relative flex flex-col md:flex-row md:items-center gap-3 md:gap-4 p-4 border border-gray-200 rounded-lg hover:bg-blue-50 hover:border-blue-300 cursor-pointer group transition-colors"
                             >
                               {/* Incomplete indicator - small orange corner */}
                               {isIncomplete && (
@@ -730,24 +743,31 @@ export default function AccountsView(): JSX.Element {
 
                               <div className="flex items-center gap-2 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                                 <button
-                                  onClick={() => handleEdit(account)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleEdit(account);
+                                  }}
                                   className="p-1 hover:bg-gray-200 rounded"
                                   title="Edit"
                                 >
                                   <Edit className="h-4 w-4 text-gray-600" />
                                 </button>
                                 <button
-                                  onClick={() => {
+                                  onClick={(e) => {
+                                    e.stopPropagation();
                                     setPaymentHistoryAccount(account);
                                     setShowPaymentHistory(true);
                                   }}
-                                  className="p-1 hover:bg-gray-200 rounded"
-                                  title="View Payments"
+                                  className="p-1 hover:bg-green-100 rounded"
+                                  title="Payments & History"
                                 >
-                                  <Calendar className="h-4 w-4 text-gray-600" />
+                                  <DollarSign className="h-4 w-4 text-green-600" />
                                 </button>
                                 <button
-                                  onClick={() => handleDelete(account.id, account.accountName)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDelete(account.id, account.accountName);
+                                  }}
                                   className="p-1 hover:bg-red-100 rounded"
                                   title="Delete"
                                 >
