@@ -553,7 +553,7 @@ export default function AccountsView(): JSX.Element {
             {sortedAccounts.map(account => {
               const statusColor = getPaymentStatusColor(account.nextPaymentDate);
               const statusIcon = getPaymentStatusIcon(account.nextPaymentDate);
-              const isIncomplete = !account.anticipatedAmount || account.paymentFrequency === 'NONE';
+              const isIncomplete = account.paymentFrequency !== 'NONE' && !account.anticipatedAmount;
               const isPastDue = calculatePastDueAmount(account) > 0;
               
               return (
@@ -668,7 +668,7 @@ export default function AccountsView(): JSX.Element {
                           const Icon = getCategoryIcon(account.category);
                           const statusColor = getPaymentStatusColor(account.nextPaymentDate);
                           const statusIcon = getPaymentStatusIcon(account.nextPaymentDate);
-                          const isIncomplete = !account.anticipatedAmount || account.paymentFrequency === 'NONE';
+                          const isIncomplete = account.paymentFrequency !== 'NONE' && !account.anticipatedAmount;
                           const isPastDue = calculatePastDueAmount(account) > 0;
                           
                           return (
