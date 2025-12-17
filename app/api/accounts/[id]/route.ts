@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { getAuthenticatedUserAndTenant } from '@/lib/tenant-context';
 import { decryptFields } from '@/lib/encryption';
+import { generatePaymentRecords } from '@/lib/generate-payments';
 
 type RouteContext = {
   params: Promise<{
@@ -208,6 +209,37 @@ export async function PUT(
         },
       },
     });
+
+    // Auto-regenerate payment projections if payment details changed
+    if (updatedAccount.nextPaymentDate && updatedAccount.anticipatedAmount && updatedAccount.paymentFrequency !== 'NONE') {
+      try {
+        // Delete existing upcoming payments
+        await prisma.paymentHistory.deleteMany({
+          where: {
+            accountId: updatedAccount.id,
+            status: 'UPCOMING',
+          },
+        });
+
+        // Generate new projections with updated details
+        const paymentRecords = generatePaymentRecords({
+          accountId: updatedAccount.id,
+          tenantId: tenantId,
+          nextPaymentDate: updatedAccount.nextPaymentDate,
+          anticipatedAmount: Number(updatedAccount.anticipatedAmount),
+          paymentFrequency: updatedAccount.paymentFrequency,
+        });
+
+        await prisma.paymentHistory.createMany({
+          data: paymentRecords,
+        });
+
+        console.log(`Regenerated ${paymentRecords.length} payments for updated account ${updatedAccount.id}`);
+      } catch (error) {
+        console.error('Error regenerating payments:', error);
+        // Don't fail the account update if payment generation fails
+      }
+    }
 
     // Remove credentials from response
     const { loginUsername, loginPassword, ...safeAccount } = updatedAccount;
