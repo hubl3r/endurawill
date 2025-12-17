@@ -38,12 +38,14 @@ interface PaymentHistoryModalProps {
   account: Account;
   onClose: () => void;
   onPaymentUpdated?: () => void;
+  onRefresh?: () => void;
 }
 
 export default function PaymentHistoryModal({
   account,
   onClose,
-  onPaymentUpdated
+  onPaymentUpdated,
+  onRefresh
 }: PaymentHistoryModalProps) {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
