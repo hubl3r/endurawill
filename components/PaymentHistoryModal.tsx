@@ -27,6 +27,9 @@ interface Account {
   id: string;
   accountName: string;
   companyName: string;
+  companyWebsite: string | null;
+  companyPhone: string | null;
+  companyAddress: string | null;
   anticipatedAmount: number | null;
   paymentFrequency: string;
 }
@@ -45,6 +48,8 @@ export default function PaymentHistoryModal({
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [showMarkPaidModal, setShowMarkPaidModal] = useState(false);
+  const [showPartialPaymentModal, setShowPartialPaymentModal] = useState(false);
+  const [showPayoffPlanModal, setShowPayoffPlanModal] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
   const [activeTab, setActiveTab] = useState<'history' | 'upcoming'>('upcoming');
 
@@ -120,13 +125,45 @@ export default function PaymentHistoryModal({
         <div className="bg-white rounded-xl shadow-lg max-w-3xl w-full max-h-[90vh] flex flex-col">
           {/* Header */}
           <div className="flex items-center justify-between p-6 border-b border-gray-200">
-            <div>
+            <div className="flex-1">
               <h2 className="text-xl font-bold text-gray-900">{account.accountName}</h2>
               <p className="text-sm text-gray-500 mt-1">{account.companyName}</p>
+              
+              {/* Company Contact Info */}
+              <div className="mt-3 flex flex-wrap gap-4 text-sm">
+                {account.companyWebsite && (
+                  <a
+                    href={account.companyWebsite.startsWith('http') ? account.companyWebsite : `https://${account.companyWebsite}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
+                  >
+                    🌐 Website
+                  </a>
+                )}
+                {account.companyPhone && (
+                  <a
+                    href={`tel:${account.companyPhone}`}
+                    className="text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
+                  >
+                    📞 {account.companyPhone}
+                  </a>
+                )}
+                {account.companyAddress && (
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(account.companyAddress)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
+                  >
+                    📍 {account.companyAddress}
+                  </a>
+                )}
+              </div>
             </div>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
+              className="text-gray-400 hover:text-gray-600 transition-colors ml-4"
             >
               <X className="h-5 w-5" />
             </button>
@@ -230,12 +267,23 @@ export default function PaymentHistoryModal({
                       </div>
 
                       {payment.status !== 'PAID' && (
-                        <button
-                          onClick={() => handleMarkPaid(payment)}
-                          className="ml-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
-                        >
-                          Mark Paid
-                        </button>
+                        <div className="ml-4 flex gap-2">
+                          <button
+                            onClick={() => handleMarkPaid(payment)}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+                          >
+                            Mark Paid
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedPayment(payment);
+                              setShowPartialPaymentModal(true);
+                            }}
+                            className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm font-medium"
+                          >
+                            Partial
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -274,6 +322,42 @@ export default function PaymentHistoryModal({
           }}
           onSaved={() => {
             setShowMarkPaidModal(false);
+            setSelectedPayment(null);
+            fetchPayments();
+            onPaymentUpdated?.();
+          }}
+        />
+      )}
+
+      {/* Partial Payment Modal */}
+      {showPartialPaymentModal && selectedPayment && (
+        <PartialPaymentModal
+          payment={selectedPayment}
+          accountName={account.accountName}
+          onClose={() => {
+            setShowPartialPaymentModal(false);
+            setSelectedPayment(null);
+          }}
+          onSaved={() => {
+            setShowPartialPaymentModal(false);
+            setSelectedPayment(null);
+            fetchPayments();
+            onPaymentUpdated?.();
+          }}
+        />
+      )}
+
+      {/* Payoff Plan Modal */}
+      {showPayoffPlanModal && selectedPayment && (
+        <PayoffPlanModal
+          payment={selectedPayment}
+          accountName={account.accountName}
+          onClose={() => {
+            setShowPayoffPlanModal(false);
+            setSelectedPayment(null);
+          }}
+          onSaved={() => {
+            setShowPayoffPlanModal(false);
             setSelectedPayment(null);
             fetchPayments();
             onPaymentUpdated?.();
@@ -445,6 +529,399 @@ function MarkPaidModal({ payment, accountName, onClose, onSaved }: MarkPaidModal
             className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-400"
           >
             {isSubmitting ? 'Saving...' : 'Mark as Paid'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Sub-component: Partial Payment Modal
+interface PartialPaymentModalProps {
+  payment: Payment;
+  accountName: string;
+  onClose: () => void;
+  onSaved: () => void;
+}
+
+function PartialPaymentModal({ payment, accountName, onClose, onSaved }: PartialPaymentModalProps) {
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [amount, setAmount] = useState('');
+  const [method, setMethod] = useState('');
+  const [note, setNote] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async () => {
+    if (!date || !amount) {
+      setError('Date and amount are required');
+      return;
+    }
+
+    const partialAmount = parseFloat(amount);
+    if (partialAmount <= 0) {
+      setError('Amount must be greater than 0');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError('');
+
+    try {
+      const response = await fetch(`/api/payments/${payment.id}/partial`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          date,
+          amount: partialAmount,
+          method: method || null,
+          note: note || null,
+        }),
+      });
+
+      if (response.ok) {
+        onSaved();
+      } else {
+        const data = await response.json();
+        setError(data.error || 'Failed to add partial payment');
+      }
+    } catch (err) {
+      setError('An error occurred while saving');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4">
+      <div className="bg-white rounded-xl shadow-lg max-w-md w-full p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold text-gray-900">Make Partial Payment</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+          <div className="text-sm text-gray-600">Account</div>
+          <div className="font-medium text-gray-900">{accountName}</div>
+          <div className="text-sm text-gray-600 mt-2">Total Due</div>
+          <div className="font-medium text-gray-900">${payment.scheduledAmount.toFixed(2)}</div>
+          {payment.remainingBalance && payment.remainingBalance > 0 && (
+            <>
+              <div className="text-sm text-gray-600 mt-2">Remaining Balance</div>
+              <div className="font-medium text-red-600">${payment.remainingBalance.toFixed(2)}</div>
+            </>
+          )}
+        </div>
+
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-900 text-sm">
+            {error}
+          </div>
+        )}
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Payment Date <span className="text-red-600">*</span>
+            </label>
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Payment Amount <span className="text-red-600">*</span>
+            </label>
+            <div className="relative">
+              <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <input
+                type="number"
+                step="0.01"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="0.00"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Payment Method (optional)
+            </label>
+            <select
+              value={method}
+              onChange={(e) => setMethod(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="">Select method...</option>
+              <option value="Checking Account">Checking Account</option>
+              <option value="Savings Account">Savings Account</option>
+              <option value="Credit Card">Credit Card</option>
+              <option value="Cash">Cash</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Note (optional)
+            </label>
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              rows={2}
+              placeholder="e.g., First installment"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-3 mt-6">
+          <button
+            onClick={onClose}
+            disabled={isSubmitting}
+            className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+            className="px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors disabled:bg-gray-400"
+          >
+            {isSubmitting ? 'Saving...' : 'Add Partial Payment'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Sub-component: Payoff Plan Modal
+interface PayoffPlanModalProps {
+  payment: Payment;
+  accountName: string;
+  onClose: () => void;
+  onSaved: () => void;
+}
+
+function PayoffPlanModal({ payment, accountName, onClose, onSaved }: PayoffPlanModalProps) {
+  const [totalPastDue, setTotalPastDue] = useState(
+    payment.remainingBalance?.toString() || payment.scheduledAmount.toString()
+  );
+  const [targetDate, setTargetDate] = useState('');
+  const [numberOfPayments, setNumberOfPayments] = useState('3');
+  const [plannedPayments, setPlannedPayments] = useState<Array<{
+    plannedDate: string;
+    plannedAmount: string;
+  }>>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const generatePayments = () => {
+    if (!targetDate || !totalPastDue || !numberOfPayments) {
+      setError('Please fill in all fields to generate payment schedule');
+      return;
+    }
+
+    const numPayments = parseInt(numberOfPayments);
+    const total = parseFloat(totalPastDue);
+    const amountPerPayment = total / numPayments;
+    
+    const today = new Date();
+    const target = new Date(targetDate);
+    const daysBetween = Math.floor((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    const daysPerPayment = Math.floor(daysBetween / numPayments);
+
+    const generated = [];
+    for (let i = 0; i < numPayments; i++) {
+      const paymentDate = new Date(today);
+      paymentDate.setDate(today.getDate() + (daysPerPayment * (i + 1)));
+      
+      generated.push({
+        plannedDate: paymentDate.toISOString().split('T')[0],
+        plannedAmount: amountPerPayment.toFixed(2),
+      });
+    }
+
+    setPlannedPayments(generated);
+    setError('');
+  };
+
+  const handleSubmit = async () => {
+    if (!totalPastDue || !targetDate || plannedPayments.length === 0) {
+      setError('Please generate a payment schedule before saving');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError('');
+
+    try {
+      const response = await fetch(`/api/payments/${payment.id}/payoff-plan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          totalPastDue: parseFloat(totalPastDue),
+          targetPayoffDate: targetDate,
+          plannedPayments,
+        }),
+      });
+
+      if (response.ok) {
+        onSaved();
+      } else {
+        const data = await response.json();
+        setError(data.error || 'Failed to create payoff plan');
+      }
+    } catch (err) {
+      setError('An error occurred while saving');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4">
+      <div className="bg-white rounded-xl shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold text-gray-900">Create Payoff Plan</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+          <div className="text-sm text-gray-600">Account</div>
+          <div className="font-medium text-gray-900">{accountName}</div>
+        </div>
+
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-900 text-sm">
+            {error}
+          </div>
+        )}
+
+        <div className="space-y-4 mb-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Total Past Due Amount <span className="text-red-600">*</span>
+            </label>
+            <div className="relative">
+              <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <input
+                type="number"
+                step="0.01"
+                value={totalPastDue}
+                onChange={(e) => setTotalPastDue(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Target Payoff Date <span className="text-red-600">*</span>
+            </label>
+            <input
+              type="date"
+              value={targetDate}
+              onChange={(e) => setTargetDate(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Number of Payments <span className="text-red-600">*</span>
+            </label>
+            <input
+              type="number"
+              min="1"
+              max="12"
+              value={numberOfPayments}
+              onChange={(e) => setNumberOfPayments(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+
+          <button
+            onClick={generatePayments}
+            className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Generate Payment Schedule
+          </button>
+        </div>
+
+        {plannedPayments.length > 0 && (
+          <div className="mb-6">
+            <h4 className="font-medium text-gray-900 mb-3">Payment Schedule</h4>
+            <div className="space-y-2">
+              {plannedPayments.map((p, index) => (
+                <div key={index} className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
+                  <div className="flex-1">
+                    <div className="text-sm text-gray-600">Payment {index + 1}</div>
+                    <input
+                      type="date"
+                      value={p.plannedDate}
+                      onChange={(e) => {
+                        const updated = [...plannedPayments];
+                        updated[index].plannedDate = e.target.value;
+                        setPlannedPayments(updated);
+                      }}
+                      className="mt-1 w-full px-3 py-1 border border-gray-300 rounded text-sm"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <div className="text-sm text-gray-600">Amount</div>
+                    <div className="relative mt-1">
+                      <DollarSign className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-gray-400" />
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={p.plannedAmount}
+                        onChange={(e) => {
+                          const updated = [...plannedPayments];
+                          updated[index].plannedAmount = e.target.value;
+                          setPlannedPayments(updated);
+                        }}
+                        className="w-full pl-7 pr-3 py-1 border border-gray-300 rounded text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="text-sm text-blue-900">
+                <strong>Total:</strong> $
+                {plannedPayments.reduce((sum, p) => sum + parseFloat(p.plannedAmount || '0'), 0).toFixed(2)}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="flex justify-end gap-3">
+          <button
+            onClick={onClose}
+            disabled={isSubmitting}
+            className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={isSubmitting || plannedPayments.length === 0}
+            className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:bg-gray-400"
+          >
+            {isSubmitting ? 'Creating...' : 'Create Payoff Plan'}
           </button>
         </div>
       </div>
