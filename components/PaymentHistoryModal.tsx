@@ -10,7 +10,7 @@ interface Payment {
   scheduledAmount: number;
   actualDate: string | null;
   actualAmount: number | null;
-  status: 'UPCOMING' | 'PAID' | 'PAST_DUE' | 'PARTIAL' | 'CANCELLED';
+  status: 'UPCOMING' | 'PAID' | 'PAST_DUE' | 'PARTIAL' | 'SKIPPED';
   paymentMethod: string | null;
   notes: string | null;
   partialPayments: Array<{
