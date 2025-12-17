@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -34,7 +33,6 @@ type AccountMeta = {
 
 type Props = {
   account: AccountMeta;
-  open: boolean;
   onClose: () => void;
   /** Parent callback to refresh account totals after mutations (modal stays open) */
   onPaymentUpdated?: () => void;
@@ -56,7 +54,7 @@ function sixMonthWindowFrom(end = new Date()) {
  * DEFAULT EXPORT — so you can import with:
  *   import PaymentHistoryModal from '@/components/PaymentHistoryModal';
  */
-export default function PaymentHistoryModal({ account, open, onClose, onPaymentUpdated }: Props) {
+export default function PaymentHistoryModal({ account, onClose, onPaymentUpdated }: Props) {
   const [{ startDate, endDate }, setWindow] = React.useState(sixMonthWindowFrom());
   const [status, setStatus] = React.useState<'ALL' | PaymentStatus>('ALL');
   const [q, setQ] = React.useState('');
@@ -93,7 +91,6 @@ export default function PaymentHistoryModal({ account, open, onClose, onPaymentU
 
   // Load payments from your existing endpoint (same shape your current modal uses)
   const load = React.useCallback(async () => {
-    if (!open) return;
     setLoading(true);
     const res = await fetch(`/api/accounts/${account.id}/payments`);
     const json = await res.json();
@@ -125,7 +122,7 @@ export default function PaymentHistoryModal({ account, open, onClose, onPaymentU
     const startIdx = (page - 1) * limit;
     setRows(filtered.slice(startIdx, startIdx + limit));
     setLoading(false);
-  }, [open, account.id, status, q, startDate, endDate, page, limit]);
+  }, [account.id, status, q, startDate, endDate, page, limit]);
 
   React.useEffect(() => { load(); }, [load]);
 
@@ -200,81 +197,70 @@ export default function PaymentHistoryModal({ account, open, onClose, onPaymentU
     onPaymentUpdated?.();
   }
 
-  // Mini chart data (Scheduled vs Actual totals per month in current page rows)
+  // --- Chart stuff ---
+  const w = 240, h = 80, pad = 20;
   const monthlyBuckets = React.useMemo(() => {
-    const buckets = new Map<string, { scheduled: number; actual: number }>();
-    rows.forEach(r => {
-      const keyDate = new Date(r.scheduledDate ?? r.actualDate ?? Date.now());
-      const k = `${keyDate.getFullYear()}-${String(keyDate.getMonth() + 1).padStart(2, '0')}`;
-      if (!buckets.has(k)) buckets.set(k, { scheduled: 0, actual: 0 });
-      const b = buckets.get(k)!;
-      b.scheduled += r.scheduledAmount ?? 0;
-      b.actual += r.actualAmount ?? 0;
-    });
-    return Array.from(buckets.entries())
-      .sort((a, b) => (a[0] < b[0] ? -1 : 1))
-      .map(([key, val]) => ({ key, ...val }));
-  }, [rows]);
+    const buckets: Array<{ month: string; scheduled: number; actual: number }> = [];
+    let current = new Date(startDate);
+    while (current <= endDate) {
+      const key = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}`;
+      const monthRows = rows.filter(r => {
+        const sd = r.scheduledDate ? new Date(r.scheduledDate) : null;
+        const ad = r.actualDate ? new Date(r.actualDate) : null;
+        const inMonth = (sd && sd.getFullYear() === current.getFullYear() && sd.getMonth() === current.getMonth()) ||
+                      (ad && ad.getFullYear() === current.getFullYear() && ad.getMonth() === current.getMonth());
+        return inMonth;
+      });
+      const scheduled = monthRows.reduce((sum, r) => sum + r.scheduledAmount, 0);
+      const actual = monthRows.reduce((sum, r) => sum + (r.actualAmount ?? 0), 0);
+      buckets.push({ month: key, scheduled, actual });
+      current.setMonth(current.getMonth() + 1);
+    }
+    return buckets;
+  }, [rows, startDate, endDate]);
 
-  // Chart dimensions
-  const maxVal = Math.max(...monthlyBuckets.map(b => Math.max(b.scheduled, b.actual)), 1);
-  const w = 560, h = 120, pad = 20;
-  const step = monthlyBuckets.length > 1 ? (w - pad * 2) / (monthlyBuckets.length - 1) : 0;
-  const yScale = (v: number) => h - pad - (v / maxVal) * (h - pad * 2);
-
-  if (!open) return null;
+  const maxVal = Math.max(...monthlyBuckets.flatMap(b => [b.scheduled, b.actual]), 1);
+  const yScale = (val: number) => h - pad - ((val / maxVal) * (h - 2 * pad));
+  const step = Math.max((w - 2 * pad) / Math.max(monthlyBuckets.length - 1, 1), 1);
 
   return (
-    <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
+      <div className="bg-white rounded-xl shadow-xl max-w-7xl w-full max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="p-5 border-b border-gray-200">
-          <div className="flex items-start justify-between gap-4">
-            <div className="space-y-1">
-              <h2 className="text-2xl font-bold">Payment History</h2>
-              <div className="text-sm text-gray-700">
-                <span className="font-medium">{account.accountName}</span> • {account.companyName}
-                {account.accountNumber && <> • #{account.accountNumber}</>}
-                {' '}• <span className="uppercase">{account.paymentFrequency}</span>
-                {account.anticipatedAmount != null && (
-                  <> • Anticipated: {fmtMoney(account.anticipatedAmount)}</>
-                )}
-              </div>
-              {/* Hyperlinks */}
-              <div className="flex flex-wrap gap-3 text-sm">
-                {account.companyWebsite && (
-                  <a href={account.companyWebsite.startsWith('http') ? account.companyWebsite : `https://${account.companyWebsite}`}
-                     target="_blank" rel="noopener noreferrer"
-                     className="text-blue-600 hover:text-blue-800 inline-flex items-center gap-1">
-                    <Globe className="h-4 w-4" /> Website
-                  </a>
-                )}
-                {account.companyPhone && (
-                  <a href={`tel:${account.companyPhone}`} className="text-blue-600 hover:text-blue-800 inline-flex items-center gap-1">
-                    <Phone className="h-4 w-4" /> {account.companyPhone}
-                  </a>
-                )}
-                {account.companyAddress && (
-                  <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(account.companyAddress)}`}
-                     target="_blank" rel="noopener noreferrer"
-                     className="text-blue-600 hover:text-blue-800 inline-flex items-center gap-1">
-                    <MapPin className="h-4 w-4" /> {account.companyAddress}
-                  </a>
-                )}
-              </div>
+        <div className="border-b border-gray-200">
+          <div className="px-5 py-4 flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+              Payment History: {account.accountName}
+            </h2>
+
+            {/* Company details */}
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              {account.companyWebsite && (
+                <a href={account.companyWebsite} target="_blank" rel="noopener noreferrer" 
+                   className="text-blue-600 hover:text-blue-800">
+                  <Globe className="h-4 w-4" />
+                </a>
+              )}
+              {account.companyPhone && (
+                <a href={`tel:${account.companyPhone}`} className="text-blue-600 hover:text-blue-800">
+                  <Phone className="h-4 w-4" />
+                </a>
+              )}
+              {account.companyAddress && (
+                <span title={account.companyAddress} className="text-gray-500">
+                  <MapPin className="h-4 w-4" />
+                </span>
+              )}
             </div>
 
-            {/* Flyout menu */}
-            <div className="relative">
-              <button className="p-2 rounded-lg hover:bg-gray-100" onClick={() => setMenuOpen(v => !v)} aria-label="Menu">
-                <MoreVertical className="h-5 w-5 text-gray-600" />
+            {/* Menu */}
+            <div className="relative" ref={menuRef}>
+              <button onClick={() => setMenuOpen(!menuOpen)} 
+                      className="p-2 hover:bg-gray-100 rounded-lg">
+                <MoreVertical className="h-5 w-5" />
               </button>
               {menuOpen && (
-                <div
-                  ref={menuRef}
-                  className="absolute right-0 mt-2 w-44 rounded-lg border bg-white shadow-lg z-10"
-                  role="menu" aria-label="Payment history menu"
-                >
+                <div className="absolute right-0 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
                   <button className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50" role="menuitem">
                     Export CSV
                   </button>
@@ -471,4 +457,3 @@ export default function PaymentHistoryModal({ account, open, onClose, onPaymentU
     </div>
   );
 }
-
