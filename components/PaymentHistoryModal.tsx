@@ -50,6 +50,7 @@ export default function PaymentHistoryModal({
   const [showMarkPaidModal, setShowMarkPaidModal] = useState(false);
   const [showPartialPaymentModal, setShowPartialPaymentModal] = useState(false);
   const [showPayoffPlanModal, setShowPayoffPlanModal] = useState(false);
+  const [showEditPaymentModal, setShowEditPaymentModal] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
   const [activeTab, setActiveTab] = useState<'history' | 'upcoming'>('upcoming');
 
@@ -76,12 +77,39 @@ export default function PaymentHistoryModal({
     setShowMarkPaidModal(true);
   };
 
+  const handleSkipPayment = async (payment: Payment) => {
+    if (!confirm('Mark this payment as skipped? This means it will not need to be paid.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/payments/${payment.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'SKIPPED',
+          notes: payment.notes ? `${payment.notes}\n[Skipped on ${new Date().toLocaleDateString()}]` : `Skipped on ${new Date().toLocaleDateString()}`,
+        }),
+      });
+
+      if (response.ok) {
+        fetchPayments();
+        onRefresh?.();
+      } else {
+        alert('Failed to skip payment');
+      }
+    } catch (error) {
+      console.error('Error skipping payment:', error);
+      alert('Error skipping payment');
+    }
+  };
+
   const upcomingPayments = payments.filter(p => 
     p.status === 'UPCOMING' || p.status === 'PAST_DUE'
   ).sort((a, b) => new Date(a.scheduledDate).getTime() - new Date(b.scheduledDate).getTime());
 
   const paidPayments = payments.filter(p => 
-    p.status === 'PAID' || p.status === 'PARTIAL'
+    p.status === 'PAID' || p.status === 'PARTIAL' || p.status === 'SKIPPED'
   ).sort((a, b) => new Date(b.actualDate || b.scheduledDate).getTime() - new Date(a.actualDate || a.scheduledDate).getTime());
 
   const formatDate = (dateString: string) => {
@@ -105,6 +133,7 @@ export default function PaymentHistoryModal({
       case 'PAST_DUE': return 'text-red-600 bg-red-50 border-red-200';
       case 'PARTIAL': return 'text-orange-600 bg-orange-50 border-orange-200';
       case 'UPCOMING': return 'text-blue-600 bg-blue-50 border-blue-200';
+      case 'SKIPPED': return 'text-gray-600 bg-gray-100 border-gray-300';
       default: return 'text-gray-600 bg-gray-50 border-gray-200';
     }
   };
@@ -113,6 +142,7 @@ export default function PaymentHistoryModal({
     switch (status) {
       case 'PAID': return <Check className="h-4 w-4" />;
       case 'PAST_DUE': return <AlertCircle className="h-4 w-4" />;
+      case 'SKIPPED': return <X className="h-4 w-4" />;
       default: return <Calendar className="h-4 w-4" />;
     }
   };
@@ -266,7 +296,7 @@ export default function PaymentHistoryModal({
                         )}
                       </div>
 
-                      {payment.status !== 'PAID' && (
+                      {payment.status !== 'PAID' && payment.status !== 'SKIPPED' && (
                         <div className="ml-4 flex gap-2">
                           <button
                             onClick={() => handleMarkPaid(payment)}
@@ -283,8 +313,25 @@ export default function PaymentHistoryModal({
                           >
                             Partial
                           </button>
+                          <button
+                            onClick={() => handleSkipPayment(payment)}
+                            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-sm font-medium"
+                          >
+                            Skip
+                          </button>
                         </div>
                       )}
+                      
+                      {/* Edit button for all statuses */}
+                      <button
+                        onClick={() => {
+                          setSelectedPayment(payment);
+                          setShowEditPaymentModal(true);
+                        }}
+                        className="ml-4 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg"
+                      >
+                        Edit
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -343,6 +390,24 @@ export default function PaymentHistoryModal({
             setSelectedPayment(null);
             fetchPayments();
             onPaymentUpdated?.();
+          }}
+        />
+      )}
+
+      {/* Edit Payment Modal */}
+      {showEditPaymentModal && selectedPayment && (
+        <EditPaymentModal
+          payment={selectedPayment}
+          accountName={account.accountName}
+          onClose={() => {
+            setShowEditPaymentModal(false);
+            setSelectedPayment(null);
+          }}
+          onSaved={() => {
+            setShowEditPaymentModal(false);
+            setSelectedPayment(null);
+            fetchPayments();
+            onRefresh?.();
           }}
         />
       )}
@@ -922,6 +987,180 @@ function PayoffPlanModal({ payment, accountName, onClose, onSaved }: PayoffPlanM
             className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:bg-gray-400"
           >
             {isSubmitting ? 'Creating...' : 'Create Payoff Plan'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Edit Payment Modal Component
+interface EditPaymentModalProps {
+  payment: Payment;
+  accountName: string;
+  onClose: () => void;
+  onSaved: () => void;
+}
+
+function EditPaymentModal({ payment, accountName, onClose, onSaved }: EditPaymentModalProps) {
+  const [scheduledDate, setScheduledDate] = useState(
+    payment.scheduledDate.split('T')[0]
+  );
+  const [scheduledAmount, setScheduledAmount] = useState(
+    (payment.scheduledAmount || 0).toString()
+  );
+  const [actualDate, setActualDate] = useState(
+    payment.actualDate ? payment.actualDate.split('T')[0] : ''
+  );
+  const [actualAmount, setActualAmount] = useState(
+    payment.actualAmount ? payment.actualAmount.toString() : ''
+  );
+  const [notes, setNotes] = useState(payment.notes || '');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async () => {
+    if (!scheduledDate || !scheduledAmount) {
+      setError('Scheduled date and amount are required');
+      return;
+    }
+
+    if (parseFloat(scheduledAmount) <= 0) {
+      setError('Amount must be greater than 0');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError('');
+
+    try {
+      const response = await fetch(`/api/payments/${payment.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scheduledDate,
+          scheduledAmount: parseFloat(scheduledAmount),
+          ...(actualDate && { actualDate }),
+          ...(actualAmount && { actualAmount: parseFloat(actualAmount) }),
+          notes: notes || null,
+        }),
+      });
+
+      if (response.ok) {
+        onSaved();
+      } else {
+        const data = await response.json();
+        setError(data.error || 'Failed to update payment');
+      }
+    } catch (err) {
+      setError('An error occurred while saving');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+        <div className="p-6 border-b border-gray-200">
+          <h3 className="text-lg font-bold text-gray-900">Edit Payment</h3>
+          <p className="text-sm text-gray-600 mt-1">{accountName}</p>
+        </div>
+
+        <div className="p-6 space-y-4">
+          {error && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+              {error}
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Scheduled Date *
+            </label>
+            <input
+              type="date"
+              value={scheduledDate}
+              onChange={(e) => setScheduledDate(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Scheduled Amount *
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
+              <input
+                type="number"
+                step="0.01"
+                value={scheduledAmount}
+                onChange={(e) => setScheduledAmount(e.target.value)}
+                className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+
+          {payment.status === 'PAID' && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Actual Date Paid
+                </label>
+                <input
+                  type="date"
+                  value={actualDate}
+                  onChange={(e) => setActualDate(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Actual Amount Paid
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={actualAmount}
+                    onChange={(e) => setActualAmount(e.target.value)}
+                    className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+            </>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Notes
+            </label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={3}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+            />
+          </div>
+        </div>
+
+        <div className="p-6 border-t border-gray-200 flex justify-end gap-3">
+          <button
+            onClick={onClose}
+            disabled={isSubmitting}
+            className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-400"
+          >
+            {isSubmitting ? 'Saving...' : 'Save Changes'}
           </button>
         </div>
       </div>
