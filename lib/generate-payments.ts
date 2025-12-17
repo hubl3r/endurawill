@@ -34,7 +34,15 @@ export function generatePaymentProjections(
   }
 
   const projections: PaymentProjection[] = [];
-  let currentDate = new Date(nextPaymentDate);
+  
+  // Start from the LATER of: nextPaymentDate OR today
+  // This prevents generating past-due duplicates when editing seed date backwards
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const seedDate = new Date(nextPaymentDate);
+  seedDate.setHours(0, 0, 0, 0);
+  
+  let currentDate = new Date(Math.max(seedDate.getTime(), today.getTime()));
 
   for (let i = 0; i < 12; i++) {
     projections.push({
