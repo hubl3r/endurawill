@@ -1,0 +1,875 @@
+// Endurawill - Production-Ready Database Schema
+// Built for scale, audit trails, and granular permissions
+// Version: 2.1 - Added Account Management System
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+// Account Management Enums
+enum PaymentFrequency {
+  NONE
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+  QUARTERLY
+  SEMI_ANNUALLY
+  ANNUALLY
+  ONE_TIME
+  OTHER
+}
+
+enum PaymentStatus {
+  UPCOMING
+  PAID
+  PAST_DUE
+  PARTIAL
+  SKIPPED
+}
+
+enum CalculationMode {
+  AUTOMATIC
+  MANUAL
+}
+
+// ============================================
+// TENANT = An Estate (Individual or Joint)
+// ============================================
+model Tenant {
+  id          String   @id @default(uuid())
+  name        String?
+  type        String   @default("individual")
+  
+  maxOwners   Int      @default(1)
+  ownerCount  Int      @default(0)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  users              User[]
+  documents          Document[]
+  assets             Asset[]
+  liabilities        Liability[]
+  beneficiaries      Beneficiary[]
+  directives         Directive[]
+  finalArrangements  FinalArrangement[]
+  delegates          Delegate[]
+  settings           TenantSettings?
+  auditLogs          AuditLog[]
+  accounts           Account[]
+  paymentHistory     PaymentHistory[]
+  accountAttachments AccountAttachment[]
+  
+  @@index([type])
+}
+
+// ============================================
+// USER = A person with access to the estate
+// ============================================
+model User {
+  id         String   @id @default(uuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  clerkId    String
+  
+  role       String
+  isPrimary  Boolean  @default(false)
+  
+  fullName   String
+  email      String?
+  dob        DateTime?
+  phone      String?
+  
+  profile    Profile?
+  
+  twoFactorEnabled Boolean @default(false)
+  
+  lastLoginAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  sessions              Session[]
+  auditLogs             AuditLog[]
+  createdDocuments      Document[] @relation("CreatedBy")
+  modifiedDocuments     Document[] @relation("ModifiedBy")
+  comments              Comment[]
+  resourcePermissions   ResourcePermission[]
+  delegateRecord        Delegate? @relation("DelegateUser")
+  invitedDelegates      Delegate[] @relation("InvitedBy")
+  createdAccounts       Account[] @relation("AccountCreatedBy")
+  modifiedAccounts      Account[] @relation("AccountModifiedBy")
+  uploadedAttachments   AccountAttachment[]
+  
+  @@unique([tenantId, clerkId])
+  @@index([clerkId])
+  @@index([tenantId])
+  @@index([role])
+}
+
+// ============================================
+// PROFILE = Extended info for estate owners
+// ============================================
+model Profile {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  stateResidence  String?
+  maritalStatus   String?
+  
+  goals           Json?
+  complexityLevel String?
+  selectedPlan    String?
+  
+  hasCompletedOnboarding Boolean @default(false)
+  onboardingStep  Int     @default(0)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  children        Child[]
+  pets            Pet[]
+}
+
+// ============================================
+// CHILD = Profile's children
+// ============================================
+model Child {
+  id           String   @id @default(uuid())
+  profileId    String
+  profile      Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  
+  fullName     String
+  dob          DateTime?
+  relationship String   @default("child")
+  isMinor      Boolean  @default(true)
+  
+  guardianPreference String?
+  beneficiaryId String?
+  notes        String?
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  @@index([profileId])
+}
+
+// ============================================
+// PET = Profile's pets
+// ============================================
+model Pet {
+  id             String   @id @default(uuid())
+  profileId      String
+  profile        Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  
+  name           String
+  type           String
+  breed          String?
+  age            Int?
+  
+  specialNeeds   String?
+  vetInfo        Json?
+  careInstructions String?
+  
+  caretakerPreference String?
+  trustFund       Boolean @default(false)
+  trustAmount     Decimal? @db.Decimal(15, 2)
+  
+  notes          String?
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  @@index([profileId])
+}
+
+// ============================================
+// RESOURCE PERMISSION = Granular access control
+// ============================================
+model ResourcePermission {
+  id           String   @id @default(uuid())
+  tenantId     String
+  
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  resourceType String
+  resourceId   String?
+  documentType String?
+  
+  canView      Boolean  @default(false)
+  canEdit      Boolean  @default(false)
+  canDelete    Boolean  @default(false)
+  canDownload  Boolean  @default(false)
+  canShare     Boolean  @default(false)
+  canModifyPermissions Boolean @default(false)
+  
+  grantedBy    String
+  grantedAt    DateTime @default(now())
+  revokedBy    String?
+  revokedAt    DateTime?
+  isActive     Boolean  @default(true)
+  
+  reason       String?
+  notes        String?
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  @@unique([userId, resourceType, resourceId, documentType])
+  @@index([userId])
+  @@index([tenantId])
+  @@index([resourceType, resourceId])
+  @@index([isActive])
+  @@index([documentType])
+}
+
+// ============================================
+// TENANT SETTINGS = Estate-wide preferences
+// ============================================
+model TenantSettings {
+  id        String   @id @default(uuid())
+  tenantId  String   @unique
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  requireBothOwnersApproval Boolean @default(false)
+  primaryCanOverride        Boolean @default(true)
+  
+  emailNotifications Boolean @default(true)
+  smsNotifications   Boolean @default(false)
+  notifyOnDelegateAccess Boolean @default(true)
+  
+  require2FA         Boolean @default(false)
+  sessionTimeout     Int     @default(30)
+  ipWhitelist        Json?
+  
+  autoVersioning     Boolean @default(true)
+  retentionPeriod    Int     @default(50)
+  
+  allowDelegateInvite Boolean @default(true)
+  requireDelegateApproval Boolean @default(true)
+  maxDelegates       Int     @default(10)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================
+// DOCUMENTS = Wills, Trusts, Directives
+// ============================================
+model Document {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  isFolder     Boolean  @default(false)
+  parentId     String?
+  parent       Document? @relation("FolderHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children     Document[] @relation("FolderHierarchy")
+  
+  type      String
+  title     String
+  description String? @db.Text
+  content   Json?
+  
+  fileUrl   String?
+  fileName  String?
+  fileType  String?
+  fileSize  Int?
+  
+  version   Int      @default(1)
+  status    String   @default("draft")
+  
+  signedAt  DateTime?
+  signedBy  Json?
+  witnessedBy Json?
+  
+  createdById  String?
+  createdBy    User?   @relation("CreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  modifiedById String?
+  modifiedBy   User?   @relation("ModifiedBy", fields: [modifiedById], references: [id], onDelete: SetNull)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  accessLogs DocumentAccess[]
+  comments   Comment[]
+  
+  @@index([tenantId])
+  @@index([type])
+  @@index([status])
+  @@index([createdById])
+  @@index([parentId])
+  @@index([isFolder])
+}
+
+// ============================================
+// COMMENTS = Document comments
+// ============================================
+model Comment {
+  id         String   @id @default(uuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  content    String   @db.Text
+  
+  parentCommentId String?
+  parentComment   Comment?  @relation("CommentReplies", fields: [parentCommentId], references: [id], onDelete: Cascade)
+  replies         Comment[] @relation("CommentReplies")
+  
+  isEdited   Boolean  @default(false)
+  editedAt   DateTime?
+  
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  @@index([documentId])
+  @@index([userId])
+  @@index([parentCommentId])
+}
+
+// ============================================
+// ASSETS = Property, accounts, valuables
+// ============================================
+model Asset {
+  id          String   @id @default(uuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  type        String
+  description String
+  
+  estimatedValue Decimal? @db.Decimal(15, 2)
+  currency       String   @default("USD")
+  valuationDate  DateTime?
+  
+  accountNumber  String?
+  institution    String?
+  location       String?
+  serialNumber   String?
+  
+  ownershipType  String   @default("joint")
+  ownedBy        Json?
+  ownershipPct   Json?
+  
+  hasBeneficiary Boolean  @default(false)
+  beneficiaryInfo Json?
+  
+  notes          String?
+  attachments    Json?
+  
+  dispositionInstructions String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([tenantId])
+  @@index([type])
+}
+
+// ============================================
+// LIABILITIES = Debts, mortgages, loans
+// ============================================
+model Liability {
+  id          String   @id @default(uuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  type        String
+  description String
+  creditor    String?
+  
+  amount      Decimal  @db.Decimal(15, 2)
+  currency    String   @default("USD")
+  
+  accountNumber String?
+  interestRate  Decimal? @db.Decimal(5, 2)
+  
+  paymentSchedule String?
+  monthlyPayment  Decimal? @db.Decimal(15, 2)
+  
+  notes       String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([tenantId])
+  @@index([type])
+}
+
+// ============================================
+// BENEFICIARIES = Who inherits what
+// ============================================
+model Beneficiary {
+  id          String   @id @default(uuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  fullName    String
+  relationship String
+  email       String?
+  phone       String?
+  address     Json?
+  
+  isPrimary   Boolean  @default(true)
+  isCharity   Boolean  @default(false)
+  charityTaxId String?
+  
+  shareType   String   @default("percentage")
+  shareValue  Decimal? @db.Decimal(15, 2)
+  sharePercent Decimal? @db.Decimal(5, 2)
+  
+  conditions  String?
+  trusteeInfo Json?
+  
+  notes       String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([tenantId])
+  @@index([relationship])
+}
+
+// ============================================
+// DELEGATE = Someone with access to estate
+// ============================================
+model Delegate {
+  id          String   @id @default(uuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  invitedByUserId String
+  invitedBy       User    @relation("InvitedBy", fields: [invitedByUserId], references: [id], onDelete: Restrict)
+  
+  fullName    String
+  email       String
+  phone       String?
+  relationship String
+  
+  hasAccount      Boolean  @default(false)
+  userId          String?  @unique
+  user            User?    @relation("DelegateUser", fields: [userId], references: [id], onDelete: SetNull)
+  
+  status          String   @default("invited")
+  isApproved      Boolean  @default(false)
+  approvedBy      String?
+  approvedAt      DateTime?
+  
+  invitationToken  String?  @unique
+  invitedAt        DateTime @default(now())
+  lastInviteSentAt DateTime?
+  acceptedAt       DateTime?
+  expiresAt        DateTime?
+  revokedAt        DateTime?
+  revokedBy        String?
+  
+  canAccessWhen   String   @default("after_death")
+  customTrigger   String?
+  
+  documentPermissions    Json? @default("{ \"default\": { \"view\": false, \"edit\": false, \"delete\": false, \"download\": false, \"share\": false }, \"overrides\": {} }")
+  assetPermissions       Json? @default("{ \"default\": { \"view\": false, \"edit\": false, \"delete\": false, \"download\": false, \"share\": false }, \"overrides\": {} }")
+  liabilityPermissions   Json? @default("{ \"default\": { \"view\": false, \"edit\": false, \"delete\": false, \"download\": false, \"share\": false }, \"overrides\": {} }")
+  beneficiaryPermissions Json? @default("{ \"view\": false, \"edit\": false, \"delete\": false }")
+  settingsPermissions    Json? @default("{ \"view\": false, \"edit\": false }")
+  profilePermissions     Json? @default("{ \"view\": false, \"edit\": false }")
+  
+  hasAnyPermissions Boolean @default(false)
+  
+  poaPermissions  Json?
+  poaStartDate    DateTime?
+  poaEndDate      DateTime?
+  
+  lastAccessedAt  DateTime?
+  accessCount     Int      @default(0)
+  lastNotifiedAt  DateTime?
+  
+  notes           String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  auditLogs AuditLog[]
+  
+  @@index([tenantId])
+  @@index([email])
+  @@index([status])
+  @@index([hasAccount])
+  @@index([invitedByUserId])
+}
+
+// ============================================
+// DIRECTIVES = Healthcare, POA
+// ============================================
+model Directive {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  type      String
+  content   Json
+  status    String   @default("draft")
+  
+  primaryAgent    Json?
+  alternateAgent  Json?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([tenantId])
+  @@index([type])
+}
+
+// ============================================
+// FINAL ARRANGEMENTS = Funeral preferences
+// ============================================
+model FinalArrangement {
+  id        String   @id @default(uuid())
+  tenantId  String   @unique
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  preference String
+  details    Json
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================
+// AUDIT LOG = Track everything
+// ============================================
+model AuditLog {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  delegateId String?
+  delegate  Delegate? @relation(fields: [delegateId], references: [id], onDelete: SetNull)
+  actorType String
+  actorName String
+  
+  action    String
+  category  String
+  
+  resourceType String?
+  resourceId   String?
+  
+  details      Json?
+  result       String  @default("success")
+  errorMessage String?
+  
+  sessionId String?
+  ipAddress String?
+  userAgent String?
+  location  String?
+  
+  timestamp DateTime @default(now())
+  
+  @@index([tenantId])
+  @@index([userId])
+  @@index([delegateId])
+  @@index([action])
+  @@index([timestamp])
+  @@index([category])
+  @@index([resourceType])
+}
+
+// ============================================
+// SESSION = Active login sessions
+// ============================================
+model Session {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clerkSessionId String   @unique
+  
+  ipAddress   String
+  userAgent   String
+  browser     String?
+  os          String?
+  device      String?
+  location    String?
+  
+  loginAt        DateTime @default(now())
+  lastActivityAt DateTime @default(now())
+  logoutAt       DateTime?
+  expiresAt      DateTime
+  
+  isActive Boolean @default(true)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([userId])
+  @@index([isActive])
+  @@index([clerkSessionId])
+}
+
+// ============================================
+// DOCUMENT ACCESS = Track who views what
+// ============================================
+model DocumentAccess {
+  id           String   @id @default(uuid())
+  documentId   String
+  document     Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  
+  accessorId   String
+  accessorType String
+  accessorName String
+  
+  action       String
+  
+  timestamp    DateTime @default(now())
+  ipAddress    String?
+  duration     Int?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([documentId])
+  @@index([accessorId])
+  @@index([timestamp])
+  @@index([action])
+}
+
+// ============================================
+// ACCOUNT MANAGEMENT SYSTEM
+// ============================================
+
+model Account {
+  id                  String            @id @default(uuid())
+  tenantId            String
+  tenant              Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  category            String
+  subcategory         String?
+  
+  accountName         String
+  companyName         String
+  companyAddress      String?
+  companyPhone        String?
+  companyWebsite      String?
+  accountNumber       String?
+  
+  loginUsername       String?
+  loginPassword       String?
+  
+  paymentFrequency    PaymentFrequency  @default(MONTHLY)
+  customSchedule      Json?
+  anticipatedAmount   Decimal?          @db.Decimal(10, 2)
+  nextPaymentDate     DateTime?
+  
+  calculationMode     CalculationMode?  @default(MANUAL)
+  balanceRemaining    Decimal?          @db.Decimal(12, 2)
+  
+  notes               String?           @db.Text
+  isActive            Boolean           @default(true)
+  status              String            @default("ACTIVE")
+  
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  createdById         String?
+  modifiedById        String?
+  
+  paymentHistory      PaymentHistory[]
+  attachments         AccountAttachment[]
+  financialDetails    FinancialAccountDetails?
+  loanDetails         LoanAccountDetails?
+  vehicleDetails      VehicleAccountDetails?
+  insuranceDetails    InsuranceAccountDetails?
+  propertyDetails     PropertyAccountDetails?
+  createdBy           User?             @relation("AccountCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  modifiedBy          User?             @relation("AccountModifiedBy", fields: [modifiedById], references: [id], onDelete: SetNull)
+  
+  @@index([tenantId, category])
+  @@index([tenantId, nextPaymentDate])
+  @@index([tenantId, isActive])
+  @@index([createdById])
+  @@index([modifiedById])
+}
+
+model PaymentHistory {
+  id                String        @id @default(uuid())
+  accountId         String
+  account           Account       @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  tenantId          String
+  tenant            Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  // Scheduled Payment
+  dueDate           DateTime      // Original due date (keep for backward compatibility)
+  scheduledDate     DateTime?     // Alias/new field for clarity
+  scheduledAmount   Decimal       @db.Decimal(10, 2)
+  
+  // Manual Override for Due Date
+  manualDueDate     DateTime?     // User changed due date for this payment
+  originalDueDate   DateTime?     // Keep original for reference
+  
+  // Actual Payment
+  paidDate          DateTime?     // Keep for backward compatibility
+  actualDate        DateTime?     // Alias/new field for clarity
+  paidAmount        Decimal?      @db.Decimal(10, 2)
+  actualAmount      Decimal?      @db.Decimal(10, 2)
+  
+  // Payment Status
+  status            PaymentStatus @default(UPCOMING)
+  
+  // Partial Payments
+  partialPayments   Json?         // Array of partial payment records
+  remainingBalance  Decimal?      @db.Decimal(10, 2)
+  
+  // Payment Method
+  paymentMethod     String?       // "Checking", "Credit Card", "Cash", "Auto-Pay"
+  paidFromAccountId String?       // Reference to Asset account (future)
+  
+  // Amortization (for loans)
+  balanceAfter      Decimal?      @db.Decimal(12, 2)
+  principalPaid     Decimal?      @db.Decimal(10, 2)
+  interestPaid      Decimal?      @db.Decimal(10, 2)
+  
+  // Past Due Payoff Plan
+  payoffPlan        Json?         // Structured payoff plan if past due
+  
+  notes             String?       @db.Text
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  
+  @@index([accountId, dueDate])
+  @@index([tenantId, status])
+  @@index([tenantId, dueDate])
+}
+
+// ============================================
+// ACCOUNT ATTACHMENTS = Uploaded documents
+// ============================================
+model AccountAttachment {
+  id          String   @id @default(uuid())
+  accountId   String
+  account     Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  fileName    String
+  fileSize    Int      // bytes
+  fileType    String   // MIME type
+  filePath    String   // S3/storage path
+  
+  description String?
+  category    String?  // "contract", "invoice", "statement", "other"
+  
+  uploadedById String?
+  uploadedBy   User?   @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([accountId])
+  @@index([tenantId])
+  @@index([uploadedById])
+}
+
+model FinancialAccountDetails {
+  id                String   @id @default(uuid())
+  accountId         String   @unique
+  account           Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  
+  accountNumber     String?
+  routingNumber     String?
+  
+  institutionType   String?
+  accountType       String?
+  currentBalance    Decimal? @db.Decimal(12, 2)
+  interestRate      Decimal? @db.Decimal(5, 2)
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model LoanAccountDetails {
+  id                String   @id @default(uuid())
+  accountId         String   @unique
+  account           Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  
+  accountNumber     String?
+  
+  principalAmount   Decimal? @db.Decimal(12, 2)
+  currentBalance    Decimal? @db.Decimal(12, 2)
+  interestRate      Decimal? @db.Decimal(5, 2)
+  loanTerm          Int?
+  maturityDate      DateTime?
+  minimumPayment    Decimal? @db.Decimal(10, 2)
+  
+  loanType          String?
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model VehicleAccountDetails {
+  id                  String   @id @default(uuid())
+  accountId           String   @unique
+  account             Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  
+  vin                 String?
+  make                String?
+  model               String?
+  year                Int?
+  licensePlate        String?
+  
+  loanAmount          Decimal? @db.Decimal(12, 2)
+  registrationExpires DateTime?
+  
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model InsuranceAccountDetails {
+  id                String   @id @default(uuid())
+  accountId         String   @unique
+  account           Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  
+  policyNumber      String?
+  policyType        String?
+  coverageAmount    Decimal? @db.Decimal(12, 2)
+  deductible        Decimal? @db.Decimal(10, 2)
+  
+  policyStart       DateTime?
+  policyEnd         DateTime?
+  
+  beneficiaries     String?  @db.Text
+  agentName         String?
+  agentContact      String?
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model PropertyAccountDetails {
+  id                String   @id @default(uuid())
+  accountId         String   @unique
+  account           Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  
+  propertyAddress   String?
+  unitNumber        String?
+  propertyType      String?
+  
+  loanAmount        Decimal? @db.Decimal(12, 2)
+  interestRate      Decimal? @db.Decimal(5, 2)
+  leaseEndDate      DateTime?
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
