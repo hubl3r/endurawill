@@ -4,6 +4,7 @@ import { getAuthenticatedUserAndTenant } from '@/lib/tenant-context';
 import { rateLimiters } from '@/lib/ratelimit';
 import { encryptFields, decryptFields } from '@/lib/encryption';
 import { updatePaymentStatuses } from '@/lib/update-payment-statuses';
+import { generatePaymentRecords } from '@/lib/generate-payments';
 
 // Sensitive fields that need encryption
 const ENCRYPTED_ACCOUNT_FIELDS = ['loginUsername', 'loginPassword'];
@@ -298,6 +299,28 @@ export async function POST(request: Request) {
         },
       },
     });
+
+    // Auto-generate payment projections if account has payment details
+    if (account.nextPaymentDate && account.anticipatedAmount && account.paymentFrequency !== 'NONE') {
+      try {
+        const paymentRecords = generatePaymentRecords({
+          accountId: account.id,
+          tenantId: tenantId,
+          nextPaymentDate: account.nextPaymentDate,
+          anticipatedAmount: Number(account.anticipatedAmount),
+          paymentFrequency: account.paymentFrequency,
+        });
+
+        await prisma.paymentHistory.createMany({
+          data: paymentRecords,
+        });
+
+        console.log(`Auto-generated ${paymentRecords.length} payments for account ${account.id}`);
+      } catch (error) {
+        console.error('Error auto-generating payments:', error);
+        // Don't fail the account creation if payment generation fails
+      }
+    }
 
     // Don't return encrypted credentials in response
     const { loginUsername: _, loginPassword: __, ...safeAccount } = account;
