@@ -35,6 +35,7 @@ interface Props {
   account: Account;
   onClose: () => void;
   onPaymentUpdated?: () => void;
+  onEditAccount?: (account: Account) => void;
 }
 
 interface MonthlyData {
@@ -85,7 +86,7 @@ const getStatusText = (status: PaymentStatus): string => {
   return status.replace('_', ' ');
 };
 
-export default function PaymentHistoryModal({ account, onClose, onPaymentUpdated }: Props) {
+export default function PaymentHistoryModal({ account, onClose, onPaymentUpdated, onEditAccount }: Props) {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -270,6 +271,8 @@ export default function PaymentHistoryModal({ account, onClose, onPaymentUpdated
   const handlePaymentAction = async (paymentId: string, action: string) => {
     try {
       let response;
+      const payment = payments.find(p => p.id === paymentId);
+      if (!payment) return;
       
       switch (action) {
         case 'paid':
@@ -279,7 +282,7 @@ export default function PaymentHistoryModal({ account, onClose, onPaymentUpdated
             body: JSON.stringify({
               status: 'PAID',
               actualDate: new Date().toISOString().split('T')[0],
-              actualAmount: payments.find(p => p.id === paymentId)?.scheduledAmount || 0,
+              actualAmount: payment.scheduledAmount,
             }),
           });
           break;
@@ -295,6 +298,29 @@ export default function PaymentHistoryModal({ account, onClose, onPaymentUpdated
           });
           break;
           
+        case 'restore':
+          // Calculate what the status should be based on date
+          // NOTE: Status should only be UPCOMING when within 1 month of due date
+          // TODO: Update payment generation to create only 3 future payments instead of 12
+          const today = new Date();
+          const scheduledDate = new Date(payment.scheduledDate || '');
+          const isWithinMonth = scheduledDate <= new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000);
+          const isPastDue = scheduledDate < today;
+          
+          const newStatus = isPastDue ? 'PAST_DUE' : (isWithinMonth ? 'UPCOMING' : 'PROJECTED');
+          
+          response = await fetch(`/api/payments/${paymentId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              status: newStatus,
+              actualDate: null,
+              actualAmount: null,
+              notes: payment.notes?.replace(/\[Skipped on .*?\]/g, '').trim() || null,
+            }),
+          });
+          break;
+          
         case 'delete':
           if (!confirm('Are you sure you want to delete this payment?')) return;
           response = await fetch(`/api/payments/${paymentId}`, {
@@ -304,6 +330,50 @@ export default function PaymentHistoryModal({ account, onClose, onPaymentUpdated
       }
       
       if (response && response.ok) {
+        await loadPayments();
+        onPaymentUpdated?.();
+        setFlyoutMenu(null);
+      }
+    } catch (error) {
+      console.error('Error updating payment:', error);
+    }
+  };
+
+  // Handle updating payment with flyout data
+  const handleUpdatePayment = async (paymentId: string) => {
+    try {
+      const payment = payments.find(p => p.id === paymentId);
+      if (!payment) return;
+
+      // Get values from the flyout inputs
+      const flyoutElement = document.querySelector(`[style*="left: ${flyoutMenu?.x}"]`);
+      if (!flyoutElement) return;
+
+      const actualDateInput = flyoutElement.querySelector('input[type="date"]') as HTMLInputElement;
+      const actualAmountInput = flyoutElement.querySelector('input[type="number"]') as HTMLInputElement;
+
+      const actualDate = actualDateInput?.value || null;
+      const actualAmount = actualAmountInput?.value ? parseFloat(actualAmountInput.value) : null;
+
+      // Determine status based on whether we have actual data
+      let status = payment.status;
+      if (actualDate && actualAmount) {
+        status = 'PAID';
+      } else if (actualDate || actualAmount) {
+        status = 'PARTIAL';
+      }
+
+      const response = await fetch(`/api/payments/${paymentId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          actualDate,
+          actualAmount,
+          status,
+        }),
+      });
+
+      if (response.ok) {
         await loadPayments();
         onPaymentUpdated?.();
         setFlyoutMenu(null);
@@ -339,8 +409,9 @@ export default function PaymentHistoryModal({ account, onClose, onPaymentUpdated
           </div>
           <button 
             onClick={() => {
-              // TODO: Open CreateAccountModal with this account pre-populated
-              console.log('Edit account:', account);
+              if (onEditAccount) {
+                onEditAccount(account);
+              }
             }}
             className="w-full text-right text-xs text-blue-600 hover:text-blue-800"
           >
@@ -493,69 +564,99 @@ export default function PaymentHistoryModal({ account, onClose, onPaymentUpdated
           className="fixed bg-blue-800 text-white rounded-lg shadow-lg z-60 min-w-[160px]"
           style={{ 
             left: Math.max(10, Math.min(flyoutMenu.x, window.innerWidth - 170)), 
-            top: Math.max(10, Math.min(flyoutMenu.y, window.innerHeight - 200))
+            top: Math.max(10, Math.min(flyoutMenu.y, window.innerHeight - 250))
           }}
         >
           <div className="p-2 space-y-1">
-            {/* Action buttons in one row */}
-            <div className="flex gap-1">
-              <button
-                onClick={() => handlePaymentAction(flyoutMenu.paymentId, 'paid')}
-                className="flex-1 px-2 py-1 hover:bg-blue-700 rounded text-xs"
-              >
-                Paid
-              </button>
-              <button
-                onClick={() => handlePaymentAction(flyoutMenu.paymentId, 'delete')}
-                className="flex-1 px-2 py-1 hover:bg-blue-700 rounded text-xs"
-              >
-                Delete
-              </button>
-            </div>
-            
-            {/* Date fields */}
-            <div className="grid grid-cols-2 gap-1 mt-2">
-              <div>
-                <div className="text-xs text-blue-200">Act Date</div>
-                <div className="text-sm">9/23</div>
-              </div>
-              <div>
-                <div className="text-xs text-blue-200">Est Date</div>
-                <div className="text-sm">9/25</div>
-              </div>
-            </div>
-            
-            {/* Amount fields */}
-            <div className="grid grid-cols-2 gap-1">
-              <div>
-                <div className="text-xs text-blue-200">Act Amt</div>
-                <input className="w-full text-xs bg-blue-700 border border-blue-600 rounded px-1" />
-              </div>
-              <div>
-                <div className="text-xs text-blue-200">Est Amt</div>
-                <input className="w-full text-xs bg-blue-700 border border-blue-600 rounded px-1" />
-              </div>
-            </div>
-            
-            {/* Skip and Update buttons */}
-            <div className="flex gap-1 mt-2">
-              <button
-                onClick={() => handlePaymentAction(flyoutMenu.paymentId, 'skip')}
-                className="flex-1 px-2 py-1 bg-blue-700 hover:bg-blue-600 rounded text-xs"
-              >
-                Skip
-              </button>
-              <button 
-                onClick={() => {
-                  // TODO: Implement update functionality
-                  console.log('Update payment:', flyoutMenu.paymentId);
-                  setFlyoutMenu(null);
-                }}
-                className="flex-1 px-2 py-1 bg-blue-700 hover:bg-blue-600 rounded text-xs"
-              >
-                Update
-              </button>
-            </div>
+            {(() => {
+              const payment = payments.find(p => p.id === flyoutMenu.paymentId);
+              if (!payment) return null;
+              
+              const isPaid = payment.status === 'PAID';
+              const isSkipped = payment.status === 'SKIPPED';
+              
+              return (
+                <>
+                  {/* Action buttons */}
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => handlePaymentAction(flyoutMenu.paymentId, isPaid ? 'restore' : 'paid')}
+                      className="flex-1 px-2 py-1 hover:bg-blue-700 rounded text-xs"
+                    >
+                      {isPaid ? 'Restore' : 'Paid'}
+                    </button>
+                    <button
+                      onClick={() => handlePaymentAction(flyoutMenu.paymentId, 'delete')}
+                      className="flex-1 px-2 py-1 hover:bg-blue-700 rounded text-xs"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                  
+                  {/* Date fields */}
+                  <div className="grid grid-cols-2 gap-1 mt-2">
+                    <div>
+                      <div className="text-xs text-blue-200">Act Date</div>
+                      <input 
+                        type="date"
+                        defaultValue={payment.actualDate ? new Date(payment.actualDate).toISOString().split('T')[0] : ''}
+                        className="w-full text-xs bg-white text-black border border-gray-300 rounded px-1"
+                        onChange={(e) => {
+                          // TODO: Update actual date
+                          console.log('Update actual date:', e.target.value);
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <div className="text-xs text-blue-200">Est Date</div>
+                      <div className="text-xs bg-gray-100 text-gray-700 rounded px-1 py-0.5">
+                        {formatDate(payment.scheduledDate)}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Amount fields */}
+                  <div className="grid grid-cols-2 gap-1">
+                    <div>
+                      <div className="text-xs text-blue-200">Act Amt</div>
+                      <input 
+                        type="number"
+                        step="0.01"
+                        defaultValue={payment.actualAmount || ''}
+                        placeholder="0.00"
+                        className="w-full text-xs bg-white text-black border border-gray-300 rounded px-1"
+                        onChange={(e) => {
+                          // TODO: Update actual amount
+                          console.log('Update actual amount:', e.target.value);
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <div className="text-xs text-blue-200">Est Amt</div>
+                      <div className="text-xs bg-gray-100 text-gray-700 rounded px-1 py-0.5">
+                        {formatCurrency(payment.scheduledAmount)}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Skip and Update buttons */}
+                  <div className="flex gap-1 mt-2">
+                    <button
+                      onClick={() => handlePaymentAction(flyoutMenu.paymentId, isSkipped ? 'restore' : 'skip')}
+                      className="flex-1 px-2 py-1 bg-blue-700 hover:bg-blue-600 rounded text-xs"
+                    >
+                      {isSkipped ? 'Restore' : 'Skip'}
+                    </button>
+                    <button 
+                      onClick={() => handleUpdatePayment(flyoutMenu.paymentId)}
+                      className="flex-1 px-2 py-1 bg-blue-700 hover:bg-blue-600 rounded text-xs"
+                    >
+                      Update
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </div>
       )}
