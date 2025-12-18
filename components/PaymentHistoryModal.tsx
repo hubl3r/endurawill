@@ -104,14 +104,13 @@ export default function PaymentHistoryModal({ account, onClose, onPaymentUpdated
     return { start, end };
   };
 
-  const { start: windowStart, end: windowEnd } = getMonthWindow(currentDate);
-
-  // Load payments data
+  // Load payments data with debouncing to prevent duplicate requests
   const loadPayments = async () => {
     try {
       setLoading(true);
-      const startParam = windowStart.toISOString().split('T')[0];
-      const endParam = windowEnd.toISOString().split('T')[0];
+      const { start, end } = getMonthWindow(currentDate);
+      const startParam = start.toISOString().split('T')[0];
+      const endParam = end.toISOString().split('T')[0];
       
       const response = await fetch(
         `/api/accounts/${account.id}/payments?startDate=${startParam}&endDate=${endParam}`
@@ -130,7 +129,7 @@ export default function PaymentHistoryModal({ account, onClose, onPaymentUpdated
 
   useEffect(() => {
     loadPayments();
-  }, [account.id, windowStart, windowEnd]);
+  }, [account.id, currentDate]); // Only depend on account.id and currentDate, not the calculated window dates
 
   // Close flyout on outside click
   useEffect(() => {
@@ -157,9 +156,10 @@ export default function PaymentHistoryModal({ account, onClose, onPaymentUpdated
   // Generate monthly chart data
   const generateMonthlyData = (): MonthlyData[] => {
     const months: MonthlyData[] = [];
-    const current = new Date(windowStart);
+    const { start, end } = getMonthWindow(currentDate);
+    const current = new Date(start);
     
-    while (current <= windowEnd) {
+    while (current <= end) {
       const monthKey = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}`;
       
       const monthPayments = payments.filter(payment => {
@@ -185,16 +185,24 @@ export default function PaymentHistoryModal({ account, onClose, onPaymentUpdated
 
   const monthlyData = generateMonthlyData();
 
-  // Chart rendering
+  // Chart rendering - smaller bar chart with dotted line
   const renderChart = () => {
-    const chartWidth = 300;
-    const chartHeight = 120;
-    const padding = 20;
+    const chartWidth = 280;
+    const chartHeight = 80; // Reduced from 120
+    const padding = 15;
     
-    const maxValue = Math.max(...monthlyData.flatMap(d => [d.scheduled, d.actual]), 100);
-    const stepWidth = monthlyData.length > 1 ? (chartWidth - 2 * padding) / (monthlyData.length - 1) : 0;
+    const estimatedAmount = account.anticipatedAmount || 0;
+    const maxValue = Math.max(
+      ...monthlyData.flatMap(d => [d.scheduled, d.actual]),
+      estimatedAmount,
+      100
+    );
+    
+    const barWidth = monthlyData.length > 0 ? (chartWidth - 2 * padding) / monthlyData.length * 0.8 : 20;
+    const stepWidth = monthlyData.length > 0 ? (chartWidth - 2 * padding) / monthlyData.length : chartWidth;
     
     const yScale = (value: number) => chartHeight - padding - ((value / maxValue) * (chartHeight - 2 * padding));
+    const estimatedY = yScale(estimatedAmount);
     
     return (
       <svg width={chartWidth} height={chartHeight} className="bg-gray-50 rounded-lg">
@@ -204,36 +212,56 @@ export default function PaymentHistoryModal({ account, onClose, onPaymentUpdated
         <line x1={padding} y1={padding} x2={padding} y2={chartHeight - padding} 
               stroke="#e5e7eb" strokeWidth="1" />
         
-        {/* Data lines and points */}
+        {/* Estimated amount dotted line */}
+        <line x1={padding} y1={estimatedY} x2={chartWidth - padding} y2={estimatedY}
+              stroke="#6b7280" strokeWidth="1" strokeDasharray="3,2" />
+        <text x={chartWidth - padding - 5} y={estimatedY - 3} fontSize="9" fill="#6b7280" textAnchor="end">
+          Est: {formatCurrency(estimatedAmount)}
+        </text>
+        
+        {/* Data bars */}
         {monthlyData.map((data, i) => {
-          const x = padding + i * stepWidth;
-          const scheduledY = yScale(data.scheduled);
-          const actualY = yScale(data.actual);
-          const nextData = monthlyData[i + 1];
+          const x = padding + i * stepWidth + (stepWidth - barWidth) / 2;
+          const scheduledHeight = (data.scheduled / maxValue) * (chartHeight - 2 * padding);
+          const actualHeight = (data.actual / maxValue) * (chartHeight - 2 * padding);
           
           return (
             <g key={data.month}>
-              {/* Lines to next point */}
-              {nextData && (
-                <>
-                  <line x1={x} y1={scheduledY} x2={padding + (i + 1) * stepWidth} y2={yScale(nextData.scheduled)} 
-                        stroke="#3b82f6" strokeWidth="2" />
-                  <line x1={x} y1={actualY} x2={padding + (i + 1) * stepWidth} y2={yScale(nextData.actual)} 
-                        stroke="#10b981" strokeWidth="2" />
-                </>
-              )}
+              {/* Scheduled bar (blue) */}
+              <rect 
+                x={x} 
+                y={chartHeight - padding - scheduledHeight} 
+                width={barWidth / 2} 
+                height={scheduledHeight}
+                fill="#3b82f6" 
+                opacity="0.7"
+              />
               
-              {/* Data points */}
-              <circle cx={x} cy={scheduledY} r="3" fill="#3b82f6" />
-              <circle cx={x} cy={actualY} r="3" fill="#10b981" />
+              {/* Actual bar (green) */}
+              <rect 
+                x={x + barWidth / 2} 
+                y={chartHeight - padding - actualHeight} 
+                width={barWidth / 2} 
+                height={actualHeight}
+                fill="#10b981" 
+                opacity="0.8"
+              />
               
-              {/* Month labels */}
-              <text x={x} y={chartHeight - 5} fontSize="10" fill="#6b7280" textAnchor="middle">
+              {/* Month label */}
+              <text x={x + barWidth / 2} y={chartHeight - 3} fontSize="8" fill="#6b7280" textAnchor="middle">
                 {data.month.split('-')[1]}/{data.month.split('-')[0].slice(2)}
               </text>
             </g>
           );
         })}
+        
+        {/* Legend */}
+        <g transform="translate(10, 10)">
+          <rect x="0" y="0" width="8" height="6" fill="#3b82f6" opacity="0.7" />
+          <text x="12" y="5" fontSize="8" fill="#6b7280">Scheduled</text>
+          <rect x="60" y="0" width="8" height="6" fill="#10b981" opacity="0.8" />
+          <text x="72" y="5" fontSize="8" fill="#6b7280">Actual</text>
+        </g>
       </svg>
     );
   };
@@ -298,18 +326,24 @@ export default function PaymentHistoryModal({ account, onClose, onPaymentUpdated
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="border-b border-gray-200 p-4">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold text-gray-900">Payment History</h2>
+        <div className="border-b border-gray-200 p-3">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-base font-bold text-gray-900">Payment History</h2>
             <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
-              <X className="h-5 w-5" />
+              <X className="h-4 w-4" />
             </button>
           </div>
           
-          <div className="text-center text-sm text-gray-500">
+          <div className="text-xs text-gray-500 mb-1">
             {new Date().toLocaleDateString()}
           </div>
-          <button className="w-full text-right text-sm text-blue-600 hover:text-blue-800">
+          <button 
+            onClick={() => {
+              // TODO: Open CreateAccountModal with this account pre-populated
+              console.log('Edit account:', account);
+            }}
+            className="w-full text-right text-xs text-blue-600 hover:text-blue-800"
+          >
             Edit
           </button>
         </div>
@@ -332,19 +366,19 @@ export default function PaymentHistoryModal({ account, onClose, onPaymentUpdated
             <span>Comment</span>
             {account.companyWebsite && (
               <a href={account.companyWebsite} target="_blank" rel="noopener noreferrer" 
-                 className="hover:text-blue-800">
-                <Globe className="h-4 w-4 inline" /> Web
+                 className="hover:text-blue-800 flex items-center gap-1">
+                <Globe className="h-3 w-3" /> Web
               </a>
             )}
             <span>Email</span>
             {account.companyPhone && (
-              <a href={`tel:${account.companyPhone}`} className="hover:text-blue-800">
-                <Phone className="h-4 w-4 inline" /> Phone
+              <a href={`tel:${account.companyPhone}`} className="hover:text-blue-800 flex items-center gap-1">
+                <Phone className="h-3 w-3" /> Phone
               </a>
             )}
             {account.companyAddress && (
-              <span title={account.companyAddress} className="hover:text-blue-800">
-                <MapPin className="h-4 w-4 inline" /> Address
+              <span title={account.companyAddress} className="hover:text-blue-800 flex items-center gap-1">
+                <MapPin className="h-3 w-3" /> Address
               </span>
             )}
           </div>
@@ -411,9 +445,9 @@ export default function PaymentHistoryModal({ account, onClose, onPaymentUpdated
         </div>
 
         {/* Chart */}
-        <div className="border-t border-gray-200 p-4">
-          <div className="text-sm text-gray-600 mb-2">
-            Chart of data. Paginated at 6 months Over transactions.
+        <div className="border-t border-gray-200 p-3">
+          <div className="text-xs text-gray-600 mb-2">
+            Monthly totals (bars) vs estimated amount (dotted line)
           </div>
           <div className="flex items-center justify-between mb-2">
             <button 
@@ -423,7 +457,10 @@ export default function PaymentHistoryModal({ account, onClose, onPaymentUpdated
               <ChevronLeft className="h-4 w-4" />
             </button>
             <div className="text-xs text-gray-500">
-              {windowStart.toLocaleDateString()} - {windowEnd.toLocaleDateString()}
+              {(() => {
+                const { start, end } = getMonthWindow(currentDate);
+                return `${start.toLocaleDateString('en-US', { month: 'short' })} - ${end.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}`;
+              })()}
             </div>
             <button 
               onClick={() => navigateMonths('next')}
@@ -436,10 +473,13 @@ export default function PaymentHistoryModal({ account, onClose, onPaymentUpdated
         </div>
 
         {/* Add Transaction Button */}
-        <div className="border-t border-gray-200 p-4">
+        <div className="border-t border-gray-200 p-3">
           <button 
-            onClick={() => {/* Handle add transaction */}}
-            className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700"
+            onClick={() => {
+              // TODO: Open Add Transaction modal
+              console.log('Add transaction for account:', account.id);
+            }}
+            className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 text-sm"
           >
             Add Transaction
           </button>
@@ -450,25 +490,30 @@ export default function PaymentHistoryModal({ account, onClose, onPaymentUpdated
       {flyoutMenu && (
         <div
           ref={flyoutRef}
-          className="fixed bg-blue-800 text-white rounded-lg shadow-lg z-60 min-w-[120px]"
+          className="fixed bg-blue-800 text-white rounded-lg shadow-lg z-60 min-w-[160px]"
           style={{ 
-            left: Math.max(10, Math.min(flyoutMenu.x, window.innerWidth - 140)), 
+            left: Math.max(10, Math.min(flyoutMenu.x, window.innerWidth - 170)), 
             top: Math.max(10, Math.min(flyoutMenu.y, window.innerHeight - 200))
           }}
         >
           <div className="p-2 space-y-1">
-            <button
-              onClick={() => handlePaymentAction(flyoutMenu.paymentId, 'paid')}
-              className="w-full text-left px-3 py-2 hover:bg-blue-700 rounded text-sm"
-            >
-              Paid
-            </button>
-            <button
-              onClick={() => handlePaymentAction(flyoutMenu.paymentId, 'delete')}
-              className="w-full text-left px-3 py-2 hover:bg-blue-700 rounded text-sm"
-            >
-              Delete
-            </button>
+            {/* Action buttons in one row */}
+            <div className="flex gap-1">
+              <button
+                onClick={() => handlePaymentAction(flyoutMenu.paymentId, 'paid')}
+                className="flex-1 px-2 py-1 hover:bg-blue-700 rounded text-xs"
+              >
+                Paid
+              </button>
+              <button
+                onClick={() => handlePaymentAction(flyoutMenu.paymentId, 'delete')}
+                className="flex-1 px-2 py-1 hover:bg-blue-700 rounded text-xs"
+              >
+                Delete
+              </button>
+            </div>
+            
+            {/* Date fields */}
             <div className="grid grid-cols-2 gap-1 mt-2">
               <div>
                 <div className="text-xs text-blue-200">Act Date</div>
@@ -479,6 +524,8 @@ export default function PaymentHistoryModal({ account, onClose, onPaymentUpdated
                 <div className="text-sm">9/25</div>
               </div>
             </div>
+            
+            {/* Amount fields */}
             <div className="grid grid-cols-2 gap-1">
               <div>
                 <div className="text-xs text-blue-200">Act Amt</div>
@@ -489,14 +536,23 @@ export default function PaymentHistoryModal({ account, onClose, onPaymentUpdated
                 <input className="w-full text-xs bg-blue-700 border border-blue-600 rounded px-1" />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-1 mt-2">
+            
+            {/* Skip and Update buttons */}
+            <div className="flex gap-1 mt-2">
               <button
                 onClick={() => handlePaymentAction(flyoutMenu.paymentId, 'skip')}
-                className="px-2 py-1 bg-blue-700 hover:bg-blue-600 rounded text-xs"
+                className="flex-1 px-2 py-1 bg-blue-700 hover:bg-blue-600 rounded text-xs"
               >
                 Skip
               </button>
-              <button className="px-2 py-1 bg-blue-700 hover:bg-blue-600 rounded text-xs">
+              <button 
+                onClick={() => {
+                  // TODO: Implement update functionality
+                  console.log('Update payment:', flyoutMenu.paymentId);
+                  setFlyoutMenu(null);
+                }}
+                className="flex-1 px-2 py-1 bg-blue-700 hover:bg-blue-600 rounded text-xs"
+              >
                 Update
               </button>
             </div>
