@@ -1,14 +1,14 @@
 'use client';
 
-import * as React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
-  X, Globe, Phone, MapPin, MoreVertical, Calendar, Search,
-  Check, Trash2, PencilLine, Plus, ChevronLeft, ChevronRight
+  X, Globe, Phone, MapPin, ChevronRight, ChevronLeft,
+  Calendar, Plus, Edit, Trash2, Check, SkipForward
 } from 'lucide-react';
 
 type PaymentStatus = 'UPCOMING' | 'PAID' | 'PAST_DUE' | 'PARTIAL' | 'SKIPPED';
 
-type PaymentRow = {
+interface Payment {
   id: string;
   scheduledDate: string | null;
   actualDate: string | null;
@@ -17,9 +17,9 @@ type PaymentRow = {
   status: PaymentStatus;
   notes?: string | null;
   paymentMethod?: string | null;
-};
+}
 
-type AccountMeta = {
+interface Account {
   id: string;
   accountName: string;
   companyName: string;
@@ -27,433 +27,482 @@ type AccountMeta = {
   companyPhone?: string | null;
   companyAddress?: string | null;
   accountNumber?: string | null;
-  anticipatedAmount?: number | null;
   paymentFrequency: string;
-};
-
-type Props = {
-  account: AccountMeta;
-  onClose: () => void;
-  /** Parent callback to refresh account totals after mutations (modal stays open) */
-  onPaymentUpdated?: () => void;
-};
-
-// Helpers
-const fmtDate = (d?: string | null) => (d ? new Date(d).toLocaleDateString() : '');
-const fmtMoney = (n?: number | null) =>
-  n != null ? n.toLocaleString(undefined, { style: 'currency', currency: 'USD' }) : '';
-
-function sixMonthWindowFrom(end = new Date()) {
-  // end of last month for a clean 6‑month window
-  const endDate = new Date(end.getFullYear(), end.getMonth() + 1, 0);
-  const startDate = new Date(endDate.getFullYear(), endDate.getMonth() - 5, 1);
-  return { startDate, endDate };
+  anticipatedAmount?: number | null;
 }
 
-/**
- * DEFAULT EXPORT — so you can import with:
- *   import PaymentHistoryModal from '@/components/PaymentHistoryModal';
- */
+interface Props {
+  account: Account;
+  onClose: () => void;
+  onPaymentUpdated?: () => void;
+}
+
+interface MonthlyData {
+  month: string;
+  scheduled: number;
+  actual: number;
+}
+
+interface FlyoutMenu {
+  paymentId: string;
+  x: number;
+  y: number;
+}
+
+const formatCurrency = (amount: number | null): string => {
+  if (!amount) return '$0';
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+  }).format(amount);
+};
+
+const formatDate = (dateString: string | null): string => {
+  if (!dateString) return '';
+  return new Date(dateString).toLocaleDateString('en-US', {
+    month: '2-digit',
+    day: '2-digit',
+    year: 'numeric',
+  });
+};
+
+const formatFrequency = (frequency: string): string => {
+  return frequency.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
+};
+
+const getStatusColor = (status: PaymentStatus): string => {
+  switch (status) {
+    case 'PAID': return 'text-green-700 bg-green-50 border-green-200';
+    case 'PAST_DUE': return 'text-red-700 bg-red-50 border-red-200';
+    case 'UPCOMING': return 'text-orange-700 bg-orange-50 border-orange-200';
+    case 'PARTIAL': return 'text-yellow-700 bg-yellow-50 border-yellow-200';
+    case 'SKIPPED': return 'text-gray-700 bg-gray-100 border-gray-300';
+    default: return 'text-gray-700 bg-gray-100 border-gray-300';
+  }
+};
+
+const getStatusText = (status: PaymentStatus): string => {
+  return status.replace('_', ' ');
+};
+
 export default function PaymentHistoryModal({ account, onClose, onPaymentUpdated }: Props) {
-  const [{ startDate, endDate }, setWindow] = React.useState(sixMonthWindowFrom());
-  const [status, setStatus] = React.useState<'ALL' | PaymentStatus>('ALL');
-  const [q, setQ] = React.useState('');
-  const [rows, setRows] = React.useState<PaymentRow[]>([]);
-  const [loading, setLoading] = React.useState(false);
-  const [page, setPage] = React.useState(1);
-  const [limit, setLimit] = React.useState(50);
-  const [total, setTotal] = React.useState(0);
-  const totalPages = Math.ceil(Math.max(total, 1) / limit);
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [flyoutMenu, setFlyoutMenu] = useState<FlyoutMenu | null>(null);
+  const flyoutRef = useRef<HTMLDivElement>(null);
 
-  // Flyout menu
-  const [menuOpen, setMenuOpen] = React.useState(false);
-  const menuRef = React.useRef<HTMLDivElement | null>(null);
+  // Calculate 6-month window centered on current date
+  const getMonthWindow = (centerDate: Date) => {
+    const start = new Date(centerDate);
+    start.setMonth(start.getMonth() - 2); // 2 months before
+    start.setDate(1); // First day of month
+    
+    const end = new Date(centerDate);
+    end.setMonth(end.getMonth() + 3, 0); // Last day of 3rd month after
+    
+    return { start, end };
+  };
 
-  // Close flyout on outside click / Escape
-  React.useEffect(() => {
-    function onDocClick(e: MouseEvent) {
-      if (!menuOpen) return;
-      const target = e.target as Node;
-      if (menuRef.current && !menuRef.current.contains(target)) {
-        setMenuOpen(false);
+  const { start: windowStart, end: windowEnd } = getMonthWindow(currentDate);
+
+  // Load payments data
+  const loadPayments = async () => {
+    try {
+      setLoading(true);
+      const startParam = windowStart.toISOString().split('T')[0];
+      const endParam = windowEnd.toISOString().split('T')[0];
+      
+      const response = await fetch(
+        `/api/accounts/${account.id}/payments?startDate=${startParam}&endDate=${endParam}`
+      );
+      const data = await response.json();
+      
+      if (data.success) {
+        setPayments(data.payments || []);
       }
+    } catch (error) {
+      console.error('Error loading payments:', error);
+    } finally {
+      setLoading(false);
     }
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') setMenuOpen(false);
-    }
-    document.addEventListener('click', onDocClick);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('click', onDocClick);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [menuOpen]);
-
-  // Load payments from your existing endpoint (same shape your current modal uses)
-  const load = React.useCallback(async () => {
-    setLoading(true);
-    const res = await fetch(`/api/accounts/${account.id}/payments`);
-    const json = await res.json();
-    const items: PaymentRow[] = json.payments ?? [];
-
-    // Client‑side filters + 6‑month window
-    const filtered = items
-      .filter(p => {
-        const okStatus = status === 'ALL' ? true : p.status === status;
-        const text = q.trim().toLowerCase();
-        const okText =
-          !text ||
-          (p.notes && p.notes.toLowerCase().includes(text)) ||
-          (p.paymentMethod && p.paymentMethod.toLowerCase().includes(text));
-        const s = p.scheduledDate ? new Date(p.scheduledDate) : null;
-        const a = p.actualDate ? new Date(p.actualDate) : null;
-        const inWindow =
-          (!!s && s >= startDate && s <= endDate) ||
-          (!!a && a >= startDate && a <= endDate);
-        return okStatus && okText && inWindow;
-      })
-      .sort((a, b) => {
-        const ad = new Date(a.scheduledDate ?? a.actualDate ?? 0).getTime();
-        const bd = new Date(b.scheduledDate ?? b.actualDate ?? 0).getTime();
-        return ad - bd;
-      });
-
-    setTotal(filtered.length);
-    const startIdx = (page - 1) * limit;
-    setRows(filtered.slice(startIdx, startIdx + limit));
-    setLoading(false);
-  }, [account.id, status, q, startDate, endDate, page, limit]);
-
-  React.useEffect(() => { load(); }, [load]);
-
-  // Window paging
-  const prev6 = () => {
-    setWindow(({ startDate, endDate }) => ({
-      startDate: new Date(startDate.getFullYear(), startDate.getMonth() - 6, 1),
-      endDate: new Date(endDate.getFullYear(), endDate.getMonth() - 6, 0),
-    }));
-    setPage(1);
-  };
-  const next6 = () => {
-    setWindow(({ startDate, endDate }) => ({
-      startDate: new Date(startDate.getFullYear(), startDate.getMonth() + 6, 1),
-      endDate: new Date(endDate.getFullYear(), endDate.getMonth() + 6, 0),
-    }));
-    setPage(1);
   };
 
-  // Mutations (modal remains open; notify parent)
-  async function markPaid(row: PaymentRow) {
-    const body = {
-      status: 'PAID',
-      actualDate: new Date().toISOString().slice(0, 10),
-      actualAmount: row.actualAmount ?? row.scheduledAmount,
+  useEffect(() => {
+    loadPayments();
+  }, [account.id, windowStart, windowEnd]);
+
+  // Close flyout on outside click
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (flyoutRef.current && !flyoutRef.current.contains(event.target as Node)) {
+        setFlyoutMenu(null);
+      }
     };
-    await fetch(`/api/payments/${row.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    await load();
-    onPaymentUpdated?.();
-  }
+    
+    if (flyoutMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [flyoutMenu]);
 
-  async function skip(row: PaymentRow) {
-    const body = {
-      status: 'SKIPPED',
-      notes: [
-        row.notes ?? '',
-        `[Skipped on ${new Date().toLocaleDateString()}]`,
-      ].filter(Boolean).join('\n'),
-    };
-    await fetch(`/api/payments/${row.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    await load();
-    onPaymentUpdated?.();
-  }
+  // Navigate months
+  const navigateMonths = (direction: 'prev' | 'next') => {
+    const newDate = new Date(currentDate);
+    newDate.setMonth(newDate.getMonth() + (direction === 'next' ? 6 : -6));
+    setCurrentDate(newDate);
+  };
 
-  async function remove(row: PaymentRow) {
-    await fetch(`/api/payments/${row.id}`, { method: 'DELETE' });
-    await load();
-    onPaymentUpdated?.();
-  }
-
-  async function addTransaction() {
-    const body = {
-      scheduledDate: new Date().toISOString().slice(0, 10),
-      scheduledAmount: account.anticipatedAmount ?? 0,
-      status: 'UPCOMING' as PaymentStatus,
-      notes: 'Manually added transaction',
-    };
-    await fetch(`/api/accounts/${account.id}/payments`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    await load();
-    onPaymentUpdated?.();
-  }
-
-  // --- Chart stuff ---
-  const w = 240, h = 80, pad = 20;
-  const monthlyBuckets = React.useMemo(() => {
-    const buckets: Array<{ month: string; scheduled: number; actual: number }> = [];
-    let current = new Date(startDate);
-    while (current <= endDate) {
-      const key = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}`;
-      const monthRows = rows.filter(r => {
-        const sd = r.scheduledDate ? new Date(r.scheduledDate) : null;
-        const ad = r.actualDate ? new Date(r.actualDate) : null;
-        const inMonth = (sd && sd.getFullYear() === current.getFullYear() && sd.getMonth() === current.getMonth()) ||
-                      (ad && ad.getFullYear() === current.getFullYear() && ad.getMonth() === current.getMonth());
-        return inMonth;
+  // Generate monthly chart data
+  const generateMonthlyData = (): MonthlyData[] => {
+    const months: MonthlyData[] = [];
+    const current = new Date(windowStart);
+    
+    while (current <= windowEnd) {
+      const monthKey = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}`;
+      
+      const monthPayments = payments.filter(payment => {
+        const date = new Date(payment.scheduledDate || payment.actualDate || '');
+        return date.getFullYear() === current.getFullYear() && 
+               date.getMonth() === current.getMonth();
       });
-      const scheduled = monthRows.reduce((sum, r) => sum + r.scheduledAmount, 0);
-      const actual = monthRows.reduce((sum, r) => sum + (r.actualAmount ?? 0), 0);
-      buckets.push({ month: key, scheduled, actual });
+      
+      const scheduled = monthPayments.reduce((sum, p) => sum + p.scheduledAmount, 0);
+      const actual = monthPayments.reduce((sum, p) => sum + (p.actualAmount || 0), 0);
+      
+      months.push({
+        month: monthKey,
+        scheduled,
+        actual,
+      });
+      
       current.setMonth(current.getMonth() + 1);
     }
-    return buckets;
-  }, [rows, startDate, endDate]);
+    
+    return months;
+  };
 
-  const maxVal = Math.max(...monthlyBuckets.flatMap(b => [b.scheduled, b.actual]), 1);
-  const yScale = (val: number) => h - pad - ((val / maxVal) * (h - 2 * pad));
-  const step = Math.max((w - 2 * pad) / Math.max(monthlyBuckets.length - 1, 1), 1);
+  const monthlyData = generateMonthlyData();
+
+  // Chart rendering
+  const renderChart = () => {
+    const chartWidth = 300;
+    const chartHeight = 120;
+    const padding = 20;
+    
+    const maxValue = Math.max(...monthlyData.flatMap(d => [d.scheduled, d.actual]), 100);
+    const stepWidth = monthlyData.length > 1 ? (chartWidth - 2 * padding) / (monthlyData.length - 1) : 0;
+    
+    const yScale = (value: number) => chartHeight - padding - ((value / maxValue) * (chartHeight - 2 * padding));
+    
+    return (
+      <svg width={chartWidth} height={chartHeight} className="bg-gray-50 rounded-lg">
+        {/* Grid lines */}
+        <line x1={padding} y1={chartHeight - padding} x2={chartWidth - padding} y2={chartHeight - padding} 
+              stroke="#e5e7eb" strokeWidth="1" />
+        <line x1={padding} y1={padding} x2={padding} y2={chartHeight - padding} 
+              stroke="#e5e7eb" strokeWidth="1" />
+        
+        {/* Data lines and points */}
+        {monthlyData.map((data, i) => {
+          const x = padding + i * stepWidth;
+          const scheduledY = yScale(data.scheduled);
+          const actualY = yScale(data.actual);
+          const nextData = monthlyData[i + 1];
+          
+          return (
+            <g key={data.month}>
+              {/* Lines to next point */}
+              {nextData && (
+                <>
+                  <line x1={x} y1={scheduledY} x2={padding + (i + 1) * stepWidth} y2={yScale(nextData.scheduled)} 
+                        stroke="#3b82f6" strokeWidth="2" />
+                  <line x1={x} y1={actualY} x2={padding + (i + 1) * stepWidth} y2={yScale(nextData.actual)} 
+                        stroke="#10b981" strokeWidth="2" />
+                </>
+              )}
+              
+              {/* Data points */}
+              <circle cx={x} cy={scheduledY} r="3" fill="#3b82f6" />
+              <circle cx={x} cy={actualY} r="3" fill="#10b981" />
+              
+              {/* Month labels */}
+              <text x={x} y={chartHeight - 5} fontSize="10" fill="#6b7280" textAnchor="middle">
+                {data.month.split('-')[1]}/{data.month.split('-')[0].slice(2)}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    );
+  };
+
+  // Handle payment actions
+  const handlePaymentAction = async (paymentId: string, action: string) => {
+    try {
+      let response;
+      
+      switch (action) {
+        case 'paid':
+          response = await fetch(`/api/payments/${paymentId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              status: 'PAID',
+              actualDate: new Date().toISOString().split('T')[0],
+              actualAmount: payments.find(p => p.id === paymentId)?.scheduledAmount || 0,
+            }),
+          });
+          break;
+          
+        case 'skip':
+          response = await fetch(`/api/payments/${paymentId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              status: 'SKIPPED',
+              notes: `Skipped on ${new Date().toLocaleDateString()}`,
+            }),
+          });
+          break;
+          
+        case 'delete':
+          if (!confirm('Are you sure you want to delete this payment?')) return;
+          response = await fetch(`/api/payments/${paymentId}`, {
+            method: 'DELETE',
+          });
+          break;
+      }
+      
+      if (response && response.ok) {
+        await loadPayments();
+        onPaymentUpdated?.();
+        setFlyoutMenu(null);
+      }
+    } catch (error) {
+      console.error('Error updating payment:', error);
+    }
+  };
+
+  const handleRowClick = (payment: Payment, event: React.MouseEvent) => {
+    const rect = (event.target as HTMLElement).getBoundingClientRect();
+    setFlyoutMenu({
+      paymentId: payment.id,
+      x: rect.right - 200,
+      y: rect.top,
+    });
+  };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
-      <div className="bg-white rounded-xl shadow-xl max-w-7xl w-full max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="border-b border-gray-200">
-          <div className="px-5 py-4 flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
-              Payment History: {account.accountName}
-            </h2>
+        <div className="border-b border-gray-200 p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-gray-900">Payment History</h2>
+            <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          
+          <div className="text-center text-sm text-gray-500">
+            {new Date().toLocaleDateString()}
+          </div>
+          <button className="w-full text-right text-sm text-blue-600 hover:text-blue-800">
+            Edit
+          </button>
+        </div>
 
-            {/* Company details */}
-            <div className="flex items-center gap-2 text-sm text-gray-600">
-              {account.companyWebsite && (
-                <a href={account.companyWebsite} target="_blank" rel="noopener noreferrer" 
-                   className="text-blue-600 hover:text-blue-800">
-                  <Globe className="h-4 w-4" />
-                </a>
-              )}
-              {account.companyPhone && (
-                <a href={`tel:${account.companyPhone}`} className="text-blue-600 hover:text-blue-800">
-                  <Phone className="h-4 w-4" />
-                </a>
-              )}
-              {account.companyAddress && (
-                <span title={account.companyAddress} className="text-gray-500">
-                  <MapPin className="h-4 w-4" />
-                </span>
-              )}
+        {/* Account Info */}
+        <div className="border-b border-gray-200 p-4 text-sm">
+          <div className="space-y-1">
+            <div className="font-semibold">{account.accountName}</div>
+            <div className="text-gray-600">{account.companyName}</div>
+            {account.accountNumber && (
+              <div className="text-gray-500">#{account.accountNumber}</div>
+            )}
+            <div className="text-gray-500">
+              {formatFrequency(account.paymentFrequency)} • {formatCurrency(account.anticipatedAmount)}
             </div>
+          </div>
 
-            {/* Menu */}
-            <div className="relative" ref={menuRef}>
-              <button onClick={() => setMenuOpen(!menuOpen)} 
-                      className="p-2 hover:bg-gray-100 rounded-lg">
-                <MoreVertical className="h-5 w-5" />
-              </button>
-              {menuOpen && (
-                <div className="absolute right-0 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
-                  <button className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50" role="menuitem">
-                    Export CSV
-                  </button>
-                  <button className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50" role="menuitem">
-                    Open Account
-                  </button>
-                  <button
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50"
-                    role="menuitem"
-                    onClick={() => setMenuOpen(false)}
-                  >
-                    Close Menu
-                  </button>
+          {/* Contact Links */}
+          <div className="flex items-center gap-4 mt-3 text-sm text-blue-600">
+            <span>Comment</span>
+            {account.companyWebsite && (
+              <a href={account.companyWebsite} target="_blank" rel="noopener noreferrer" 
+                 className="hover:text-blue-800">
+                <Globe className="h-4 w-4 inline" /> Web
+              </a>
+            )}
+            <span>Email</span>
+            {account.companyPhone && (
+              <a href={`tel:${account.companyPhone}`} className="hover:text-blue-800">
+                <Phone className="h-4 w-4 inline" /> Phone
+              </a>
+            )}
+            {account.companyAddress && (
+              <span title={account.companyAddress} className="hover:text-blue-800">
+                <MapPin className="h-4 w-4 inline" /> Address
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Status Filters */}
+        <div className="border-b border-gray-200 p-4">
+          <div className="flex gap-2 text-sm">
+            <button className="px-3 py-1 bg-blue-600 text-white rounded-full">ALL</button>
+            <button className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full">PAID</button>
+            <button className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full">PAST DUE</button>
+          </div>
+        </div>
+
+        {/* Payment List */}
+        <div className="flex-1 overflow-y-auto">
+          <div className="sticky top-0 bg-blue-800 text-white text-sm">
+            <div className="grid grid-cols-2 px-4 py-2">
+              <div className="font-medium">Activity Name</div>
+              <div className="font-medium text-right">Balance</div>
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="p-8 text-center text-gray-500">Loading...</div>
+          ) : (
+            <div className="space-y-1">
+              {payments.map((payment) => (
+                <div
+                  key={payment.id}
+                  onClick={(e) => handleRowClick(payment, e)}
+                  className="grid grid-cols-2 px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100"
+                >
+                  <div>
+                    <div className="text-sm font-medium">
+                      {formatDate(payment.scheduledDate)} {getStatusText(payment.status)}
+                    </div>
+                    <div className={`inline-block px-2 py-0.5 rounded-full text-xs border ${getStatusColor(payment.status)}`}>
+                      {getStatusText(payment.status)}
+                    </div>
+                  </div>
+                  
+                  <div className="text-right">
+                    <div className="text-sm">
+                      Est Amt: {formatCurrency(payment.scheduledAmount)}
+                    </div>
+                    {payment.actualAmount && (
+                      <div className="text-sm text-gray-600">
+                        Act Amt: {formatCurrency(payment.actualAmount)}
+                      </div>
+                    )}
+                    <ChevronRight className="h-4 w-4 text-gray-400 ml-auto" />
+                  </div>
+                </div>
+              ))}
+              
+              {payments.length === 0 && (
+                <div className="p-8 text-center text-gray-500">
+                  No transactions in this window.
                 </div>
               )}
-            </div>
-
-            {/* Close */}
-            <button onClick={onClose} className="text-gray-500 hover:text-gray-800">
-              <X className="h-6 w-6" />
-            </button>
-          </div>
-        </div>
-
-        {/* Filters row */}
-        <div className="px-5 py-3 border-b border-gray-200 flex items-center gap-2 flex-wrap">
-          {(['ALL','PAID','PAST_DUE','UPCOMING','SKIPPED','PARTIAL'] as const).map(s => (
-            <button key={s}
-              onClick={() => { setStatus(s); setPage(1); }}
-              className={[
-                'px-3 py-1.5 rounded-full text-sm border',
-                status === s ? 'bg-blue-600 text-white border-blue-600' : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
-              ].join(' ')}
-            >
-              {s.replace('_',' ')}
-            </button>
-          ))}
-
-          <div className="ml-auto flex items-center gap-2">
-            <div className="relative">
-              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <input
-                value={q}
-                onChange={(e) => { setQ(e.target.value); setPage(1); }}
-                placeholder="Comment, method, amount"
-                className="pl-7 pr-3 py-1.5 border rounded-lg text-sm w-64"
-              />
-            </div>
-            <div className="flex items-center gap-2 text-sm">
-              <button onClick={prev6} className="px-2.5 py-1.5 border rounded-lg inline-flex items-center gap-1 hover:bg-gray-50">
-                <ChevronLeft className="h-4 w-4" /> Prev 6 mo
-              </button>
-              <button onClick={next6} className="px-2.5 py-1.5 border rounded-lg inline-flex items-center gap-1 hover:bg-gray-50">
-                Next 6 mo <ChevronRight className="h-4 w-4" />
-              </button>
-              <span className="text-gray-600">
-                <Calendar className="inline h-4 w-4 mr-1" />
-                {fmtDate(startDate.toISOString())} – {fmtDate(endDate.toISOString())}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Mini chart (Scheduled vs Actual totals per month) */}
-        <div className="px-5 py-3 border-b border-gray-200">
-          <div className="text-sm text-gray-600 mb-2">Monthly totals (Scheduled vs Actual)</div>
-          <svg width={w} height={h} className="bg-white rounded-md">
-            {/* axes */}
-            <line x1={pad} y1={h-pad} x2={w-pad} y2={h-pad} stroke="#e5e7eb" />
-            <line x1={pad} y1={pad} x2={pad} y2={h-pad} stroke="#e5e7eb" />
-            {/* scheduled line */}
-            {monthlyBuckets.map((b, i) => {
-              const x = pad + i * step;
-              const y = yScale(b.scheduled);
-              const nx = pad + (i+1) * step;
-              const ny = yScale(monthlyBuckets[i+1]?.scheduled ?? b.scheduled);
-              return i < monthlyBuckets.length - 1 ? (
-                <line key={`s-${i}`} x1={x} y1={y} x2={nx} y2={ny} stroke="#3b82f6" strokeWidth={2} />
-              ) : null;
-            })}
-            {/* actual line */}
-            {monthlyBuckets.map((b, i) => {
-              const x = pad + i * step;
-              const y = yScale(b.actual);
-              const nx = pad + (i+1) * step;
-              const ny = yScale(monthlyBuckets[i+1]?.actual ?? b.actual);
-              return i < monthlyBuckets.length - 1 ? (
-                <line key={`a-${i}`} x1={x} y1={y} x2={nx} y2={ny} stroke="#10b981" strokeWidth={2} />
-              ) : null;
-            })}
-            {/* points */}
-            {monthlyBuckets.map((b, i) => {
-              const x = pad + i * step;
-              return (
-                <g key={`p-${i}`}>
-                  <circle cx={x} cy={yScale(b.scheduled)} r={3} fill="#3b82f6" />
-                  <circle cx={x} cy={yScale(b.actual)} r={3} fill="#10b981" />
-                </g>
-              );
-            })}
-          </svg>
-        </div>
-
-        {/* Table */}
-        <div className="flex-1 overflow-y-auto p-5">
-          {loading ? (
-            <div className="text-center py-16 text-gray-500">Loading…</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 sticky top-0">
-                  <tr className="text-left">
-                    <th className="px-3 py-2">Est Date</th>
-                    <th className="px-3 py-2">Act Date</th>
-                    <th className="px-3 py-2">Est Amt</th>
-                    <th className="px-3 py-2">Act Amt</th>
-                    <th className="px-3 py-2">Status</th>
-                    <th className="px-3 py-2">Comment</th>
-                    <th className="px-3 py-2 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map(row => (
-                    <tr key={row.id} className="border-b">
-                      <td className="px-3 py-2">{fmtDate(row.scheduledDate)}</td>
-                      <td className="px-3 py-2">{fmtDate(row.actualDate)}</td>
-                      <td className="px-3 py-2">{fmtMoney(row.scheduledAmount)}</td>
-                      <td className="px-3 py-2">{fmtMoney(row.actualAmount)}</td>
-                      <td className="px-3 py-2">
-                        <span className={[
-                          'px-2 py-1 rounded-full border',
-                          row.status === 'PAID' ? 'text-green-700 bg-green-50 border-green-200' :
-                          row.status === 'PAST_DUE' ? 'text-red-700 bg-red-50 border-red-200' :
-                          row.status === 'UPCOMING' ? 'text-blue-700 bg-blue-50 border-blue-200' :
-                          row.status === 'SKIPPED' ? 'text-gray-700 bg-gray-100 border-gray-300' :
-                          'text-orange-700 bg-orange-50 border-orange-200'
-                        ].join(' ')}>
-                          {row.status.replace('_',' ')}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2">{row.notes ?? ''}</td>
-                      <td className="px-3 py-2 text-right whitespace-nowrap">
-                        {row.status !== 'PAID' && row.status !== 'SKIPPED' && (
-                          <button onClick={() => markPaid(row)}
-                                  className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-blue-600 text-white hover:bg-blue-700 mr-2">
-                            <Check className="h-4 w-4" /> Paid
-                          </button>
-                        )}
-                        <button onClick={() => skip(row)}
-                                className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-gray-600 text-white hover:bg-gray-700 mr-2">
-                          Skip
-                        </button>
-                        <button className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-white border hover:bg-gray-50 mr-2">
-                          <PencilLine className="h-4 w-4" /> Edit
-                        </button>
-                        <button onClick={() => remove(row)}
-                                className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-white border hover:bg-red-50 text-red-700">
-                          <Trash2 className="h-4 w-4" /> Delete
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                  {rows.length === 0 && (
-                    <tr><td colSpan={7} className="px-3 py-10 text-center text-gray-500">No transactions in this window.</td></tr>
-                  )}
-                </tbody>
-              </table>
             </div>
           )}
         </div>
 
-        {/* Footer */}
-        <div className="px-5 py-3 border-t border-gray-200 flex items-center justify-between">
-          <div className="text-sm text-gray-600">
-            Page {page} of {totalPages} • Showing {rows.length} / {total} in window
+        {/* Chart */}
+        <div className="border-t border-gray-200 p-4">
+          <div className="text-sm text-gray-600 mb-2">
+            Chart of data. Paginated at 6 months Over transactions.
           </div>
-          <div className="flex items-center gap-2">
-            <button disabled={page <= 1} onClick={() => setPage(p => p - 1)}
-                    className="px-2.5 py-1.5 border rounded-lg disabled:opacity-50">
-              Prev
+          <div className="flex items-center justify-between mb-2">
+            <button 
+              onClick={() => navigateMonths('prev')}
+              className="p-1 hover:bg-gray-100 rounded"
+            >
+              <ChevronLeft className="h-4 w-4" />
             </button>
-            <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}
-                    className="px-2.5 py-1.5 border rounded-lg disabled:opacity-50">
-              Next
+            <div className="text-xs text-gray-500">
+              {windowStart.toLocaleDateString()} - {windowEnd.toLocaleDateString()}
+            </div>
+            <button 
+              onClick={() => navigateMonths('next')}
+              className="p-1 hover:bg-gray-100 rounded"
+            >
+              <ChevronRight className="h-4 w-4" />
             </button>
-            <button onClick={addTransaction}
-                    className="ml-2 inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-green-600 text-white hover:bg-green-700">
-              <Plus className="h-4 w-4" /> Add Transaction
-            </button>
-            <button onClick={onClose} className="ml-2 px-3 py-1.5 border rounded-lg">Close</button>
           </div>
+          {renderChart()}
+        </div>
+
+        {/* Add Transaction Button */}
+        <div className="border-t border-gray-200 p-4">
+          <button 
+            onClick={() => {/* Handle add transaction */}}
+            className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700"
+          >
+            Add Transaction
+          </button>
         </div>
       </div>
+
+      {/* Flyout Menu */}
+      {flyoutMenu && (
+        <div
+          ref={flyoutRef}
+          className="fixed bg-blue-800 text-white rounded-lg shadow-lg z-60 min-w-[120px]"
+          style={{ 
+            left: Math.max(10, Math.min(flyoutMenu.x, window.innerWidth - 140)), 
+            top: Math.max(10, Math.min(flyoutMenu.y, window.innerHeight - 200))
+          }}
+        >
+          <div className="p-2 space-y-1">
+            <button
+              onClick={() => handlePaymentAction(flyoutMenu.paymentId, 'paid')}
+              className="w-full text-left px-3 py-2 hover:bg-blue-700 rounded text-sm"
+            >
+              Paid
+            </button>
+            <button
+              onClick={() => handlePaymentAction(flyoutMenu.paymentId, 'delete')}
+              className="w-full text-left px-3 py-2 hover:bg-blue-700 rounded text-sm"
+            >
+              Delete
+            </button>
+            <div className="grid grid-cols-2 gap-1 mt-2">
+              <div>
+                <div className="text-xs text-blue-200">Act Date</div>
+                <div className="text-sm">9/23</div>
+              </div>
+              <div>
+                <div className="text-xs text-blue-200">Est Date</div>
+                <div className="text-sm">9/25</div>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-1">
+              <div>
+                <div className="text-xs text-blue-200">Act Amt</div>
+                <input className="w-full text-xs bg-blue-700 border border-blue-600 rounded px-1" />
+              </div>
+              <div>
+                <div className="text-xs text-blue-200">Est Amt</div>
+                <input className="w-full text-xs bg-blue-700 border border-blue-600 rounded px-1" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-1 mt-2">
+              <button
+                onClick={() => handlePaymentAction(flyoutMenu.paymentId, 'skip')}
+                className="px-2 py-1 bg-blue-700 hover:bg-blue-600 rounded text-xs"
+              >
+                Skip
+              </button>
+              <button className="px-2 py-1 bg-blue-700 hover:bg-blue-600 rounded text-xs">
+                Update
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
