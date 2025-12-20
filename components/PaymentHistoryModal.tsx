@@ -267,110 +267,73 @@ export default function PaymentHistoryModal({ account, onClose, onPaymentUpdated
     );
   };
 
-  // Handle payment actions
-  const handlePaymentAction = async (paymentId: string, action: string) => {
+  // Handle status change
+  const handleStatusChange = async (paymentId: string, newStatus: PaymentStatus) => {
     try {
-      let response;
-      const payment = payments.find(p => p.id === paymentId);
-      if (!payment) return;
-      
-      switch (action) {
-        case 'paid':
-          response = await fetch(`/api/payments/${paymentId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              status: 'PAID',
-              actualDate: new Date().toISOString().split('T')[0],
-              actualAmount: payment.scheduledAmount,
-            }),
-          });
-          break;
-          
-        case 'skip':
-          response = await fetch(`/api/payments/${paymentId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              status: 'SKIPPED',
-              notes: `Skipped on ${new Date().toLocaleDateString()}`,
-            }),
-          });
-          break;
-          
-        case 'restore':
-          // Calculate what the status should be based on date
-          // NOTE: Status should only be UPCOMING when within 1 month of due date
-          // TODO: Update payment generation to create only 3 future payments instead of 12
-          const today = new Date();
-          const scheduledDate = new Date(payment.scheduledDate || '');
-          const isWithinMonth = scheduledDate <= new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000);
-          const isPastDue = scheduledDate < today;
-          
-          const newStatus = isPastDue ? 'PAST_DUE' : (isWithinMonth ? 'UPCOMING' : 'PROJECTED');
-          
-          response = await fetch(`/api/payments/${paymentId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              status: newStatus,
-              actualDate: null,
-              actualAmount: null,
-              notes: payment.notes?.replace(/\[Skipped on .*?\]/g, '').trim() || null,
-            }),
-          });
-          break;
-          
-        case 'delete':
-          if (!confirm('Are you sure you want to delete this payment?')) return;
-          response = await fetch(`/api/payments/${paymentId}`, {
-            method: 'DELETE',
-          });
-          break;
-      }
-      
-      if (response && response.ok) {
-        await loadPayments();
-        onPaymentUpdated?.();
-        setFlyoutMenu(null);
-      }
-    } catch (error) {
-      console.error('Error updating payment:', error);
-    }
-  };
-
-  // Handle updating payment with flyout data
-  const handleUpdatePayment = async (paymentId: string) => {
-    try {
-      const payment = payments.find(p => p.id === paymentId);
-      if (!payment) return;
-
-      // Get values from the flyout inputs
-      const flyoutElement = document.querySelector(`[style*="left: ${flyoutMenu?.x}"]`);
-      if (!flyoutElement) return;
-
-      const actualDateInput = flyoutElement.querySelector('input[type="date"]') as HTMLInputElement;
-      const actualAmountInput = flyoutElement.querySelector('input[type="number"]') as HTMLInputElement;
-
-      const actualDate = actualDateInput?.value || null;
-      const actualAmount = actualAmountInput?.value ? parseFloat(actualAmountInput.value) : null;
-
-      // Determine status based on whether we have actual data
-      let status = payment.status;
-      if (actualDate && actualAmount) {
-        status = 'PAID';
-      } else if (actualDate || actualAmount) {
-        status = 'PARTIAL';
-      }
-
       const response = await fetch(`/api/payments/${paymentId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          actualDate,
-          actualAmount,
-          status,
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      if (response.ok) {
+        await loadPayments();
+        onPaymentUpdated?.();
+      }
+    } catch (error) {
+      console.error('Error updating status:', error);
+    }
+  };
+
+  // Handle date change
+  const handleDateChange = async (paymentId: string, newDate: string) => {
+    try {
+      const response = await fetch(`/api/payments/${paymentId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          actualDate: newDate || null 
         }),
+      });
+
+      if (response.ok) {
+        await loadPayments();
+        onPaymentUpdated?.();
+      }
+    } catch (error) {
+      console.error('Error updating date:', error);
+    }
+  };
+
+  // Handle amount change
+  const handleAmountChange = async (paymentId: string, newAmount: string) => {
+    try {
+      const actualAmount = newAmount ? parseFloat(newAmount) : null;
+      
+      const response = await fetch(`/api/payments/${paymentId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          actualAmount 
+        }),
+      });
+
+      if (response.ok) {
+        await loadPayments();
+        onPaymentUpdated?.();
+      }
+    } catch (error) {
+      console.error('Error updating amount:', error);
+    }
+  };
+
+  // Handle delete
+  const handleDeletePayment = async (paymentId: string) => {
+    if (!confirm('Are you sure you want to delete this transaction?')) return;
+    
+    try {
+      const response = await fetch(`/api/payments/${paymentId}`, {
+        method: 'DELETE',
       });
 
       if (response.ok) {
@@ -379,15 +342,18 @@ export default function PaymentHistoryModal({ account, onClose, onPaymentUpdated
         setFlyoutMenu(null);
       }
     } catch (error) {
-      console.error('Error updating payment:', error);
+      console.error('Error deleting payment:', error);
     }
   };
 
   const handleRowClick = (payment: Payment, event: React.MouseEvent) => {
-    const rect = (event.target as HTMLElement).getBoundingClientRect();
+    const target = event.currentTarget as HTMLElement;
+    const rect = target.getBoundingClientRect();
+    
+    // Position flyout to the right of the transaction card
     setFlyoutMenu({
       paymentId: payment.id,
-      x: rect.right - 200,
+      x: rect.right + 8, // 8px gap from card
       y: rect.top,
     });
   };
@@ -561,97 +527,72 @@ export default function PaymentHistoryModal({ account, onClose, onPaymentUpdated
       {flyoutMenu && (
         <div
           ref={flyoutRef}
-          className="fixed bg-blue-800 text-white rounded-lg shadow-lg z-60 min-w-[160px]"
+          className="fixed bg-blue-800 text-white rounded-lg shadow-lg z-60 w-48"
           style={{ 
-            left: Math.max(10, Math.min(flyoutMenu.x, window.innerWidth - 170)), 
-            top: Math.max(10, Math.min(flyoutMenu.y, window.innerHeight - 250))
+            left: Math.min(flyoutMenu.x, window.innerWidth - 200), // Keep on screen
+            top: Math.max(10, Math.min(flyoutMenu.y, window.innerHeight - 300)) // Keep on screen
           }}
         >
-          <div className="p-2 space-y-1">
+          <div className="p-3 space-y-2">
             {(() => {
               const payment = payments.find(p => p.id === flyoutMenu.paymentId);
               if (!payment) return null;
               
-              const isPaid = payment.status === 'PAID';
-              const isSkipped = payment.status === 'SKIPPED';
-              
               return (
                 <>
-                  {/* Action buttons */}
-                  <div className="flex gap-1">
-                    <button
-                      onClick={() => handlePaymentAction(flyoutMenu.paymentId, isPaid ? 'restore' : 'paid')}
-                      className="flex-1 px-2 py-1 hover:bg-blue-700 rounded text-xs"
+                  {/* Status Selection */}
+                  <div>
+                    <div className="text-xs text-blue-200 mb-1">Status</div>
+                    <select 
+                      value={payment.status}
+                      onChange={(e) => handleStatusChange(payment.id, e.target.value as PaymentStatus)}
+                      className="w-full text-xs bg-white text-black border border-gray-300 rounded px-1 py-1"
                     >
-                      {isPaid ? 'Restore' : 'Paid'}
-                    </button>
+                      <option value="UPCOMING">Upcoming</option>
+                      <option value="PAID">Paid</option>
+                      <option value="PAST_DUE">Unpaid</option>
+                      <option value="PARTIAL">Arrangements</option>
+                      <option value="SKIPPED">Skip</option>
+                    </select>
+                  </div>
+                  
+                  {/* Actual Date */}
+                  <div>
+                    <div className="text-xs text-blue-200 mb-1">Actual Date</div>
+                    <input 
+                      type="date"
+                      value={payment.actualDate ? new Date(payment.actualDate).toISOString().split('T')[0] : ''}
+                      onChange={(e) => handleDateChange(payment.id, e.target.value)}
+                      className="w-full text-xs bg-white text-black border border-gray-300 rounded px-1 py-1"
+                    />
+                  </div>
+                  
+                  {/* Actual Amount */}
+                  <div>
+                    <div className="text-xs text-blue-200 mb-1">Actual Amount</div>
+                    <input 
+                      type="number"
+                      step="0.01"
+                      value={payment.actualAmount || ''}
+                      onChange={(e) => handleAmountChange(payment.id, e.target.value)}
+                      placeholder="0.00"
+                      className="w-full text-xs bg-white text-black border border-gray-300 rounded px-1 py-1"
+                    />
+                  </div>
+                  
+                  {/* Action Buttons */}
+                  <div className="flex gap-1 pt-2">
                     <button
-                      onClick={() => handlePaymentAction(flyoutMenu.paymentId, 'delete')}
-                      className="flex-1 px-2 py-1 hover:bg-blue-700 rounded text-xs"
+                      onClick={() => handleDeletePayment(payment.id)}
+                      className="flex-1 px-2 py-1 bg-red-600 hover:bg-red-700 rounded text-xs"
                     >
                       Delete
                     </button>
-                  </div>
-                  
-                  {/* Date fields */}
-                  <div className="grid grid-cols-2 gap-1 mt-2">
-                    <div>
-                      <div className="text-xs text-blue-200">Act Date</div>
-                      <input 
-                        type="date"
-                        defaultValue={payment.actualDate ? new Date(payment.actualDate).toISOString().split('T')[0] : ''}
-                        className="w-full text-xs bg-white text-black border border-gray-300 rounded px-1"
-                        onChange={(e) => {
-                          // TODO: Update actual date
-                          console.log('Update actual date:', e.target.value);
-                        }}
-                      />
-                    </div>
-                    <div>
-                      <div className="text-xs text-blue-200">Est Date</div>
-                      <div className="text-xs bg-gray-100 text-gray-700 rounded px-1 py-0.5">
-                        {formatDate(payment.scheduledDate)}
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Amount fields */}
-                  <div className="grid grid-cols-2 gap-1">
-                    <div>
-                      <div className="text-xs text-blue-200">Act Amt</div>
-                      <input 
-                        type="number"
-                        step="0.01"
-                        defaultValue={payment.actualAmount || ''}
-                        placeholder="0.00"
-                        className="w-full text-xs bg-white text-black border border-gray-300 rounded px-1"
-                        onChange={(e) => {
-                          // TODO: Update actual amount
-                          console.log('Update actual amount:', e.target.value);
-                        }}
-                      />
-                    </div>
-                    <div>
-                      <div className="text-xs text-blue-200">Est Amt</div>
-                      <div className="text-xs bg-gray-100 text-gray-700 rounded px-1 py-0.5">
-                        {formatCurrency(payment.scheduledAmount)}
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Skip and Update buttons */}
-                  <div className="flex gap-1 mt-2">
                     <button
-                      onClick={() => handlePaymentAction(flyoutMenu.paymentId, isSkipped ? 'restore' : 'skip')}
+                      onClick={() => setFlyoutMenu(null)}
                       className="flex-1 px-2 py-1 bg-blue-700 hover:bg-blue-600 rounded text-xs"
                     >
-                      {isSkipped ? 'Restore' : 'Skip'}
-                    </button>
-                    <button 
-                      onClick={() => handleUpdatePayment(flyoutMenu.paymentId)}
-                      className="flex-1 px-2 py-1 bg-blue-700 hover:bg-blue-600 rounded text-xs"
-                    >
-                      Update
+                      Close
                     </button>
                   </div>
                 </>
