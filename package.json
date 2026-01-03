@@ -7,7 +7,8 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "postinstall": "prisma generate",
-    "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed/index.ts"
+    "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed/index.ts",
+    "seed:poa": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed/poa/index.ts"
   },
   "dependencies": {
     "resend": "^4.0.0",
