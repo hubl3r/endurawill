@@ -150,14 +150,15 @@ export async function POST(request: Request) {
           poaId: poa.id,
           userId: data.principal.userId,
           action: 'POA_CREATED',
-          description: `${data.poaType} POA created for ${data.principal.fullName}`,
-          ipAddress: null,
-          userAgent: null,
-          metadata: {
+          category: 'creation',
+          details: {
             poaType: data.poaType,
+            principalName: data.principal.fullName,
             agentCount: agents.length,
             powerCategoryCount: grantedPowers.length
           },
+          ipAddress: null,
+          userAgent: null,
           timestamp: new Date()
         }
       });
@@ -205,8 +206,8 @@ export async function POST(request: Request) {
         poaId: poa.id,
         userId: data.principal.userId,
         action: 'PDF_GENERATED',
-        description: `PDF document generated and uploaded`,
-        metadata: {
+        category: 'document',
+        details: {
           filename,
           documentUrl,
           fileSize: buffer.length
