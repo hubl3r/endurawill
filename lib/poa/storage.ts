@@ -60,7 +60,7 @@ export function generatePOAFilename(params: {
   // Generate random suffix (6 chars)
   const random = Math.random().toString(36).substring(2, 8);
   
-  return `poa_${type}_${state}_${sanitizedName}_${dateStr}_${random}.pdf`;
+  return `poa_${type}_${state.toLowerCase()}_${sanitizedName}_${dateStr}_${random}.pdf`;
 }
 
 /**
