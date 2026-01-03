@@ -186,7 +186,7 @@ export async function POST(request: Request) {
     const updatedPOA = await prisma.powerOfAttorney.update({
       where: { id: poa.id },
       data: { 
-        documentUrl,
+        generatedDocument: documentUrl,
         updatedAt: new Date()
       },
       include: {
@@ -222,7 +222,7 @@ export async function POST(request: Request) {
       poa: {
         id: updatedPOA.id,
         status: updatedPOA.status,
-        documentUrl: updatedPOA.documentUrl,
+        documentUrl: updatedPOA.generatedDocument,
         createdAt: updatedPOA.createdAt
       },
       agents: updatedPOA.agents,
