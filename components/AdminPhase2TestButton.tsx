@@ -2,7 +2,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Flask, CheckCircle, XCircle, Loader2, AlertCircle } from 'lucide-react';
+import { Beaker, CheckCircle, XCircle, Loader2, AlertCircle } from 'lucide-react';
 
 interface TestResult {
   name: string;
@@ -68,7 +68,7 @@ export default function AdminPhase2TestButton() {
     <div className="bg-white rounded-lg border border-gray-200 p-6">
       <div className="flex items-start gap-4">
         <div className="inline-flex p-3 rounded-lg bg-green-50 text-green-600">
-          <Flask className="h-6 w-6" />
+          <Beaker className="h-6 w-6" />
         </div>
         
         <div className="flex-1">
@@ -94,7 +94,7 @@ export default function AdminPhase2TestButton() {
                   </>
                 ) : (
                   <>
-                    <Flask className="h-4 w-4" />
+                    <Beaker className="h-4 w-4" />
                     Run All Tests
                   </>
                 )}
