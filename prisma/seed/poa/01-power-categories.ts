@@ -38,43 +38,28 @@ export async function seedPowerCategories() {
       isCurrentVersion: true,
       subPowers: [
         {
-          subPowerNumber: 1,
-          subPowerName: 'Buy, sell, or exchange real property',
-          description: 'Authority to purchase, sell, or exchange real estate',
+          powerText: 'Buy, sell, or exchange real property',
           isDangerous: false,
-          requiresSeparateConsent: false,
           sortOrder: 1
         },
         {
-          subPowerNumber: 2,
-          subPowerName: 'Mortgage, refinance, or encumber real property',
-          description: 'Authority to mortgage, refinance, or place liens on real estate',
+          powerText: 'Mortgage, refinance, or encumber real property',
           isDangerous: false,
-          requiresSeparateConsent: false,
           sortOrder: 2
         },
         {
-          subPowerNumber: 3,
-          subPowerName: 'Lease real property as landlord or tenant',
-          description: 'Authority to enter into lease agreements',
+          powerText: 'Lease real property as landlord or tenant',
           isDangerous: false,
-          requiresSeparateConsent: false,
           sortOrder: 3
         },
         {
-          subPowerNumber: 4,
-          subPowerName: 'Release, assign, satisfy, or enforce mortgages',
-          description: 'Authority to manage existing mortgages and liens',
+          powerText: 'Release, assign, satisfy, or enforce mortgages',
           isDangerous: false,
-          requiresSeparateConsent: false,
           sortOrder: 4
         },
         {
-          subPowerNumber: 5,
-          subPowerName: 'Grant easements or rights of way',
-          description: 'Authority to grant property rights to others',
+          powerText: 'Grant easements or rights of way',
           isDangerous: false,
-          requiresSeparateConsent: false,
           sortOrder: 5
         }
       ]
@@ -99,27 +84,18 @@ export async function seedPowerCategories() {
       isCurrentVersion: true,
       subPowers: [
         {
-          subPowerNumber: 1,
-          subPowerName: 'Buy, sell, exchange, or lease tangible personal property',
-          description: 'Authority to transact in physical personal property',
+          powerText: 'Buy, sell, exchange, or lease tangible personal property',
           isDangerous: false,
-          requiresSeparateConsent: false,
           sortOrder: 1
         },
         {
-          subPowerNumber: 2,
-          subPowerName: 'Accept, receive, or deliver tangible personal property',
-          description: 'Authority to take possession or deliver personal property',
+          powerText: 'Accept, receive, or deliver tangible personal property',
           isDangerous: false,
-          requiresSeparateConsent: false,
           sortOrder: 2
         },
         {
-          subPowerNumber: 3,
-          subPowerName: 'Insure tangible personal property',
-          description: 'Authority to obtain insurance for personal property',
+          powerText: 'Insure tangible personal property',
           isDangerous: false,
-          requiresSeparateConsent: false,
           sortOrder: 3
         }
       ]
@@ -144,27 +120,18 @@ export async function seedPowerCategories() {
       isCurrentVersion: true,
       subPowers: [
         {
-          subPowerNumber: 1,
-          subPowerName: 'Buy, sell, exchange stocks, bonds, and securities',
-          description: 'Authority to trade securities',
+          powerText: 'Buy, sell, exchange stocks, bonds, and securities',
           isDangerous: false,
-          requiresSeparateConsent: false,
           sortOrder: 1
         },
         {
-          subPowerNumber: 2,
-          subPowerName: 'Vote shares and exercise shareholder rights',
-          description: 'Authority to vote as shareholder and exercise corporate rights',
+          powerText: 'Vote shares and exercise shareholder rights',
           isDangerous: false,
-          requiresSeparateConsent: false,
           sortOrder: 2
         },
         {
-          subPowerNumber: 3,
-          subPowerName: 'Receive dividends and interest',
-          description: 'Authority to collect investment income',
+          powerText: 'Receive dividends and interest',
           isDangerous: false,
-          requiresSeparateConsent: false,
           sortOrder: 3
         }
       ]
@@ -188,19 +155,13 @@ export async function seedPowerCategories() {
       isCurrentVersion: true,
       subPowers: [
         {
-          subPowerNumber: 1,
-          subPowerName: 'Buy, sell, exchange commodities and futures',
-          description: 'Authority to trade commodities and futures contracts',
+          powerText: 'Buy, sell, exchange commodities and futures',
           isDangerous: false,
-          requiresSeparateConsent: false,
           sortOrder: 1
         },
         {
-          subPowerNumber: 2,
-          subPowerName: 'Trade options and derivatives',
-          description: 'Authority to trade options and derivative securities',
+          powerText: 'Trade options and derivatives',
           isDangerous: false,
-          requiresSeparateConsent: false,
           sortOrder: 2
         }
       ]
@@ -225,35 +186,23 @@ export async function seedPowerCategories() {
       isCurrentVersion: true,
       subPowers: [
         {
-          subPowerNumber: 1,
-          subPowerName: 'Open, close, and manage bank accounts',
-          description: 'Authority to manage banking relationships',
+          powerText: 'Open, close, and manage bank accounts',
           isDangerous: false,
-          requiresSeparateConsent: false,
           sortOrder: 1
         },
         {
-          subPowerNumber: 2,
-          subPowerName: 'Make deposits and withdrawals',
-          description: 'Authority to deposit and withdraw funds',
+          powerText: 'Make deposits and withdrawals',
           isDangerous: false,
-          requiresSeparateConsent: false,
           sortOrder: 2
         },
         {
-          subPowerNumber: 3,
-          subPowerName: 'Write checks and transfer funds',
-          description: 'Authority to make payments and transfers',
+          powerText: 'Write checks and transfer funds',
           isDangerous: false,
-          requiresSeparateConsent: false,
           sortOrder: 3
         },
         {
-          subPowerNumber: 4,
-          subPowerName: 'Access safe deposit boxes',
-          description: 'Authority to access safe deposit boxes',
+          powerText: 'Access safe deposit boxes',
           isDangerous: false,
-          requiresSeparateConsent: false,
           sortOrder: 4
         }
       ]
@@ -281,35 +230,23 @@ export async function seedPowerCategories() {
       isCurrentVersion: true,
       subPowers: [
         {
-          subPowerNumber: 1,
-          subPowerName: 'Operate business and make business decisions',
-          description: 'Authority to run and manage business operations',
+          powerText: 'Operate business and make business decisions',
           isDangerous: true,
-          requiresSeparateConsent: true,
           sortOrder: 1
         },
         {
-          subPowerNumber: 2,
-          subPowerName: 'Buy, sell, or dissolve business interests',
-          description: 'Authority to sell or close the business',
+          powerText: 'Buy, sell, or dissolve business interests',
           isDangerous: true,
-          requiresSeparateConsent: true,
           sortOrder: 2
         },
         {
-          subPowerNumber: 3,
-          subPowerName: 'Hire, fire, and manage employees',
-          description: 'Authority to manage workforce',
+          powerText: 'Hire, fire, and manage employees',
           isDangerous: false,
-          requiresSeparateConsent: false,
           sortOrder: 3
         },
         {
-          subPowerNumber: 4,
-          subPowerName: 'Sign contracts and bind business to obligations',
-          description: 'Authority to enter contracts on behalf of business',
+          powerText: 'Sign contracts and bind business to obligations',
           isDangerous: true,
-          requiresSeparateConsent: true,
           sortOrder: 4
         }
       ]
@@ -334,35 +271,23 @@ export async function seedPowerCategories() {
       isCurrentVersion: true,
       subPowers: [
         {
-          subPowerNumber: 1,
-          subPowerName: 'Buy, maintain, or cancel insurance policies',
-          description: 'Authority to manage insurance policies',
+          powerText: 'Buy, maintain, or cancel insurance policies',
           isDangerous: false,
-          requiresSeparateConsent: false,
           sortOrder: 1
         },
         {
-          subPowerNumber: 2,
-          subPowerName: 'Pay premiums and file claims',
-          description: 'Authority to pay for and make claims on insurance',
+          powerText: 'Pay premiums and file claims',
           isDangerous: false,
-          requiresSeparateConsent: false,
           sortOrder: 2
         },
         {
-          subPowerNumber: 3,
-          subPowerName: 'Borrow against or surrender policies',
-          description: 'Authority to access cash value of policies',
+          powerText: 'Borrow against or surrender policies',
           isDangerous: false,
-          requiresSeparateConsent: false,
           sortOrder: 3
         },
         {
-          subPowerNumber: 4,
-          subPowerName: 'Change beneficiaries on policies',
-          description: 'Authority to change insurance beneficiaries',
+          powerText: 'Change beneficiaries on policies',
           isDangerous: false,
-          requiresSeparateConsent: false,
           sortOrder: 4
         }
       ]
@@ -399,27 +324,18 @@ export async function seedPowerCategories() {
           sortOrder: 1
         },
         {
-          subPowerNumber: 2,
-          subPowerName: 'Create, amend, or revoke trusts',
-          description: 'Authority to create or modify trusts',
+          powerText: 'Create, amend, or revoke trusts',
           isDangerous: true,
-          requiresSeparateConsent: true,
           sortOrder: 2
         },
         {
-          subPowerNumber: 3,
-          subPowerName: 'Change beneficiaries on any accounts or policies',
-          description: 'Authority to change beneficiary designations',
+          powerText: 'Change beneficiaries on any accounts or policies',
           isDangerous: true,
-          requiresSeparateConsent: true,
           sortOrder: 3
         },
         {
-          subPowerNumber: 4,
-          subPowerName: 'Disclaim or refuse inheritances',
-          description: 'Authority to disclaim property or inheritances',
+          powerText: 'Disclaim or refuse inheritances',
           isDangerous: true,
-          requiresSeparateConsent: true,
           sortOrder: 4
         }
       ]
@@ -444,27 +360,18 @@ export async function seedPowerCategories() {
       isCurrentVersion: true,
       subPowers: [
         {
-          subPowerNumber: 1,
-          subPowerName: 'Assert, prosecute, and settle claims',
-          description: 'Authority to pursue and settle legal claims',
+          powerText: 'Assert, prosecute, and settle claims',
           isDangerous: false,
-          requiresSeparateConsent: false,
           sortOrder: 1
         },
         {
-          subPowerNumber: 2,
-          subPowerName: 'Defend against claims and lawsuits',
-          description: 'Authority to defend against legal actions',
+          powerText: 'Defend against claims and lawsuits',
           isDangerous: false,
-          requiresSeparateConsent: false,
           sortOrder: 2
         },
         {
-          subPowerNumber: 3,
-          subPowerName: 'Hire attorneys and represent principal',
-          description: 'Authority to hire legal representation',
+          powerText: 'Hire attorneys and represent principal',
           isDangerous: false,
-          requiresSeparateConsent: false,
           sortOrder: 3
         }
       ]
@@ -489,35 +396,23 @@ export async function seedPowerCategories() {
       isCurrentVersion: true,
       subPowers: [
         {
-          subPowerNumber: 1,
-          subPowerName: 'Pay for food, clothing, shelter, and necessities',
-          description: 'Authority to provide for basic living needs',
+          powerText: 'Pay for food, clothing, shelter, and necessities',
           isDangerous: false,
-          requiresSeparateConsent: false,
           sortOrder: 1
         },
         {
-          subPowerNumber: 2,
-          subPowerName: 'Pay medical, dental, and healthcare expenses',
-          description: 'Authority to pay for healthcare',
+          powerText: 'Pay medical, dental, and healthcare expenses',
           isDangerous: false,
-          requiresSeparateConsent: false,
           sortOrder: 2
         },
         {
-          subPowerNumber: 3,
-          subPowerName: 'Support spouse, children, and dependents',
-          description: 'Authority to provide for family members',
+          powerText: 'Support spouse, children, and dependents',
           isDangerous: false,
-          requiresSeparateConsent: false,
           sortOrder: 3
         },
         {
-          subPowerNumber: 4,
-          subPowerName: 'Employ household staff and caregivers',
-          description: 'Authority to hire household help',
+          powerText: 'Employ household staff and caregivers',
           isDangerous: false,
-          requiresSeparateConsent: false,
           sortOrder: 4
         }
       ]
@@ -542,35 +437,23 @@ export async function seedPowerCategories() {
       isCurrentVersion: true,
       subPowers: [
         {
-          subPowerNumber: 1,
-          subPowerName: 'Apply for Social Security and SSI benefits',
-          description: 'Authority to apply for Social Security benefits',
+          powerText: 'Apply for Social Security and SSI benefits',
           isDangerous: false,
-          requiresSeparateConsent: false,
           sortOrder: 1
         },
         {
-          subPowerNumber: 2,
-          subPowerName: 'Manage Medicare and Medicaid',
-          description: 'Authority to manage health insurance benefits',
+          powerText: 'Manage Medicare and Medicaid',
           isDangerous: false,
-          requiresSeparateConsent: false,
           sortOrder: 2
         },
         {
-          subPowerNumber: 3,
-          subPowerName: 'Apply for and manage veterans benefits',
-          description: 'Authority to manage VA benefits',
+          powerText: 'Apply for and manage veterans benefits',
           isDangerous: false,
-          requiresSeparateConsent: false,
           sortOrder: 3
         },
         {
-          subPowerNumber: 4,
-          subPowerName: 'Apply for government assistance programs',
-          description: 'Authority to apply for public assistance',
+          powerText: 'Apply for government assistance programs',
           isDangerous: false,
-          requiresSeparateConsent: false,
           sortOrder: 4
         }
       ]
@@ -595,35 +478,23 @@ export async function seedPowerCategories() {
       isCurrentVersion: true,
       subPowers: [
         {
-          subPowerNumber: 1,
-          subPowerName: 'Contribute to and manage retirement accounts',
-          description: 'Authority to manage retirement plan contributions',
+          powerText: 'Contribute to and manage retirement accounts',
           isDangerous: false,
-          requiresSeparateConsent: false,
           sortOrder: 1
         },
         {
-          subPowerNumber: 2,
-          subPowerName: 'Take distributions from retirement accounts',
-          description: 'Authority to withdraw from retirement accounts',
+          powerText: 'Take distributions from retirement accounts',
           isDangerous: true,
-          requiresSeparateConsent: true,
           sortOrder: 2
         },
         {
-          subPowerNumber: 3,
-          subPowerName: 'Change beneficiaries on retirement accounts',
-          description: 'Authority to change retirement account beneficiaries',
+          powerText: 'Change beneficiaries on retirement accounts',
           isDangerous: true,
-          requiresSeparateConsent: true,
           sortOrder: 3
         },
         {
-          subPowerNumber: 4,
-          subPowerName: 'Rollover and transfer retirement accounts',
-          description: 'Authority to move retirement funds between accounts',
+          powerText: 'Rollover and transfer retirement accounts',
           isDangerous: false,
-          requiresSeparateConsent: false,
           sortOrder: 4
         }
       ]
@@ -648,35 +519,23 @@ export async function seedPowerCategories() {
       isCurrentVersion: true,
       subPowers: [
         {
-          subPowerNumber: 1,
-          subPowerName: 'Prepare and file federal, state, and local tax returns',
-          description: 'Authority to file all tax returns',
+          powerText: 'Prepare and file federal, state, and local tax returns',
           isDangerous: false,
-          requiresSeparateConsent: false,
           sortOrder: 1
         },
         {
-          subPowerNumber: 2,
-          subPowerName: 'Pay taxes and estimated taxes',
-          description: 'Authority to make tax payments',
+          powerText: 'Pay taxes and estimated taxes',
           isDangerous: false,
-          requiresSeparateConsent: false,
           sortOrder: 2
         },
         {
-          subPowerNumber: 3,
-          subPowerName: 'Represent principal before tax authorities',
-          description: 'Authority to deal with IRS and state tax agencies',
+          powerText: 'Represent principal before tax authorities',
           isDangerous: false,
-          requiresSeparateConsent: false,
           sortOrder: 3
         },
         {
-          subPowerNumber: 4,
-          subPowerName: 'Sign tax returns and tax documents',
-          description: 'Authority to sign tax forms',
+          powerText: 'Sign tax returns and tax documents',
           isDangerous: false,
-          requiresSeparateConsent: false,
           sortOrder: 4
         }
       ]
@@ -701,35 +560,23 @@ export async function seedPowerCategories() {
       isCurrentVersion: true,
       subPowers: [
         {
-          subPowerNumber: 1,
-          subPowerName: 'Access email and online accounts',
-          description: 'Authority to access email and online services',
+          powerText: 'Access email and online accounts',
           isDangerous: false,
-          requiresSeparateConsent: false,
           sortOrder: 1
         },
         {
-          subPowerNumber: 2,
-          subPowerName: 'Manage social media and digital content',
-          description: 'Authority to manage social media accounts',
+          powerText: 'Manage social media and digital content',
           isDangerous: false,
-          requiresSeparateConsent: false,
           sortOrder: 2
         },
         {
-          subPowerNumber: 3,
-          subPowerName: 'Buy, sell, and transfer cryptocurrency',
-          description: 'Authority to manage cryptocurrency holdings',
+          powerText: 'Buy, sell, and transfer cryptocurrency',
           isDangerous: false,
-          requiresSeparateConsent: false,
           sortOrder: 3
         },
         {
-          subPowerNumber: 4,
-          subPowerName: 'Access cloud storage and digital files',
-          description: 'Authority to access digital files and storage',
+          powerText: 'Access cloud storage and digital files',
           isDangerous: false,
-          requiresSeparateConsent: false,
           sortOrder: 4
         }
       ]
