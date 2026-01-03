@@ -73,7 +73,7 @@ export async function seedStateRequirements() {
       durabilityWording: 'This durable power of attorney is not affected by subsequent incapacity of the principal.',
       allowsSpringing: false,
       springingBannedReason: 'Florida banned springing POAs after 2011 (Fla. Stat. §709.08)',
-      numberOfPhysiciansRequired: null,
+      numberOfPhysiciansRequired: 1,
       requiredPrincipalNotice: 'NOTICE: THE POWERS GRANTED BY THIS DOCUMENT ARE BROAD AND SWEEPING...',
       requiredAgentNotice: 'AGENT\'S DUTIES: When you accept the authority granted under this power of attorney...',
       recordingMandatoryFor: ['real_estate'],
