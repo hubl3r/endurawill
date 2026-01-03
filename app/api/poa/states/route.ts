@@ -19,12 +19,6 @@ export async function GET(request: Request) {
       const stateRequirement = await prisma.stateRequirements.findUnique({
         where: {
           state: stateCode.toUpperCase()
-        },
-        include: {
-          statutoryForm: true,
-          notaryTemplate: true,
-          incapacityDefinition: true,
-          healthcareForm: true
         }
       });
 
@@ -46,12 +40,6 @@ export async function GET(request: Request) {
 
     // Fetch all states
     const states = await prisma.stateRequirements.findMany({
-      include: {
-        statutoryForm: true,
-        notaryTemplate: true,
-        incapacityDefinition: true,
-        healthcareForm: true
-      },
       orderBy: {
         state: 'asc'
       }
