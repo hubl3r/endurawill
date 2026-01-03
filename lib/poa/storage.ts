@@ -251,9 +251,16 @@ export async function uploadMultiplePOADocuments(
  * Pro tier: Configurable
  */
 export function validateFileSize(file: Buffer | Blob | File, maxSizeMB: number = 4.5): boolean {
-  const fileSizeBytes = file instanceof Buffer
-    ? file.length
-    : file.size;
+  let fileSizeBytes: number;
+  
+  if (file instanceof Buffer) {
+    fileSizeBytes = file.length;
+  } else if ('size' in file) {
+    fileSizeBytes = file.size;
+  } else {
+    // Fallback for unknown types
+    fileSizeBytes = 0;
+  }
 
   const maxSizeBytes = maxSizeMB * 1024 * 1024;
   return fileSizeBytes <= maxSizeBytes;
