@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import AdminBackfillButton from '@/components/AdminBackfillButton';
 import AdminSeedButton from '@/components/AdminSeedButton';
+import AdminPhase2TestButton from '@/components/AdminPhase2TestButton';
 
 interface AdminStats {
   system: {
@@ -318,6 +319,7 @@ export default function AdminPage() {
         <div className="space-y-6">
           <h2 className="text-xl font-bold text-gray-900">Admin Actions</h2>
           <AdminSeedButton />
+          <AdminPhase2TestButton />
           <AdminBackfillButton />
         </div>
       </div>
