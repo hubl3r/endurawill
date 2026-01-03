@@ -11,7 +11,7 @@ export async function POST(request: Request) {
     const password = body.password;
     
     // Change this to your own secret password
-    if (password !== 'seed-endurawill-2024') {
+    if (password !== 'Endura-7786') {
       return NextResponse.json({ 
         error: 'Unauthorized - incorrect password' 
       }, { status: 401 });
