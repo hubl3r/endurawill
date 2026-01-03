@@ -316,11 +316,8 @@ export async function seedPowerCategories() {
       isCurrentVersion: true,
       subPowers: [
         {
-          subPowerNumber: 1,
-          subPowerName: 'Make gifts of principal\'s property (including to agent)',
-          description: 'Authority to make gifts, including to the agent themselves',
+          powerText: 'Make gifts of principal\'s property (including to agent)',
           isDangerous: true,
-          requiresSeparateConsent: true,
           sortOrder: 1
         },
         {
