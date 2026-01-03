@@ -67,7 +67,7 @@ export async function POST(request: Request) {
           
           status: 'DRAFT',
           
-          useStatutoryForm: data.useStatutoryForm,
+          usesStatutoryForm: data.useStatutoryForm,
           specialInstructions: data.additionalInstructions,
           
           createdById: data.principal.userId,
