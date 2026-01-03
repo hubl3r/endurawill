@@ -14,6 +14,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import AdminBackfillButton from '@/components/AdminBackfillButton';
+import AdminSeedButton from '@/components/AdminSeedButton';
 
 interface AdminStats {
   system: {
@@ -316,6 +317,7 @@ export default function AdminPage() {
         {/* Admin Actions */}
         <div className="space-y-6">
           <h2 className="text-xl font-bold text-gray-900">Admin Actions</h2>
+          <AdminSeedButton />
           <AdminBackfillButton />
         </div>
       </div>
