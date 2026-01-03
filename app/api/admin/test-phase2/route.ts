@@ -1,5 +1,5 @@
 // app/api/admin/test-phase2/route.ts
-import { NextResponse } from 'next/client';
+import { NextResponse } from 'next/server';
 import { 
   validateFinancialPOA, 
   validateHealthcarePOA,
