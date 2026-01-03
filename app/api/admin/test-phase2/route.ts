@@ -230,20 +230,29 @@ export async function POST(request: Request) {
       });
 
       // Test 5: File Type Validation
-      const pdfValid = validateFileType('application/pdf');
-      const textInvalid = !validateFileType('text/plain');
-      results[results.length - 1].tests.push({
-        name: 'File Type Validation (PDF)',
-        passed: pdfValid,
-        message: 'PDF type accepted',
-        error: null
-      });
-      results[results.length - 1].tests.push({
-        name: 'File Type Validation (Text)',
-        passed: textInvalid,
-        message: 'Text type correctly rejected',
-        error: null
-      });
+      try {
+        const pdfValid = validateFileType('application/pdf');
+        const textInvalid = !validateFileType('text/plain');
+        results[results.length - 1].tests.push({
+          name: 'File Type Validation (PDF)',
+          passed: pdfValid,
+          message: 'PDF type accepted',
+          error: null
+        });
+        results[results.length - 1].tests.push({
+          name: 'File Type Validation (Text)',
+          passed: textInvalid,
+          message: 'Text type correctly rejected',
+          error: null
+        });
+      } catch (error) {
+        results[results.length - 1].tests.push({
+          name: 'File Type Validation',
+          passed: false,
+          message: 'Test threw error',
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
     }
 
     // ============================================
