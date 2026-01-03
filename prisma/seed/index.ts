@@ -1,27 +1,33 @@
 import { PrismaClient } from '@prisma/client';
-import { seedPowerCategories } from './power-categories';
-import { seedStateRequirements } from './state-requirements';
+import { seedPOA } from './poa';
 
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Seeding POA data...\n');
-
+  console.log('🌱 Starting database seed...\n');
+  console.log('============================================\n');
+  
   try {
-    await seedPowerCategories(prisma);
-    await seedStateRequirements(prisma);
-    console.log('\n✅ Seeding complete!');
+    // Seed POA data
+    await seedPOA();
+    
+    // Future: Add other feature seeds here
+    // await seedWills();
+    // await seedTrusts();
+    
+    console.log('\n============================================');
+    console.log('✅ All seeds completed successfully!');
+    console.log('============================================\n');
   } catch (error) {
-    console.error('❌ Seeding failed:', error);
-    throw error;
+    console.error('\n❌ Seed failed:', error);
+    process.exit(1);
+  } finally {
+    await prisma.$disconnect();
   }
 }
 
 main()
-  .catch((e) => {
-    console.error(e);
+  .catch((error) => {
+    console.error('Fatal error:', error);
     process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
   });
