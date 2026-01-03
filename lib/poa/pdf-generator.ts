@@ -105,21 +105,21 @@ export async function generateFinancialPOAPDF(
   y -= 5;
   
   if (data.isDurable) {
-    writeTextIndent('✓ DURABLE POWER OF ATTORNEY', 20);
+    writeTextIndent('[X] DURABLE POWER OF ATTORNEY', 20);
     writeTextIndent('This power of attorney shall not be affected by subsequent', 40, 10);
     writeTextIndent('disability or incapacity of the principal.', 40, 10);
     y -= 5;
   }
   
   if (data.isSpringing) {
-    writeTextIndent('✓ SPRINGING POWER OF ATTORNEY', 20);
+    writeTextIndent('[X] SPRINGING POWER OF ATTORNEY', 20);
     writeTextIndent('Becomes effective upon incapacity as determined by', 40, 10);
     writeTextIndent('physician certification.', 40, 10);
     y -= 5;
   }
   
   if (data.isLimited) {
-    writeTextIndent('✓ LIMITED POWER OF ATTORNEY', 20);
+    writeTextIndent('[X] LIMITED POWER OF ATTORNEY', 20);
     writeTextIndent('Limited in scope and duration as specified below.', 40, 10);
     y -= 5;
   }
@@ -191,15 +191,15 @@ export async function generateFinancialPOAPDF(
     y -= 5;
     
     if (data.hotPowersConsent.gifting) {
-      writeTextIndent('✓ Authority to Make Gifts', 20);
+      writeTextIndent('[X] Authority to Make Gifts', 20);
       y -= 5;
     }
     if (data.hotPowersConsent.trustModification) {
-      writeTextIndent('✓ Authority to Modify Trusts', 20);
+      writeTextIndent('[X] Authority to Modify Trusts', 20);
       y -= 5;
     }
     if (data.hotPowersConsent.beneficiaryChanges) {
-      writeTextIndent('✓ Authority to Change Beneficiaries', 20);
+      writeTextIndent('[X] Authority to Change Beneficiaries', 20);
       y -= 5;
     }
     y -= 10;
@@ -421,12 +421,12 @@ export async function generateHealthcarePOAPDF(
   y -= 5;
   
   const powers = data.healthcarePowers;
-  if (powers.medicalTreatment) writeTextIndent('✓ General medical treatment decisions', 20);
-  if (powers.mentalHealthTreatment) writeTextIndent('✓ Mental health treatment decisions', 20);
-  if (powers.endOfLifeDecisions) writeTextIndent('✓ End-of-life decisions', 20);
-  if (powers.organDonation) writeTextIndent('✓ Organ donation decisions', 20);
-  if (powers.autopsyDecision) writeTextIndent('✓ Autopsy decisions', 20);
-  if (powers.dispositionOfRemains) writeTextIndent('✓ Disposition of remains', 20);
+  if (powers.medicalTreatment) writeTextIndent('[X] General medical treatment decisions', 20);
+  if (powers.mentalHealthTreatment) writeTextIndent('[X] Mental health treatment decisions', 20);
+  if (powers.endOfLifeDecisions) writeTextIndent('[X] End-of-life decisions', 20);
+  if (powers.organDonation) writeTextIndent('[X] Organ donation decisions', 20);
+  if (powers.autopsyDecision) writeTextIndent('[X] Autopsy decisions', 20);
+  if (powers.dispositionOfRemains) writeTextIndent('[X] Disposition of remains', 20);
   y -= 10;
 
   // Life-Sustaining Treatment
@@ -435,11 +435,11 @@ export async function generateHealthcarePOAPDF(
   
   const pref = data.lifeSustainingTreatment;
   if (pref === 'prolong_life') {
-    writeTextIndent('✓ Prolong my life to the greatest extent possible', 20);
+    writeTextIndent('[X] Prolong my life to the greatest extent possible', 20);
   } else if (pref === 'comfort_care_only') {
-    writeTextIndent('✓ Comfort care only. Do not prolong my life.', 20);
+    writeTextIndent('[X] Comfort care only. Do not prolong my life.', 20);
   } else if (pref === 'agent_decides') {
-    writeTextIndent('✓ My agent decides based on their best judgment', 20);
+    writeTextIndent('[X] My agent decides based on their best judgment', 20);
   }
   y -= 10;
 
@@ -448,10 +448,10 @@ export async function generateHealthcarePOAPDF(
     writeText('ORGAN DONATION', 14, true);
     y -= 5;
     const donation = data.organDonation;
-    if (donation === 'any_needed') writeTextIndent('✓ Donate any needed organs and tissues', 20);
-    else if (donation === 'transplant_only') writeTextIndent('✓ Donate for transplantation only', 20);
-    else if (donation === 'research_only') writeTextIndent('✓ Donate for research only', 20);
-    else if (donation === 'no_donation') writeTextIndent('✓ No organ donation', 20);
+    if (donation === 'any_needed') writeTextIndent('[X] Donate any needed organs and tissues', 20);
+    else if (donation === 'transplant_only') writeTextIndent('[X] Donate for transplantation only', 20);
+    else if (donation === 'research_only') writeTextIndent('[X] Donate for research only', 20);
+    else if (donation === 'no_donation') writeTextIndent('[X] No organ donation', 20);
     y -= 10;
   }
 
