@@ -58,6 +58,7 @@ export async function POST(request: Request) {
           principalPhone: data.principal.phone,
           principalDOB: data.principal.dateOfBirth ? new Date(data.principal.dateOfBirth) : null,
           
+          state: data.state,
           poaType: data.poaType.toUpperCase() as 'DURABLE' | 'SPRINGING' | 'LIMITED',
           isDurable: data.isDurable,
           isLimited: false,
