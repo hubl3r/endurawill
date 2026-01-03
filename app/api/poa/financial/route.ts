@@ -71,6 +71,14 @@ export async function POST(request: Request) {
           usesStatutoryForm: data.useStatutoryForm,
           specialInstructions: data.additionalInstructions,
           
+          notaryName: data.notaryPublic?.fullName,
+          notaryCommission: data.notaryPublic?.commissionNumber,
+          notaryExpiration: data.notaryPublic?.commissionExpiration 
+            ? new Date(data.notaryPublic.commissionExpiration)
+            : null,
+          notaryCounty: data.notaryPublic?.county,
+          notaryState: data.notaryPublic?.state,
+          
           createdById: data.principal.userId,
           createdAt: new Date(),
           updatedAt: new Date()
@@ -118,41 +126,22 @@ export async function POST(request: Request) {
 
       // 4. Create Witnesses (if provided)
       if (data.witnesses && data.witnesses.length > 0) {
-        const witnessPromises = data.witnesses.map((witness, index) =>
+        const witnessPromises = data.witnesses.map((witness) =>
           tx.pOAWitness.create({
             data: {
               poaId: poa.id,
-              witnessNumber: index + 1,
               fullName: witness.fullName,
               address: witness.address.street,
               city: witness.address.city,
               state: witness.address.state,
               zip: witness.address.zipCode,
               relationship: witness.relationship,
-              hasSigned: false,
-              createdAt: new Date()
+              createdAt: new Date(),
+              updatedAt: new Date()
             }
           })
         );
         await Promise.all(witnessPromises);
-      }
-
-      // 5. Create Notary record (if provided)
-      if (data.notaryPublic) {
-        await tx.notary.create({
-          data: {
-            poaId: poa.id,
-            fullName: data.notaryPublic.fullName,
-            commissionNumber: data.notaryPublic.commissionNumber,
-            commissionExpiration: data.notaryPublic.commissionExpiration 
-              ? new Date(data.notaryPublic.commissionExpiration)
-              : null,
-            county: data.notaryPublic.county,
-            state: data.notaryPublic.state,
-            hasNotarized: false,
-            createdAt: new Date()
-          }
-        });
       }
 
       // 6. Create Audit Log
@@ -206,8 +195,7 @@ export async function POST(request: Request) {
             category: true
           }
         },
-        witnesses: true,
-        notary: true
+        witnesses: true
       }
     });
 
@@ -238,8 +226,7 @@ export async function POST(request: Request) {
       },
       agents: updatedPOA.agents,
       grantedPowers: updatedPOA.grantedPowers,
-      witnesses: updatedPOA.witnesses,
-      notary: updatedPOA.notary
+      witnesses: updatedPOA.witnesses
     }, { status: 201 });
 
   } catch (error) {
@@ -296,7 +283,6 @@ export async function GET(request: Request) {
           }
         },
         witnesses: true,
-        notary: true,
         auditLogs: {
           orderBy: {
             timestamp: 'desc'
