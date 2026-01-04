@@ -66,6 +66,7 @@ export const createFinancialPOASchema = z.object({
   
   // Agents
   agents: z.array(agentSchema).min(1, 'At least one agent is required'),
+  coAgentsMustActJointly: z.boolean().default(false),
   
   // Powers
   grantedPowers: z.object({
