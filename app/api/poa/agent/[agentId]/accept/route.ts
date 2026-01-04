@@ -9,9 +9,10 @@ import { sendAgentAcceptanceConfirmation } from '@/lib/poa/notifications';
  */
 export async function POST(
   request: Request,
-  { params }: { params: { agentId: string } }
+  props: { params: Promise<{ agentId: string }> }
 ) {
   try {
+    const params = await props.params;
     const { agentId } = params;
 
     // Get agent details
