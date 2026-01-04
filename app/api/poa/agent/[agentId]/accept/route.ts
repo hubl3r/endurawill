@@ -19,11 +19,7 @@ export async function POST(
     const agent = await prisma.pOAAgent.findUnique({
       where: { id: agentId },
       include: {
-        poa: {
-          include: {
-            principal: true
-          }
-        }
+        poa: true
       }
     });
 
