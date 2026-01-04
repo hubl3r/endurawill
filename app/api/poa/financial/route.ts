@@ -31,17 +31,6 @@ export async function POST(request: Request) {
 
     const data = validation.data;
 
-    // Phase 3 restriction: Durable POA only
-    if (data.isSpringing || data.isLimited) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Phase 3 only supports durable POAs. Springing and limited POAs coming in Phase 4.'
-        },
-        { status: 400 }
-      );
-    }
-
     // Start database transaction
     const result = await prisma.$transaction(async (tx) => {
       // 1. Create PowerOfAttorney record
@@ -61,10 +50,15 @@ export async function POST(request: Request) {
           state: data.state,
           poaType: data.poaType.toUpperCase() as 'DURABLE' | 'SPRINGING' | 'LIMITED',
           isDurable: data.isDurable,
-          isLimited: false,
-          isSpringing: false,
+          isLimited: data.isLimited,
+          isSpringing: data.isSpringing,
           
-          effectiveImmediately: true,
+          effectiveImmediately: !data.isSpringing,
+          expirationDate: data.expirationDate ? new Date(data.expirationDate) : null,
+          
+          springingCondition: data.springingCondition,
+          requiresPhysicianCert: data.isSpringing,
+          numberOfPhysiciansReq: data.numberOfPhysiciansRequired || 1,
           
           status: 'DRAFT',
           
