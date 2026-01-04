@@ -5,11 +5,10 @@ export async function GET() {
   const tenants = await prisma.tenant.findMany({
     select: {
       id: true,
-      estateName: true
+      name: true
     },
     take: 5
   });
   
   return NextResponse.json({ tenants });
 }
-
