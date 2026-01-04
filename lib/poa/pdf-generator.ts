@@ -147,6 +147,16 @@ export async function generateFinancialPOAPDF(
   writeText('I hereby appoint the following person(s) as my agent(s):');
   y -= 5;
 
+  // Check if there are co-agents
+  const coAgents = data.agents.filter(a => a.type === 'co_agent');
+  if (coAgents.length > 0 && data.coAgentsMustActJointly) {
+    writeTextIndent('[X] Co-agents must act JOINTLY (together)', 20);
+    y -= 5;
+  } else if (coAgents.length > 0) {
+    writeTextIndent('[X] Co-agents may act INDEPENDENTLY', 20);
+    y -= 5;
+  }
+
   data.agents.forEach((agent, idx) => {
     const typeLabel = agent.type === 'primary' ? 'PRIMARY AGENT' :
                      agent.type === 'successor' ? `SUCCESSOR AGENT ${agent.order || idx + 1}` :
