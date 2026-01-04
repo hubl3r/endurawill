@@ -63,7 +63,7 @@ export async function POST(request: Request) {
           status: 'DRAFT',
           
           // Co-agent settings
-          hasCoAgents: data.agents.filter(a => a.type === 'co-agent').length > 0,
+          hasCoAgents: data.agents.filter(a => a.type === 'co_agent').length > 0,
           coAgentsMustActJointly: data.coAgentsMustActJointly || false,
           
           usesStatutoryForm: data.useStatutoryForm,
