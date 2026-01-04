@@ -1,4 +1,4 @@
-typescriptimport { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
 export async function GET() {
@@ -12,3 +12,8 @@ export async function GET() {
   
   return NextResponse.json({ tenants });
 }
+```
+
+Then deploy and visit:
+```
+https://endurawill.vercel.app/api/test/tenants
