@@ -297,6 +297,7 @@ export async function POST(request: Request) {
           categoryIds: ['test-cat'],
           grantAllSubPowers: true
         },
+        coAgentsMustActJointly: false,
         witnesses: [
           {
             fullName: 'Witness One',
