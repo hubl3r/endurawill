@@ -214,6 +214,24 @@ export async function POST(request: Request) {
       }
     });
 
+    // 11. Send designation emails to agents
+    const { sendAgentDesignationEmail } = await import('@/lib/poa/notifications');
+    
+    for (const agent of updatedPOA.agents) {
+      if (agent.email) {
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://endurawill.vercel.app';
+        await sendAgentDesignationEmail({
+          agentEmail: agent.email,
+          agentName: agent.fullName,
+          principalName: data.principal.fullName,
+          poaType: data.poaType,
+          agentType: agent.agentType,
+          acceptUrl: `${baseUrl}/poa/agent/${agent.id}/accept`,
+          declineUrl: `${baseUrl}/poa/agent/${agent.id}/decline`
+        });
+      }
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Financial POA created successfully',
