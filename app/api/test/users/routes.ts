@@ -6,8 +6,7 @@ export async function GET() {
     select: {
       id: true,
       clerkId: true,
-      firstName: true,
-      lastName: true,
+      fullName: true,
       email: true
     },
     take: 5
