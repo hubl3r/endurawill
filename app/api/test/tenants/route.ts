@@ -12,8 +12,4 @@ export async function GET() {
   
   return NextResponse.json({ tenants });
 }
-```
 
-Then deploy and visit:
-```
-https://endurawill.vercel.app/api/test/tenants
