@@ -181,3 +181,72 @@ export async function sendAgentDeclineNotification(params: {
     };
   }
 }
+
+/**
+ * Send revocation notification to agents
+ */
+export async function sendRevocationNotification(params: {
+  agentEmail: string;
+  agentName: string;
+  principalName: string;
+  poaType: string;
+  revokedAt: Date;
+  revocationDocumentUrl: string;
+}) {
+  const { agentEmail, agentName, principalName, poaType, revokedAt, revocationDocumentUrl } = params;
+
+  try {
+    const result = await resend.emails.send({
+      from: 'Endurawill <notifications@endurawill.com>',
+      to: agentEmail,
+      subject: `Power of Attorney Revoked - ${principalName}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #ef4444;">⚠️ Power of Attorney Revoked</h2>
+          
+          <p>Hello ${agentName},</p>
+          
+          <p>This is to notify you that <strong>${principalName}</strong> has revoked their <strong>${poaType}</strong> Power of Attorney.</p>
+          
+          <div style="background-color: #fee2e2; border-left: 4px solid #ef4444; padding: 15px; margin: 20px 0;">
+            <p style="margin: 0; color: #991b1b; font-weight: bold;">
+              Your authority as agent is no longer valid as of:
+            </p>
+            <p style="margin: 10px 0 0 0; color: #991b1b;">
+              ${revokedAt.toLocaleDateString()} at ${revokedAt.toLocaleTimeString()}
+            </p>
+          </div>
+          
+          <h3>What This Means</h3>
+          <p>
+            You no longer have authority to act on behalf of ${principalName} under this Power of Attorney. 
+            Any actions taken after the revocation date are not valid.
+          </p>
+          
+          <h3>Official Revocation Document</h3>
+          <p>
+            <a href="${revocationDocumentUrl}" 
+               style="background-color: #ef4444; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+              Download Revocation Document
+            </a>
+          </p>
+          
+          <hr style="margin: 30px 0; border: none; border-top: 1px solid #ddd;">
+          
+          <p style="color: #999; font-size: 12px;">
+            This is an official notification from Endurawill. If you have questions about this revocation, 
+            please contact ${principalName} directly.
+          </p>
+        </div>
+      `,
+    });
+
+    return { success: true, messageId: result.data?.id };
+  } catch (error) {
+    console.error('Error sending revocation notification:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Unknown error' 
+    };
+  }
+}
