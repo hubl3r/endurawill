@@ -528,3 +528,148 @@ function getStateName(stateCode: string): string {
   };
   return stateNames[stateCode.toUpperCase()] || stateCode;
 }
+
+// ============================================
+// PDF GENERATION - REVOCATION
+// ============================================
+
+/**
+ * Generate POA Revocation PDF
+ */
+export async function generateRevocationPDF(params: {
+  poa: any;
+  revocation: any;
+  revokedAt: Date;
+}): Promise<PDFGenerationResult> {
+  const { poa, revocation, revokedAt } = params;
+
+  const pdfDoc = await PDFDocument.create();
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  
+  let page = pdfDoc.addPage([612, 792]);
+  let { width, height } = page.getSize();
+  let y = height - 72;
+  const margin = 72;
+  const lineHeight = 20;
+
+  const checkNewPage = () => {
+    if (y < 100) {
+      page = pdfDoc.addPage([612, 792]);
+      y = height - 72;
+    }
+  };
+
+  const writeText = (text: string, size: number = 11, bold: boolean = false) => {
+    checkNewPage();
+    page.drawText(text, {
+      x: margin,
+      y,
+      size,
+      font: bold ? fontBold : font,
+      color: rgb(0, 0, 0),
+    });
+    y -= lineHeight;
+  };
+
+  const writeTextIndent = (text: string, indent: number = 40, size: number = 11) => {
+    checkNewPage();
+    page.drawText(text, {
+      x: margin + indent,
+      y,
+      size,
+      font,
+      color: rgb(0, 0, 0),
+    });
+    y -= lineHeight;
+  };
+
+  // Title
+  const title = 'REVOCATION OF POWER OF ATTORNEY';
+  page.drawText(title, {
+    x: (width - (title.length * 7)) / 2,
+    y,
+    size: 16,
+    font: fontBold,
+    color: rgb(0, 0, 0),
+  });
+  y -= lineHeight * 2;
+
+  // State
+  const stateLine = `State of ${getStateName(poa.state)}`;
+  page.drawText(stateLine, {
+    x: (width - (stateLine.length * 5)) / 2,
+    y,
+    size: 12,
+    font,
+    color: rgb(0, 0, 0),
+  });
+  y -= lineHeight * 2;
+
+  // Principal
+  writeText('NOTICE OF REVOCATION', 14, true);
+  y -= 5;
+  writeText(`I, ${poa.principalName.toUpperCase()}, currently residing at:`);
+  writeTextIndent(poa.principalAddress, 20);
+  writeTextIndent(`${poa.principalCity}, ${poa.principalState} ${poa.principalZip}`, 20);
+  y -= 10;
+
+  // Revocation statement
+  writeText('HEREBY REVOKE the Power of Attorney executed on:', 11, true);
+  if (poa.createdAt) {
+    writeTextIndent(new Date(poa.createdAt).toLocaleDateString(), 20);
+  }
+  y -= 10;
+
+  // Details
+  writeText('This revocation is effective immediately and supersedes all previous', 11);
+  writeText('Powers of Attorney granted by me.', 11);
+  y -= 10;
+
+  // Reason
+  if (revocation.reason) {
+    writeText('REASON FOR REVOCATION:', 14, true);
+    y -= 5;
+    writeTextIndent(revocation.reason, 20);
+    y -= 10;
+  }
+
+  // Date
+  writeText('DATE OF REVOCATION:', 14, true);
+  y -= 5;
+  writeTextIndent(revokedAt.toLocaleDateString(), 20);
+  writeTextIndent(revokedAt.toLocaleTimeString(), 20);
+  y -= 15;
+
+  // Signature block
+  writeText('PRINCIPAL SIGNATURE:', 14, true);
+  y -= 15;
+  writeTextIndent('_________________________________________', 20);
+  writeTextIndent(poa.principalName, 20);
+  writeTextIndent(`Date: ${revokedAt.toLocaleDateString()}`, 20);
+  y -= 15;
+
+  // Notary section
+  writeText('NOTARY ACKNOWLEDGMENT', 14, true);
+  y -= 5;
+  writeText('State of ________________');
+  writeText('County of ________________');
+  y -= 10;
+  writeText('On this _____ day of _____________, 20____, before me');
+  writeText('personally appeared ______________________, known to me');
+  writeText('to be the person who executed the foregoing revocation.');
+  y -= 20;
+  writeTextIndent('________________________________', 60);
+  writeTextIndent('Notary Public', 60);
+  writeTextIndent('My Commission Expires: __________', 60);
+
+  const pdfBytes = await pdfDoc.save();
+  const buffer = Buffer.from(pdfBytes);
+  const filename = `revocation_${poa.state}_${sanitizeName(poa.principalName)}_${formatDate(revokedAt)}.pdf`;
+
+  return {
+    buffer,
+    filename,
+    pageCount: pdfDoc.getPageCount(),
+  };
+}
