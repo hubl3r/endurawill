@@ -104,7 +104,7 @@ export default function CreateFinancialPOAPage() {
 
   const canGoNext = () => {
     switch (currentStep) {
-      case 1: return formData.poaType !== '';
+      case 1: return !!formData.poaType;
       case 2: 
         const p = formData.principal;
         return p.fullName && p.email && p.address && p.city && p.state && p.zipCode;
