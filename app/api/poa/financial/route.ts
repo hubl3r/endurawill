@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { validateFinancialPOA } from '@/lib/poa/validation';
 import { generateFinancialPOAPDF } from '@/lib/poa/pdf-generator';
 import { uploadPOADocument } from '@/lib/poa/storage';
+import { getAuthenticatedUserAndTenant } from '@/lib/tenant-context';
 
 /**
  * POST /api/poa/financial
@@ -14,10 +15,29 @@ import { uploadPOADocument } from '@/lib/poa/storage';
  */
 export async function POST(request: Request) {
   try {
+    // Get authenticated user and validated tenant (secure)
+    const auth = await getAuthenticatedUserAndTenant();
+    
+    if (!auth) {
+      return NextResponse.json({ error: 'Unauthorized or no active estate selected' }, { status: 401 });
+    }
+
+    const { user, tenant, tenantId } = auth;
+
     const body = await request.json();
 
+    // Add secure tenant/user context to the data
+    const dataWithAuth = {
+      ...body,
+      principal: {
+        ...body.principal,
+        userId: user.id,
+        tenantId: tenantId,
+      }
+    };
+
     // Validate input
-    const validation = validateFinancialPOA(body);
+    const validation = validateFinancialPOA(dataWithAuth);
     if (!validation.success) {
       return NextResponse.json(
         {
