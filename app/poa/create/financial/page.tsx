@@ -498,100 +498,210 @@ export default function CreateFinancialPOAPage() {
   };
 
   if (success && createdPOA) {
+    // POA type-specific theming
+    const poaTypeConfig = {
+      durable: {
+        bgColor: 'bg-blue-600',
+        iconBg: 'bg-blue-50',
+        iconColor: 'text-blue-600',
+        borderColor: 'border-blue-200',
+        icon: '🔒',
+        title: 'Durable Power of Attorney Created',
+        subtitle: 'Your agent can act immediately and power continues if you become incapacitated',
+        description: 'This document grants broad authority to your designated agent(s) and remains effective even if you become unable to make decisions.',
+      },
+      springing: {
+        bgColor: 'bg-green-600', 
+        iconBg: 'bg-green-50',
+        iconColor: 'text-green-600',
+        borderColor: 'border-green-200',
+        icon: '🌱',
+        title: 'Springing Power of Attorney Created',
+        subtitle: 'Power activates only upon your incapacitation as determined by medical professionals',
+        description: 'This document will "spring" into effect when you become incapacitated, giving your agent authority only when needed.',
+      },
+      limited: {
+        bgColor: 'bg-purple-600',
+        iconBg: 'bg-purple-50', 
+        iconColor: 'text-purple-600',
+        borderColor: 'border-purple-200',
+        icon: '📋',
+        title: 'Limited Power of Attorney Created',
+        subtitle: 'Grants specific powers for defined purposes and time periods',
+        description: 'This document grants limited authority to your agent for the specific purposes and timeframe you designated.',
+      }
+    };
+
+    const config = poaTypeConfig[formData.poaType as keyof typeof poaTypeConfig];
+
     return (
-      <div className="min-h-screen bg-gray-50 py-8">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="bg-white shadow-lg rounded-lg overflow-hidden">
-            <div className="bg-green-600 px-6 py-4">
-              <h1 className="text-2xl font-bold text-white">✅ Power of Attorney Created Successfully!</h1>
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {/* Header Card */}
+          <div className="bg-white rounded-lg shadow-lg overflow-hidden mb-6">
+            <div className={`${config.bgColor} px-6 py-6`}>
+              <div className="flex items-center">
+                <div className={`${config.iconBg} rounded-full p-3 mr-4`}>
+                  <span className="text-2xl">{config.icon}</span>
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold text-white">{config.title}</h1>
+                  <p className="text-blue-100 mt-1">{config.subtitle}</p>
+                </div>
+              </div>
             </div>
 
-            <div className="px-6 py-8">
-              <div className="mb-6">
-                <h2 className="text-lg font-semibold text-gray-900 mb-2">Document Information</h2>
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <p><strong>POA ID:</strong> {createdPOA.id}</p>
-                  <p><strong>Principal:</strong> {formData.principal.fullName}</p>
-                  <p><strong>Type:</strong> {formData.poaType} POA</p>
-                  <p><strong>State:</strong> {formData.principal.state}</p>
-                  <p><strong>Created:</strong> {new Date().toLocaleDateString()}</p>
+            {/* Document Details */}
+            <div className="px-6 py-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                <div className={`${config.iconBg} ${config.borderColor} border rounded-lg p-4`}>
+                  <h3 className="font-medium text-gray-900 mb-1">Principal</h3>
+                  <p className={`${config.iconColor} font-medium`}>{formData.principal.fullName}</p>
+                  <p className="text-sm text-gray-500">{formData.principal.state}</p>
+                </div>
+                
+                <div className={`${config.iconBg} ${config.borderColor} border rounded-lg p-4`}>
+                  <h3 className="font-medium text-gray-900 mb-1">Agents</h3>
+                  <p className={`${config.iconColor} font-medium`}>{formData.agents.length} designated</p>
+                  <p className="text-sm text-gray-500">
+                    {formData.agents.filter(a => a.type === 'primary').length} primary, {formData.agents.filter(a => a.type === 'successor').length} successor
+                  </p>
+                </div>
+                
+                <div className={`${config.iconBg} ${config.borderColor} border rounded-lg p-4`}>
+                  <h3 className="font-medium text-gray-900 mb-1">Powers Granted</h3>
+                  <p className={`${config.iconColor} font-medium`}>{formData.grantedPowers.categoryIds.length} categories</p>
+                  <p className="text-sm text-gray-500">Financial authority</p>
                 </div>
               </div>
 
-              <div className="mb-8">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">PDF Document</h3>
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                  <p className="text-blue-800 mb-2">
-                    Your Power of Attorney document has been generated and is ready for review.
-                  </p>
-                  <p className="text-sm text-blue-700">
-                    Please review the document carefully before execution. Remember to have it notarized if required by your state.
-                  </p>
+              <div className={`${config.iconBg} ${config.borderColor} border rounded-lg p-4 mb-6`}>
+                <h3 className="font-medium text-gray-900 mb-2">About Your {formData.poaType.charAt(0).toUpperCase() + formData.poaType.slice(1)} POA</h3>
+                <p className="text-sm text-gray-600">{config.description}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Actions Card */}
+          <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Document Actions</h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <button
+                onClick={() => window.open(createdPOA.generatedDocument, '_blank')}
+                className="flex flex-col items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 focus:ring-2 focus:ring-blue-500 transition-colors"
+              >
+                <span className="text-2xl mb-2">👀</span>
+                <span className="font-medium text-gray-900">View PDF</span>
+                <span className="text-xs text-gray-500">Review document</span>
+              </button>
+
+              <a
+                href={createdPOA.generatedDocument}
+                download={`POA_${formData.principal.fullName.replace(/\s+/g, '_')}_${formData.poaType}.pdf`}
+                className="flex flex-col items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 focus:ring-2 focus:ring-blue-500 transition-colors"
+              >
+                <span className="text-2xl mb-2">💾</span>
+                <span className="font-medium text-gray-900">Download</span>
+                <span className="text-xs text-gray-500">Save to device</span>
+              </a>
+
+              <button
+                onClick={() => {
+                  const subject = `${formData.poaType.charAt(0).toUpperCase() + formData.poaType.slice(1)} Power of Attorney - ${formData.principal.fullName}`;
+                  const body = `Please find attached the Power of Attorney document.\n\nDocument Details:\n- Principal: ${formData.principal.fullName}\n- Type: ${formData.poaType} POA\n- Agents: ${formData.agents.length}\n- Created: ${new Date().toLocaleDateString()}\n\nDocument: ${createdPOA.generatedDocument}`;
+                  window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+                }}
+                className="flex flex-col items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 focus:ring-2 focus:ring-blue-500 transition-colors"
+              >
+                <span className="text-2xl mb-2">📧</span>
+                <span className="font-medium text-gray-900">Share</span>
+                <span className="text-xs text-gray-500">Email document</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setSuccess(false);
+                  setCreatedPOA(null);
+                  setCurrentStep(1);
+                  setFormData({
+                    poaType: 'durable',
+                    principal: { fullName: '', email: '', phone: '', address: '', city: '', state: '', zipCode: '' },
+                    agents: [],
+                    grantedPowers: { categoryIds: [], grantAllSubPowers: true },
+                    coAgentsMustActJointly: false,
+                    useStatutoryForm: true,
+                    specialInstructions: '',
+                    disclaimerAccepted: false,
+                  });
+                }}
+                className="flex flex-col items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 focus:ring-2 focus:ring-blue-500 transition-colors"
+              >
+                <span className="text-2xl mb-2">➕</span>
+                <span className="font-medium text-gray-900">Create New</span>
+                <span className="text-xs text-gray-500">Another POA</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Next Steps Card */}
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Next Steps</h2>
+            <div className="space-y-4">
+              <div className="flex items-start">
+                <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-3">
+                  <span className="text-blue-600 text-sm font-medium">1</span>
                 </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <button
-                    onClick={() => window.open(createdPOA.generatedDocument, '_blank')}
-                    className="flex flex-col items-center p-4 border border-gray-300 rounded-lg hover:bg-gray-50 focus:ring-2 focus:ring-blue-500"
-                  >
-                    <span className="text-2xl mb-2">👀</span>
-                    <span className="font-medium">View PDF</span>
-                  </button>
-
-                  <a
-                    href={createdPOA.generatedDocument}
-                    download={`POA_${formData.principal.fullName.replace(/\s+/g, '_')}_${formData.poaType}.pdf`}
-                    className="flex flex-col items-center p-4 border border-gray-300 rounded-lg hover:bg-gray-50 focus:ring-2 focus:ring-blue-500"
-                  >
-                    <span className="text-2xl mb-2">💾</span>
-                    <span className="font-medium">Download</span>
-                  </a>
-
-                  <button
-                    onClick={() => {
-                      const subject = `Power of Attorney Document - ${formData.principal.fullName}`;
-                      const body = `Please find attached the Power of Attorney document.\n\nDocument ID: ${createdPOA.id}\nPrincipal: ${formData.principal.fullName}\nType: ${formData.poaType} POA\n\nDocument URL: ${createdPOA.generatedDocument}`;
-                      window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-                    }}
-                    className="flex flex-col items-center p-4 border border-gray-300 rounded-lg hover:bg-gray-50 focus:ring-2 focus:ring-blue-500"
-                  >
-                    <span className="text-2xl mb-2">📧</span>
-                    <span className="font-medium">Email</span>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setSuccess(false);
-                      setCreatedPOA(null);
-                      setCurrentStep(1);
-                      setFormData({
-                        poaType: 'durable',
-                        principal: { fullName: '', email: '', phone: '', address: '', city: '', state: '', zipCode: '' },
-                        agents: [],
-                        grantedPowers: { categoryIds: [], grantAllSubPowers: true },
-                        coAgentsMustActJointly: false,
-                        useStatutoryForm: true,
-                        specialInstructions: '',
-                        disclaimerAccepted: false,
-                      });
-                    }}
-                    className="flex flex-col items-center p-4 border border-gray-300 rounded-lg hover:bg-gray-50 focus:ring-2 focus:ring-blue-500"
-                  >
-                    <span className="text-2xl mb-2">🆕</span>
-                    <span className="font-medium">Create New</span>
-                  </button>
+                <div>
+                  <p className="font-medium text-gray-900">Review and Verify</p>
+                  <p className="text-sm text-gray-600">Carefully review the document for accuracy before execution</p>
                 </div>
               </div>
 
-              <div className="border-t pt-6">
-                <h4 className="font-medium text-gray-900 mb-2">Next Steps</h4>
-                <ul className="text-sm text-gray-600 space-y-1">
-                  <li>• Review the document thoroughly for accuracy</li>
-                  <li>• Check your state's requirements for execution (notarization, witnesses)</li>
-                  <li>• Share copies with your designated agents</li>
-                  <li>• Store the original in a safe place</li>
-                  <li>• Inform your bank and other institutions about the POA</li>
-                </ul>
+              <div className="flex items-start">
+                <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-3">
+                  <span className="text-blue-600 text-sm font-medium">2</span>
+                </div>
+                <div>
+                  <p className="font-medium text-gray-900">Execute Properly</p>
+                  <p className="text-sm text-gray-600">Follow your state's requirements for notarization and witnesses</p>
+                </div>
+              </div>
+
+              <div className="flex items-start">
+                <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-3">
+                  <span className="text-blue-600 text-sm font-medium">3</span>
+                </div>
+                <div>
+                  <p className="font-medium text-gray-900">Notify Your Agents</p>
+                  <p className="text-sm text-gray-600">Your agents have been sent acceptance emails automatically</p>
+                </div>
+              </div>
+
+              <div className="flex items-start">
+                <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-3">
+                  <span className="text-blue-600 text-sm font-medium">4</span>
+                </div>
+                <div>
+                  <p className="font-medium text-gray-900">Store Safely</p>
+                  <p className="text-sm text-gray-600">Keep originals secure and provide copies to relevant institutions</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 pt-6 border-t border-gray-200">
+              <div className="flex items-center justify-between">
+                <Link 
+                  href="/dashboard" 
+                  className="text-blue-600 hover:text-blue-500 font-medium"
+                >
+                  ← Return to Dashboard
+                </Link>
+                <button
+                  onClick={() => window.open('/poa/create/healthcare', '_blank')}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  Create Healthcare POA
+                </button>
               </div>
             </div>
           </div>
