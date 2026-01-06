@@ -16,7 +16,7 @@ interface Agent {
 interface AgentFormProps {
   agents: Agent[];
   onChange: (agents: Agent[]) => void;
-  states: Array<{ code: string; name: string }>;
+  states: Array<{ state: string; stateName: string }>;
 }
 
 export function AgentForm({ agents, onChange, states }: AgentFormProps) {
@@ -48,25 +48,28 @@ export function AgentForm({ agents, onChange, states }: AgentFormProps) {
   const successorAgents = agents.filter(a => a.type === 'successor');
   const coAgents = agents.filter(a => a.type === 'co-agent');
 
-  const renderAgentForm = (agent: Agent, index: number) => {
-    const globalIndex = agents.findIndex(a => a === agent);
+  const renderAgentForm = (agent: Agent, localIndex: number, agentType: string) => {
+    const globalIndex = agents.findIndex((a, i) => 
+      a.type === agent.type && 
+      a.fullName === agent.fullName && 
+      a.email === agent.email &&
+      agents.filter(ag => ag.type === agent.type).indexOf(agent) === localIndex
+    );
     
     return (
-      <div key={globalIndex} className="bg-white p-4 border border-gray-200 rounded-lg">
+      <div key={`${agentType}-${localIndex}`} className="bg-white p-4 border border-gray-200 rounded-lg">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-2">
             <User className="h-5 w-5 text-gray-500" />
             <span className="font-medium capitalize">{agent.type} Agent</span>
           </div>
-          {agents.length > 1 && (
-            <button
-              type="button"
-              onClick={() => removeAgent(globalIndex)}
-              className="text-red-600 hover:text-red-800"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => removeAgent(globalIndex)}
+            className="text-red-600 hover:text-red-800"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -123,7 +126,7 @@ export function AgentForm({ agents, onChange, states }: AgentFormProps) {
             >
               <option value="">Select State</option>
               {states.map((state) => (
-                <option key={state.code} value={state.code}>{state.name}</option>
+                <option key={state.state} value={state.state}>{state.stateName}</option>
               ))}
             </select>
           </div>
@@ -168,7 +171,7 @@ export function AgentForm({ agents, onChange, states }: AgentFormProps) {
           </div>
         ) : (
           <div className="space-y-4">
-            {primaryAgents.map(agent => renderAgentForm(agent, 0))}
+            {primaryAgents.map((agent, index) => renderAgentForm(agent, index, 'primary'))}
           </div>
         )}
       </div>
@@ -194,7 +197,7 @@ export function AgentForm({ agents, onChange, states }: AgentFormProps) {
           </div>
         ) : (
           <div className="space-y-4">
-            {successorAgents.map(agent => renderAgentForm(agent, 0))}
+            {successorAgents.map((agent, index) => renderAgentForm(agent, index, 'successor'))}
           </div>
         )}
       </div>
@@ -220,7 +223,7 @@ export function AgentForm({ agents, onChange, states }: AgentFormProps) {
           </div>
         ) : (
           <div className="space-y-4">
-            {coAgents.map(agent => renderAgentForm(agent, 0))}
+            {coAgents.map((agent, index) => renderAgentForm(agent, index, 'co-agent'))}
           </div>
         )}
       </div>
