@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { DisclaimerBanner } from '@/components/legal/DisclaimerBanner';
 import { DisclaimerCheckbox } from '@/components/legal/DisclaimerCheckbox';
 import { WizardStep } from '@/components/poa/WizardStep';
+import { AgentForm } from '@/components/poa/AgentForm';
 
 interface FormData {
   poaType: 'durable' | 'springing' | 'limited';
@@ -104,11 +105,11 @@ export default function CreateFinancialPOAPage() {
 
   const canGoNext = () => {
     switch (currentStep) {
-      case 1: return !!formData.poaType;
+      case 1: return formData.poaType !== '';
       case 2: 
         const p = formData.principal;
-        return !!(p.fullName && p.email && p.address && p.city && p.state && p.zipCode);
-      case 3: return formData.agents.length > 0;
+        return p.fullName && p.email && p.address && p.city && p.state && p.zipCode;
+      case 3: return formData.agents.some(agent => agent.type === 'primary' && agent.fullName && agent.email);
       case 4: return formData.grantedPowers.categoryIds.length > 0;
       case 5: return true;
       case 6: return true;
@@ -285,18 +286,11 @@ export default function CreateFinancialPOAPage() {
         return (
           <div className="space-y-4">
             <h3 className="text-lg font-medium mb-4">Agent Information</h3>
-            <p className="text-sm text-gray-600 mb-4">Add at least one agent who will act on your behalf.</p>
-            {/* Agent form will be built in next iteration */}
-            <div className="bg-gray-100 p-8 rounded-lg text-center">
-              <p className="text-gray-600">Agent form components will be added next</p>
-              <button
-                type="button"
-                onClick={() => updateFormData('agents', [{ type: 'primary', fullName: 'Test Agent', email: 'agent@test.com', address: '123 Agent St', city: 'City', state: 'FL', zipCode: '12345' }])}
-                className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-              >
-                Add Test Agent (Temporary)
-              </button>
-            </div>
+            <AgentForm
+              agents={formData.agents}
+              onChange={(agents) => updateFormData('agents', agents)}
+              states={states}
+            />
           </div>
         );
 
