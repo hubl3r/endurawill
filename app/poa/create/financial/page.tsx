@@ -152,8 +152,6 @@ export default function CreateFinancialPOAPage() {
     try {
       const payload = {
         principal: {
-          userId: "357ea7df-3940-4881-a4b8-22a13127bceb",
-          tenantId: "5e70328d-d992-4688-ad0e-0aaf484c4249",
           fullName: formData.principal.fullName,
           email: formData.principal.email,
           phone: formData.principal.phone,
