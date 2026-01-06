@@ -198,7 +198,30 @@ export async function POST(request: Request) {
       }
     });
 
-    // 10. Create audit log for PDF generation
+    // 10. Create Document record for dashboard visibility
+    await prisma.document.create({
+      data: {
+        title: `${data.poaType.charAt(0).toUpperCase() + data.poaType.slice(1)} Power of Attorney - ${data.principal.fullName}`,
+        description: `${data.poaType} POA with ${agents.length} agent(s) and ${grantedPowers.length} power categories`,
+        isFolder: false,
+        type: 'poa',
+        parentId: null,
+        status: 'active',
+        tenantId: data.principal.tenantId,
+        createdById: data.principal.userId,
+        fileUrl: documentUrl,
+        fileName: filename,
+        fileType: 'application/pdf',
+        fileSize: buffer.length,
+        // Link to the actual POA record
+        metadata: {
+          poaId: poa.id,
+          poaType: data.poaType
+        }
+      }
+    });
+
+    // 12. Create audit log for PDF generation
     await prisma.pOAAuditLog.create({
       data: {
         poaId: poa.id,
@@ -214,7 +237,7 @@ export async function POST(request: Request) {
       }
     });
 
-    // 11. Send designation emails to agents
+    // 13. Send designation emails to agents
     const { sendAgentDesignationEmail } = await import('@/lib/poa/notifications');
     
     for (const agent of updatedPOA.agents) {
@@ -238,7 +261,7 @@ export async function POST(request: Request) {
       poa: {
         id: updatedPOA.id,
         status: updatedPOA.status,
-        documentUrl: updatedPOA.generatedDocument,
+        generatedDocument: updatedPOA.generatedDocument,
         createdAt: updatedPOA.createdAt
       },
       agents: updatedPOA.agents,
