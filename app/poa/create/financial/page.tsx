@@ -105,10 +105,10 @@ export default function CreateFinancialPOAPage() {
 
   const canGoNext = () => {
     switch (currentStep) {
-      case 1: return formData.poaType !== '';
+      case 1: return true; // poaType defaults to 'durable', always valid
       case 2: 
         const p = formData.principal;
-        return p.fullName && p.email && p.address && p.city && p.state && p.zipCode;
+        return !!(p.fullName && p.email && p.address && p.city && p.state && p.zipCode);
       case 3: return formData.agents.some(agent => agent.type === 'primary' && agent.fullName && agent.email);
       case 4: return formData.grantedPowers.categoryIds.length > 0;
       case 5: return true;
