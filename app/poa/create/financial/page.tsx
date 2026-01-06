@@ -43,8 +43,8 @@ interface PowerCategory {
 }
 
 interface State {
-  code: string;
-  name: string;
+  state: string;
+  stateName: string;
 }
 
 export default function CreateFinancialPOAPage() {
@@ -77,15 +77,11 @@ export default function CreateFinancialPOAPage() {
 
   // Fetch categories and states on mount
   useEffect(() => {
-    console.log('Fetching API data...');
     Promise.all([
       fetch('/api/poa/categories').then(r => r.json()),
       fetch('/api/poa/states').then(r => r.json())
     ])
     .then(([categoriesData, statesData]) => {
-      console.log('Categories response:', categoriesData);
-      console.log('States response:', statesData);
-      
       // Handle categories
       if (categoriesData.success && categoriesData.categories) {
         setPowerCategories(categoriesData.categories);
@@ -95,20 +91,14 @@ export default function CreateFinancialPOAPage() {
       
       // Handle states - try multiple possible structures
       if (statesData.success && statesData.states) {
-        console.log('Using statesData.states:', statesData.states);
         setStates(statesData.states);
       } else if (Array.isArray(statesData)) {
-        console.log('Using statesData directly:', statesData);
         setStates(statesData);
       } else if (statesData.data) {
-        console.log('Using statesData.data:', statesData.data);
         setStates(statesData.data);
-      } else {
-        console.log('Unknown states structure:', statesData);
       }
     })
     .catch(err => {
-      console.error('API fetch error:', err);
       setError('Failed to load form data');
     });
   }, []);
@@ -269,16 +259,9 @@ export default function CreateFinancialPOAPage() {
                 >
                   <option value="">Select State</option>
                   {states.map((state) => (
-                    <option key={state.code} value={state.code}>{state.name}</option>
+                    <option key={state.state} value={state.state}>{state.stateName}</option>
                   ))}
                 </select>
-                {/* Debug info */}
-                <div className="text-xs text-gray-500 mt-1">
-                  <p>States loaded: {states.length}</p>
-                  {states.length > 0 && (
-                    <p>First state: {JSON.stringify(states[0])}</p>
-                  )}
-                </div>
               </div>
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Address *</label>
