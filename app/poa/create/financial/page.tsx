@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { DisclaimerBanner } from '@/components/legal/DisclaimerBanner';
 import { DisclaimerCheckbox } from '@/components/legal/DisclaimerCheckbox';
 import { WizardStep } from '@/components/poa/WizardStep';
