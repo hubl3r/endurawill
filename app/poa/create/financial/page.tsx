@@ -51,6 +51,8 @@ interface State {
 export default function CreateFinancialPOAPage() {
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [createdPOA, setCreatedPOA] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [powerCategories, setPowerCategories] = useState<PowerCategory[]>([]);
   const [states, setStates] = useState<State[]>([]);
@@ -199,8 +201,8 @@ export default function CreateFinancialPOAPage() {
       console.log('Validation details:', result.details);
       
       if (result.success) {
-        // Success - show download link
-        alert(`POA created successfully! ID: ${result.poa.id}\nPDF URL: ${result.poa.generatedDocument || 'Not available'}`);
+        setCreatedPOA(result.poa);
+        setSuccess(true);
       } else {
         const errorMsg = result.details 
           ? `Validation failed: ${result.details.map((d: any) => `${d.path}: ${d.message}`).join(', ')}`
@@ -343,33 +345,62 @@ export default function CreateFinancialPOAPage() {
       case 4:
         return (
           <div className="space-y-4">
-            <h3 className="text-lg font-medium mb-4">Select Powers to Grant</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-medium">Select Powers to Grant</h3>
+              <div className="flex space-x-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const allCategoryIds = powerCategories.map(cat => cat.id);
+                    updateFormData('grantedPowers.categoryIds', allCategoryIds);
+                  }}
+                  className="px-3 py-1 text-sm text-blue-600 border border-blue-300 rounded-md hover:bg-blue-50"
+                >
+                  Select All
+                </button>
+                <button
+                  type="button"
+                  onClick={() => updateFormData('grantedPowers.categoryIds', [])}
+                  className="px-3 py-1 text-sm text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
+                >
+                  Select None
+                </button>
+              </div>
+            </div>
+            
             {powerCategories.length === 0 ? (
               <div className="bg-gray-50 p-4 rounded-lg">
                 <p className="text-gray-600">Loading power categories...</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {powerCategories.map((category) => (
-                  <label key={category.id} className="flex items-start space-x-3 cursor-pointer p-4 border rounded-lg hover:bg-gray-50">
-                    <input
-                      type="checkbox"
-                      checked={formData.grantedPowers.categoryIds.includes(category.id)}
-                      onChange={(e) => {
-                        const categoryIds = e.target.checked
-                          ? [...formData.grantedPowers.categoryIds, category.id]
-                          : formData.grantedPowers.categoryIds.filter(id => id !== category.id);
-                        updateFormData('grantedPowers.categoryIds', categoryIds);
-                      }}
-                      className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500"
-                    />
-                    <div>
-                      <div className="font-medium">{category.categoryName}</div>
-                      <div className="text-sm text-gray-600">{category.plainLanguageDesc}</div>
-                    </div>
-                  </label>
-                ))}
-              </div>
+              <>
+                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm text-blue-800">
+                    <strong>{formData.grantedPowers.categoryIds.length} of {powerCategories.length}</strong> power categories selected
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {powerCategories.map((category) => (
+                    <label key={category.id} className="flex items-start space-x-3 cursor-pointer p-4 border rounded-lg hover:bg-gray-50">
+                      <input
+                        type="checkbox"
+                        checked={formData.grantedPowers.categoryIds.includes(category.id)}
+                        onChange={(e) => {
+                          const categoryIds = e.target.checked
+                            ? [...formData.grantedPowers.categoryIds, category.id]
+                            : formData.grantedPowers.categoryIds.filter(id => id !== category.id);
+                          updateFormData('grantedPowers.categoryIds', categoryIds);
+                        }}
+                        className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500"
+                      />
+                      <div>
+                        <div className="font-medium">{category.categoryName}</div>
+                        <div className="text-sm text-gray-600">{category.plainLanguageDesc}</div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </>
             )}
           </div>
         );
@@ -467,6 +498,109 @@ export default function CreateFinancialPOAPage() {
     ];
     return titles[currentStep - 1] || '';
   };
+
+  if (success && createdPOA) {
+    return (
+      <div className="min-h-screen bg-gray-50 py-8">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="bg-white shadow-lg rounded-lg overflow-hidden">
+            <div className="bg-green-600 px-6 py-4">
+              <h1 className="text-2xl font-bold text-white">✅ Power of Attorney Created Successfully!</h1>
+            </div>
+
+            <div className="px-6 py-8">
+              <div className="mb-6">
+                <h2 className="text-lg font-semibold text-gray-900 mb-2">Document Information</h2>
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <p><strong>POA ID:</strong> {createdPOA.id}</p>
+                  <p><strong>Principal:</strong> {formData.principal.fullName}</p>
+                  <p><strong>Type:</strong> {formData.poaType} POA</p>
+                  <p><strong>State:</strong> {formData.principal.state}</p>
+                  <p><strong>Created:</strong> {new Date().toLocaleDateString()}</p>
+                </div>
+              </div>
+
+              <div className="mb-8">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">PDF Document</h3>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                  <p className="text-blue-800 mb-2">
+                    Your Power of Attorney document has been generated and is ready for review.
+                  </p>
+                  <p className="text-sm text-blue-700">
+                    Please review the document carefully before execution. Remember to have it notarized if required by your state.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <button
+                    onClick={() => window.open(createdPOA.generatedDocument, '_blank')}
+                    className="flex flex-col items-center p-4 border border-gray-300 rounded-lg hover:bg-gray-50 focus:ring-2 focus:ring-blue-500"
+                  >
+                    <span className="text-2xl mb-2">👀</span>
+                    <span className="font-medium">View PDF</span>
+                  </button>
+
+                  <a
+                    href={createdPOA.generatedDocument}
+                    download={`POA_${formData.principal.fullName.replace(/\s+/g, '_')}_${formData.poaType}.pdf`}
+                    className="flex flex-col items-center p-4 border border-gray-300 rounded-lg hover:bg-gray-50 focus:ring-2 focus:ring-blue-500"
+                  >
+                    <span className="text-2xl mb-2">💾</span>
+                    <span className="font-medium">Download</span>
+                  </a>
+
+                  <button
+                    onClick={() => {
+                      const subject = `Power of Attorney Document - ${formData.principal.fullName}`;
+                      const body = `Please find attached the Power of Attorney document.\n\nDocument ID: ${createdPOA.id}\nPrincipal: ${formData.principal.fullName}\nType: ${formData.poaType} POA\n\nDocument URL: ${createdPOA.generatedDocument}`;
+                      window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+                    }}
+                    className="flex flex-col items-center p-4 border border-gray-300 rounded-lg hover:bg-gray-50 focus:ring-2 focus:ring-blue-500"
+                  >
+                    <span className="text-2xl mb-2">📧</span>
+                    <span className="font-medium">Email</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setSuccess(false);
+                      setCreatedPOA(null);
+                      setCurrentStep(1);
+                      setFormData({
+                        poaType: 'durable',
+                        principal: { fullName: '', email: '', phone: '', address: '', city: '', state: '', zipCode: '' },
+                        agents: [],
+                        grantedPowers: { categoryIds: [], grantAllSubPowers: true },
+                        coAgentsMustActJointly: false,
+                        useStatutoryForm: true,
+                        specialInstructions: '',
+                        disclaimerAccepted: false,
+                      });
+                    }}
+                    className="flex flex-col items-center p-4 border border-gray-300 rounded-lg hover:bg-gray-50 focus:ring-2 focus:ring-blue-500"
+                  >
+                    <span className="text-2xl mb-2">🆕</span>
+                    <span className="font-medium">Create New</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="border-t pt-6">
+                <h4 className="font-medium text-gray-900 mb-2">Next Steps</h4>
+                <ul className="text-sm text-gray-600 space-y-1">
+                  <li>• Review the document thoroughly for accuracy</li>
+                  <li>• Check your state's requirements for execution (notarization, witnesses)</li>
+                  <li>• Share copies with your designated agents</li>
+                  <li>• Store the original in a safe place</li>
+                  <li>• Inform your bank and other institutions about the POA</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
