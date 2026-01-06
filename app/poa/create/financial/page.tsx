@@ -77,15 +77,21 @@ export default function CreateFinancialPOAPage() {
 
   // Fetch categories and states on mount
   useEffect(() => {
+    console.log('Fetching API data...');
     Promise.all([
       fetch('/api/poa/categories').then(r => r.json()),
       fetch('/api/poa/states').then(r => r.json())
     ])
     .then(([categoriesData, statesData]) => {
+      console.log('Categories response:', categoriesData);
+      console.log('States response:', statesData);
       if (categoriesData.success) setPowerCategories(categoriesData.categories);
       if (statesData.success) setStates(statesData.states);
     })
-    .catch(err => setError('Failed to load form data'));
+    .catch(err => {
+      console.error('API fetch error:', err);
+      setError('Failed to load form data');
+    });
   }, []);
 
   const updateFormData = (path: string, value: any) => {
@@ -247,6 +253,8 @@ export default function CreateFinancialPOAPage() {
                     <option key={state.code} value={state.code}>{state.name}</option>
                   ))}
                 </select>
+                {/* Debug info */}
+                <p className="text-xs text-gray-500 mt-1">States loaded: {states.length}</p>
               </div>
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Address *</label>
