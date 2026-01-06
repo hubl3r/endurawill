@@ -39,8 +39,8 @@ interface FormData {
 
 interface PowerCategory {
   id: string;
-  name: string;
-  description: string;
+  categoryName: string;
+  plainLanguageDesc: string;
 }
 
 interface State {
@@ -152,7 +152,13 @@ export default function CreateFinancialPOAPage() {
         principal: {
           userId: "357ea7df-3940-4881-a4b8-22a13127bceb",
           tenantId: "5e70328d-d992-4688-ad0e-0aaf484c4249",
-          ...formData.principal,
+          fullName: formData.principal.fullName,
+          email: formData.principal.email,
+          phone: formData.principal.phone,
+          address: formData.principal.address,
+          city: formData.principal.city,
+          state: formData.principal.state,
+          zipCode: formData.principal.zipCode,
         },
         poaType: formData.poaType,
         state: formData.principal.state,
@@ -160,7 +166,16 @@ export default function CreateFinancialPOAPage() {
         isSpringing: formData.poaType === 'springing',
         isLimited: formData.poaType === 'limited',
         coAgentsMustActJointly: formData.coAgentsMustActJointly,
-        agents: formData.agents,
+        agents: formData.agents.map((agent, index) => ({
+          agentType: agent.type,
+          order: index + 1,
+          fullName: agent.fullName,
+          email: agent.email,
+          address: agent.address,
+          city: agent.city,
+          state: agent.state,
+          zip: agent.zipCode,
+        })),
         grantedPowers: formData.grantedPowers,
         useStatutoryForm: formData.useStatutoryForm,
         specialInstructions: formData.specialInstructions,
@@ -176,12 +191,16 @@ export default function CreateFinancialPOAPage() {
 
       const result = await response.json();
       console.log('API response:', result);
+      console.log('Validation details:', result.details);
       
       if (result.success) {
         // Success - show download link
         alert(`POA created successfully! ID: ${result.poa.id}\nPDF URL: ${result.poa.generatedDocument || 'Not available'}`);
       } else {
-        setError(result.error || `Failed to create POA: ${JSON.stringify(result)}`);
+        const errorMsg = result.details 
+          ? `Validation failed: ${result.details.map((d: any) => `${d.path}: ${d.message}`).join(', ')}`
+          : result.error || `Failed to create POA: ${JSON.stringify(result)}`;
+        setError(errorMsg);
       }
     } catch (err) {
       console.error('Submit error:', err);
@@ -325,32 +344,27 @@ export default function CreateFinancialPOAPage() {
                 <p className="text-gray-600">Loading power categories...</p>
               </div>
             ) : (
-              <>
-                <div className="text-xs text-gray-500 mb-4">
-                  Categories loaded: {powerCategories.length} | First: {JSON.stringify(powerCategories[0])}
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {powerCategories.map((category) => (
-                    <label key={category.id} className="flex items-start space-x-3 cursor-pointer p-4 border rounded-lg hover:bg-gray-50">
-                      <input
-                        type="checkbox"
-                        checked={formData.grantedPowers.categoryIds.includes(category.id)}
-                        onChange={(e) => {
-                          const categoryIds = e.target.checked
-                            ? [...formData.grantedPowers.categoryIds, category.id]
-                            : formData.grantedPowers.categoryIds.filter(id => id !== category.id);
-                          updateFormData('grantedPowers.categoryIds', categoryIds);
-                        }}
-                        className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500"
-                      />
-                      <div>
-                        <div className="font-medium">{category.name}</div>
-                        <div className="text-sm text-gray-600">{category.description}</div>
-                      </div>
-                    </label>
-                  ))}
-                </div>
-              </>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {powerCategories.map((category) => (
+                  <label key={category.id} className="flex items-start space-x-3 cursor-pointer p-4 border rounded-lg hover:bg-gray-50">
+                    <input
+                      type="checkbox"
+                      checked={formData.grantedPowers.categoryIds.includes(category.id)}
+                      onChange={(e) => {
+                        const categoryIds = e.target.checked
+                          ? [...formData.grantedPowers.categoryIds, category.id]
+                          : formData.grantedPowers.categoryIds.filter(id => id !== category.id);
+                        updateFormData('grantedPowers.categoryIds', categoryIds);
+                      }}
+                      className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500"
+                    />
+                    <div>
+                      <div className="font-medium">{category.categoryName}</div>
+                      <div className="text-sm text-gray-600">{category.plainLanguageDesc}</div>
+                    </div>
+                  </label>
+                ))}
+              </div>
             )}
           </div>
         );
