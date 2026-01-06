@@ -213,8 +213,8 @@ export async function POST(request: Request) {
         fileName: filename,
         fileType: 'application/pdf',
         fileSize: buffer.length,
-        // Link to the actual POA record
-        metadata: {
+        // Link to the actual POA record in content field
+        content: {
           poaId: poa.id,
           poaType: data.poaType
         }
