@@ -972,7 +972,6 @@ export default function UnifiedPOAWizard(): JSX.Element {
           isLastStep={currentStep === getCurrentSteps()}
           isSubmitting={isSubmitting}
         >
-        >
           {renderStepContent()}
         </WizardStep>
       </div>
