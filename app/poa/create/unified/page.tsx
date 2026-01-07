@@ -1,4 +1,3 @@
-// app/poa/create/unified/page.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -957,16 +956,22 @@ export default function UnifiedPOAWizard(): JSX.Element {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <DisclaimerBanner />
 
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-red-800">{error}</p>
+          </div>
+        )}
+
         <WizardStep
           currentStep={currentStep}
           totalSteps={getCurrentSteps()}
           title={getStepTitle()}
-          onNext={handleNext}
-          onPrevious={handlePrevious}
-          onSubmit={handleSubmit}
+          onNext={currentStep === getCurrentSteps() ? handleSubmit : handleNext}
+          onBack={currentStep > 1 ? handlePrevious : undefined}
           canGoNext={validateStep(currentStep)}
+          isLastStep={currentStep === getCurrentSteps()}
           isSubmitting={isSubmitting}
-          error={error}
+        >
         >
           {renderStepContent()}
         </WizardStep>
