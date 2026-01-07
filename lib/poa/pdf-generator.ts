@@ -390,6 +390,80 @@ export async function generateFinancialPOAPDF(
 }
 
 // ============================================
+// PDF GENERATION - REVOCATION POA
+// ============================================
+
+export async function generateRevocationPDF(params: {
+  poa: any;
+  revocation: any;
+  principal: any;
+}): Promise<PDFGenerationResult> {
+  const { poa, revocation, principal } = params;
+
+  // Create a new PDF document
+  const pdfDoc = await PDFDocument.create();
+  
+  // Embed fonts
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  
+  // Page setup
+  let page = pdfDoc.addPage([612, 792]); // Letter size
+  let { width, height } = page.getSize();
+  let y = height - 50;
+  const margin = 72;
+  const lineHeight = 14;
+
+  // Helper function
+  const writeText = (text: string, size = 12, bold = false, indent = 0) => {
+    const currentFont = bold ? fontBold : font;
+    page.drawText(text, {
+      x: margin + indent,
+      y: y,
+      size: size,
+      font: currentFont,
+      color: rgb(0, 0, 0),
+    });
+    y -= lineHeight + 2;
+  };
+
+  // Title
+  writeText('REVOCATION OF POWER OF ATTORNEY', 14, true);
+  y -= 20;
+
+  // Principal information
+  writeText(`I, ${principal.fullName}, hereby revoke the Power of Attorney`, 12, false);
+  writeText(`dated ${new Date(poa.createdAt).toLocaleDateString()} and all authority`, 12, false);
+  writeText('granted thereunder to any agent(s) named therein.', 12, false);
+  y -= 20;
+
+  // Revocation details
+  writeText(`Reason for revocation: ${revocation.reason || 'Not specified'}`, 11, false);
+  writeText(`Date of revocation: ${new Date(revocation.revokedAt).toLocaleDateString()}`, 11, false);
+  y -= 40;
+
+  // Signature section
+  writeText('PRINCIPAL SIGNATURE', 12, true);
+  y -= 30;
+  writeText('_________________________________', 11, false);
+  writeText(principal.fullName, 11, false);
+  writeText(`Date: ${new Date().toLocaleDateString()}`, 11, false);
+
+  // Generate filename
+  const date = new Date().toISOString().split('T')[0].replace(/-/g, '');
+  const filename = `poa_revocation_${principal.fullName.toLowerCase().replace(/\s+/g, '_')}_${date}.pdf`;
+
+  // Generate PDF buffer
+  const pdfBytes = await pdfDoc.save();
+  
+  return {
+    buffer: Buffer.from(pdfBytes),
+    filename,
+    pageCount: pdfDoc.getPageCount()
+  };
+}
+
+// ============================================
 // PDF GENERATION - HEALTHCARE POA
 // ============================================
 
