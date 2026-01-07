@@ -396,9 +396,9 @@ export async function generateFinancialPOAPDF(
 export async function generateRevocationPDF(params: {
   poa: any;
   revocation: any;
-  principal: any;
+  revokedAt: Date;
 }): Promise<PDFGenerationResult> {
-  const { poa, revocation, principal } = params;
+  const { poa, revocation, revokedAt } = params;
 
   // Create a new PDF document
   const pdfDoc = await PDFDocument.create();
@@ -432,26 +432,26 @@ export async function generateRevocationPDF(params: {
   y -= 20;
 
   // Principal information
-  writeText(`I, ${principal.fullName}, hereby revoke the Power of Attorney`, 12, false);
+  writeText(`I, ${poa.principalName}, hereby revoke the Power of Attorney`, 12, false);
   writeText(`dated ${new Date(poa.createdAt).toLocaleDateString()} and all authority`, 12, false);
   writeText('granted thereunder to any agent(s) named therein.', 12, false);
   y -= 20;
 
   // Revocation details
   writeText(`Reason for revocation: ${revocation.reason || 'Not specified'}`, 11, false);
-  writeText(`Date of revocation: ${new Date(revocation.revokedAt).toLocaleDateString()}`, 11, false);
+  writeText(`Date of revocation: ${new Date(revokedAt).toLocaleDateString()}`, 11, false);
   y -= 40;
 
   // Signature section
   writeText('PRINCIPAL SIGNATURE', 12, true);
   y -= 30;
   writeText('_________________________________', 11, false);
-  writeText(principal.fullName, 11, false);
+  writeText(poa.principalName, 11, false);
   writeText(`Date: ${new Date().toLocaleDateString()}`, 11, false);
 
   // Generate filename
   const date = new Date().toISOString().split('T')[0].replace(/-/g, '');
-  const filename = `poa_revocation_${principal.fullName.toLowerCase().replace(/\s+/g, '_')}_${date}.pdf`;
+  const filename = `poa_revocation_${poa.principalName.toLowerCase().replace(/\s+/g, '_')}_${date}.pdf`;
 
   // Generate PDF buffer
   const pdfBytes = await pdfDoc.save();
