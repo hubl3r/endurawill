@@ -265,7 +265,7 @@ export async function generateFinancialPOAPDF(
     writePowerCategory(
       category, 
       isThisCategorySelected, 
-      category.letter === 'm' ? data.specialInstructions : undefined
+      category.letter === 'm' ? data.additionalInstructions : undefined
     );
   });
 
