@@ -169,33 +169,7 @@ const LIABILITY_CLAUSES = [
   }
 ];
 
-// Limitation options by power category
-const LIMITATION_OPTIONS = {
-  financial: [
-    'No transactions over $10,000 without co-agent approval',
-    'No transactions over $25,000 without court approval',
-    'No transactions over $50,000 without family notification',
-    'Agent must provide monthly accounting to [designated person]',
-    'Agent must provide annual accounting to [designated person]',
-    'No self-dealing transactions',
-    'No gifts exceeding annual exclusion except to descendants',
-    'No changes to beneficiary designations',
-    'No changes to retirement account beneficiaries',
-    'Powers expire 5 years from execution date',
-    'Powers expire upon Principal\'s recovery of capacity',
-    'All real estate transactions require court approval'
-  ],
-  healthcare: [
-    'No withholding nutrition/hydration unless terminal',
-    'No experimental treatment without ethics committee approval',
-    'No psychiatric treatment without second opinion',
-    'No organ donation without family consultation',
-    'No DNR orders without consulting [named person]',
-    'Agent must consult with attending physician before major decisions',
-    'Agent must follow any existing advance directive',
-    'No transfer to long-term care without family meeting'
-  ]
-};
+// Hot Powers consent step content following the financial powers
 
 export default function ProfessionalPOAWizard(): JSX.Element {
   const [currentStep, setCurrentStep] = useState(1);
@@ -1081,71 +1055,6 @@ export default function ProfessionalPOAWizard(): JSX.Element {
                 Consider leaving these unchecked and creating specific limited powers of attorney 
                 for these purposes only when needed, with clear instructions and limitations.
               </p>
-            </div>
-          </div>
-        );
-        return (
-          <div className="space-y-6">
-            <h3 className="text-lg font-medium mb-4">Limitations and Restrictions</h3>
-            <p className="text-sm text-gray-600 mb-6">
-              Add specific limitations to control how your agent exercises the powers you've granted.
-            </p>
-
-            {formData.poaTypes.includes('financial') && (
-              <div className="space-y-4">
-                <h4 className="font-medium text-gray-900">Financial Limitations</h4>
-                <div className="space-y-2">
-                  {LIMITATION_OPTIONS.financial.map((limitation, index) => (
-                    <label key={index} className="flex items-start space-x-3 cursor-pointer p-3 border rounded-lg hover:bg-gray-50">
-                      <input
-                        type="checkbox"
-                        checked={formData.limitations.financialLimitations.includes(limitation)}
-                        onChange={(e) => {
-                          const limitations = e.target.checked
-                            ? [...formData.limitations.financialLimitations, limitation]
-                            : formData.limitations.financialLimitations.filter(l => l !== limitation);
-                          updateFormData('limitations.financialLimitations', limitations);
-                        }}
-                        className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500"
-                      />
-                      <span className="text-sm">{limitation}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {formData.poaTypes.includes('healthcare') && (
-              <div className="space-y-4">
-                <h4 className="font-medium text-gray-900">Healthcare Limitations</h4>
-                <div className="space-y-2">
-                  {LIMITATION_OPTIONS.healthcare.map((limitation, index) => (
-                    <label key={index} className="flex items-start space-x-3 cursor-pointer p-3 border rounded-lg hover:bg-gray-50">
-                      <input
-                        type="checkbox"
-                        checked={formData.limitations.healthcareLimitations.includes(limitation)}
-                        onChange={(e) => {
-                          const limitations = e.target.checked
-                            ? [...formData.limitations.healthcareLimitations, limitation]
-                            : formData.limitations.healthcareLimitations.filter(l => l !== limitation);
-                          updateFormData('limitations.healthcareLimitations', limitations);
-                        }}
-                        className="mt-1 h-4 w-4 text-green-600 focus:ring-green-500"
-                      />
-                      <span className="text-sm">{limitation}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="space-y-4">
-              <h4 className="font-medium text-gray-900">Custom Limitations</h4>
-              <textarea
-                rows={4}
-                placeholder="Enter any additional limitations or restrictions not covered above..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
             </div>
           </div>
         );
