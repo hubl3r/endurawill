@@ -74,7 +74,7 @@ model Tenant {
   healthcarePOAs     HealthcarePOA[] @relation("HealthcarePOAs")
   poaRevocations     POARevocation[] @relation("POARevocations")
   
-  // NEW: Wizard System Relations
+  // Wizard Relations
   wizardProgress     WizardProgress[]
   
   @@index([type])
@@ -129,7 +129,7 @@ model User {
   uploadedStatutoryForms StatutoryPOAForm[] @relation("UploadedStatutoryForms")
   uploadedNotaryTemplates NotaryBlockTemplate[] @relation("UploadedNotaryTemplates")
   
-  // NEW: Wizard System Relations
+  // Wizard Relations
   wizardProgress        WizardProgress[]
   
   @@unique([tenantId, clerkId])
@@ -1013,9 +1013,6 @@ model PowerOfAttorney {
   revocations       POARevocation[]
   auditLogs         POAAuditLog[]
   
-  // NEW: Power limitations relation
-  limitations       PowerLimitation[]
-  
   createdById     String?
   createdBy       User?    @relation("CreatedPOAs", fields: [createdById], references: [id], onDelete: SetNull)
   createdAt       DateTime @default(now())
@@ -1660,128 +1657,11 @@ model StateSpecialRequirement {
   @@index([state, requirementType, isActive])
 }
 
+
 // ============================================
-// NEW: WIZARD SYSTEM & POWER LIMITATIONS  
+// WIZARD PROGRESS TRACKING
 // ============================================
-// Added for scalable POA wizard - no existing models modified
 
-// Power categories with state-specific configurations
-model PowerCategory {
-  id                  String  @id @default(uuid())
-  
-  // Core category info
-  categoryName        String  // "Real Estate", "Banking", etc.
-  shortCode          String  // "RE", "BANK", etc.
-  plainLanguageDesc  String  @db.Text
-  
-  // State-specific configurations
-  state              String
-  letterCode         String? // "a", "b", "c" for Tennessee-style
-  isStandardPower    Boolean @default(true)
-  isHotPower         Boolean @default(false)
-  
-  // Legal text and descriptions
-  statutoryLanguage  String  @db.Text
-  exampleActions     Json?   // Array of example actions
-  commonLimitations  Json?   // Array of common limitation types
-  
-  // Ordering and display
-  displayOrder       Int
-  isActive          Boolean @default(true)
-  
-  // Relations
-  limitations       PowerLimitation[]
-  subPowers         SubPower[]
-  
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  
-  @@unique([state, shortCode])
-  @@index([state, isActive])
-}
-
-// Sub-powers within categories (optional granular control)
-model SubPower {
-  id                String  @id @default(uuid())
-  categoryId        String
-  category          PowerCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  
-  subPowerName      String
-  shortCode         String
-  description       String  @db.Text
-  
-  // Examples: Under "Banking" -> "Open accounts", "Close accounts", "Wire transfers"
-  isHighRisk        Boolean @default(false)
-  requiresSeparateConsent Boolean @default(false)
-  
-  displayOrder      Int
-  isActive          Boolean @default(true)
-  
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  
-  @@unique([categoryId, shortCode])
-  @@index([categoryId])
-}
-
-// Individual power limitations per POA
-model PowerLimitation {
-  id                String  @id @default(uuid())
-  
-  // Link to POA and power
-  poaId             String
-  poa               PowerOfAttorney @relation(fields: [poaId], references: [id], onDelete: Cascade)
-  
-  categoryId        String
-  category          PowerCategory @relation(fields: [categoryId], references: [id])
-  
-  // Limitation type and configuration
-  limitationType    String  // "financial_cap", "approval_requirement", "prohibition", "time_restriction", "custom"
-  
-  // Financial caps
-  dollarLimit       Decimal? @db.Decimal(15, 2)
-  transactionLimit  Decimal? @db.Decimal(15, 2)
-  monthlyLimit      Decimal? @db.Decimal(15, 2)
-  annualLimit       Decimal? @db.Decimal(15, 2)
-  
-  // Approval requirements
-  requiresCoAgent   Boolean @default(false)
-  requiresCourtApproval Boolean @default(false)
-  requiresFamilyNotification Boolean @default(false)
-  notificationDays  Int?    // Days advance notice required
-  notificationParties Json? // Array of people to notify
-  
-  // Prohibitions
-  prohibitSelfDealing Boolean @default(false)
-  prohibitGifting    Boolean @default(false)
-  prohibitBeneficiaryChanges Boolean @default(false)
-  prohibitedActions  Json?   // Array of specific prohibited actions
-  
-  // Time restrictions
-  effectiveDate     DateTime?
-  expirationDate    DateTime?
-  limitedDuration   String?  // "90 days", "1 year", etc.
-  daysOfWeek        Json?    // Array of allowed days
-  hoursOfDay        Json?    // Allowed time ranges
-  
-  // Custom limitations
-  customText        String?  @db.Text
-  customConditions  Json?    // Structured custom conditions
-  
-  // Monitoring and reporting
-  requiresMonthlyReport Boolean @default(false)
-  requiresQuarterlyReport Boolean @default(false)
-  reportingParties  Json?    // Who gets reports
-  
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  
-  @@unique([poaId, categoryId, limitationType])
-  @@index([poaId])
-  @@index([categoryId])
-}
-
-// Wizard progress tracking for scalable multi-document system
 model WizardProgress {
   id                String  @id @default(uuid())
   
@@ -1791,26 +1671,21 @@ model WizardProgress {
   userId            String
   user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   
-  // Wizard identification
-  documentType      String  // "financial-poa", "medical-poa", "will", "trust"
+  documentType      String
   sessionId         String  @unique
   
-  // Progress tracking
   currentSection    String
   currentStep       String
-  completedSections Json    // Array of completed section IDs
-  completedSteps    Json    // Array of completed step IDs
+  completedSections Json
+  completedSteps    Json
   
-  // Form data (encrypted for sensitive info)
-  formData          Json    // All form data as JSON
-  validationErrors  Json?   // Current validation errors
+  formData          Json
+  validationErrors  Json?
   
-  // Timing and metadata
-  estimatedCompletion Int?  // Minutes
-  timeSpent         Int     @default(0) // Minutes
+  estimatedCompletion Int?
+  timeSpent         Int     @default(0)
   lastActivity      DateTime @default(now())
   
-  // Status
   isCompleted       Boolean @default(false)
   isAbandoned       Boolean @default(false)
   abandonedReason   String?
@@ -1822,32 +1697,4 @@ model WizardProgress {
   @@index([userId])
   @@index([sessionId])
   @@index([lastActivity])
-}
-
-// State-specific power configurations for legal compliance
-model StatePowerConfiguration {
-  id                String  @id @default(uuid())
-  
-  state             String
-  powerCategoryId   String
-  
-  // State-specific overrides
-  isRecognized      Boolean @default(true)
-  isRecommended     Boolean @default(true)
-  requiresSpecialConsent Boolean @default(false)
-  
-  // Display and legal text
-  stateSpecificName String?
-  stateLanguage     String? @db.Text
-  warningText       String? @db.Text
-  
-  // Common limitations for this state/power combo
-  recommendedLimitations Json? // Array of limitation templates
-  prohibitedActions Json?      // Actions banned by state law
-  
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  
-  @@unique([state, powerCategoryId])
-  @@index([state])
 }
