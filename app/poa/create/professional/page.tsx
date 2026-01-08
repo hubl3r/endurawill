@@ -42,7 +42,7 @@ interface FormData {
   
   // Agents with proper address schema
   agents: Array<{
-    type: 'primary' | 'successor' | 'co_agent';
+    type: 'primary' | 'successor' | 'co-agent';
     fullName: string;
     email?: string;
     phone?: string;
@@ -817,8 +817,32 @@ export default function ProfessionalPOAWizard(): JSX.Element {
             </p>
 
             <AgentForm
-              agents={formData.agents}
-              onChange={(agents) => updateFormData('agents', agents)}
+              agents={formData.agents.map(agent => ({
+                type: agent.type,
+                fullName: agent.fullName,
+                email: agent.email || '',
+                address: agent.address.street,
+                city: agent.address.city,
+                state: agent.address.state,
+                zipCode: agent.address.zipCode,
+              }))}
+              onChange={(flatAgents) => {
+                const nestedAgents = flatAgents.map(flatAgent => ({
+                  type: flatAgent.type,
+                  fullName: flatAgent.fullName,
+                  email: flatAgent.email,
+                  phone: undefined,
+                  address: {
+                    street: flatAgent.address,
+                    city: flatAgent.city,
+                    state: flatAgent.state,
+                    zipCode: flatAgent.zipCode,
+                  },
+                  relationship: undefined,
+                  order: undefined,
+                }));
+                updateFormData('agents', nestedAgents);
+              }}
               states={states}
             />
           </div>
