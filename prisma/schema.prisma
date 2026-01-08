@@ -540,10 +540,10 @@ model Delegate {
   fullName    String
   role        String
   
-  invitedById String
-  invitedBy   User     @relation("InvitedBy", fields: [invitedById], references: [id])
+  invitedById String?
+  invitedBy   User?    @relation("InvitedBy", fields: [invitedById], references: [id])
   
-  permissions Json
+  permissions Json     @default("{}")
   
   status      String   @default("pending")
   expiresAt   DateTime
@@ -571,7 +571,7 @@ model AuditLog {
   user      User?    @relation(fields: [userId], references: [id])
   
   action    String
-  resource  String
+  resource  String   @default("unknown")
   resourceId String?
   
   oldValues Json?
@@ -597,7 +597,7 @@ model Account {
   tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   
   accountName     String
-  accountType     String
+  accountType     String   @default("checking")
   institution     String?
   
   accountNumber   String?
