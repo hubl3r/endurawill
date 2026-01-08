@@ -100,6 +100,44 @@ export const createFinancialPOASchema = z.object({
   useStatutoryForm: z.boolean().default(true),
   additionalInstructions: z.string().optional(),
   
+  // Professional POA Features
+  
+  // Limitations and Restrictions
+  limitations: z.object({
+    financialLimitations: z.array(z.string()).optional(),
+    prohibitedActions: z.array(z.string()).optional(),
+    reportingRequirements: z.array(z.string()).optional(),
+    timeRestrictions: z.array(z.string()).optional(),
+    customLimitations: z.string().optional(),
+  }).optional(),
+  
+  // Authority Clauses
+  authorityClausesSelected: z.array(z.enum([
+    'third_party_reliance',
+    'no_inquiry',
+    'hot_powers_initials'
+  ])).default(['third_party_reliance']),
+  
+  // Liability Clauses  
+  liabilityClausesSelected: z.array(z.enum([
+    'good_faith',
+    'no_liability_inaction',
+    'indemnification'
+  ])).default(['good_faith']),
+  
+  // Compensation
+  compensationType: z.enum(['none', 'reasonable', 'hourly', 'professional']).default('reasonable'),
+  hourlyRate: z.number().positive().optional(),
+  
+  // Execution Requirements (state-specific)
+  executionRequirements: z.object({
+    notaryRequired: z.boolean().default(true),
+    witnessesRequired: z.boolean().default(false),
+    witnessCount: z.number().int().min(0).max(4).default(0),
+    additionalWitnesses: z.boolean().default(false),
+    additionalNotarization: z.boolean().default(false),
+  }).optional(),
+  
 }).refine(
   (data) => {
     // If springing, require springing fields
@@ -180,6 +218,12 @@ export const createHealthcarePOASchema = z.object({
 
   // Additional Directives
   additionalDirectives: z.string().optional(),
+  
+  // Healthcare Limitations
+  limitations: z.object({
+    healthcareLimitations: z.array(z.string()).optional(),
+    customDirectives: z.string().optional(),
+  }).optional(),
 
   // Organ Donation Preferences
   organDonation: z.enum([
