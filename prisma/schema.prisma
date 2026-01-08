@@ -633,8 +633,8 @@ model Account {
   linkAccessToken String?
   lastSynced      DateTime?
   
-  paymentFrequency PaymentFrequency @default(NONE)
-  paymentAmount   Decimal?          @db.Decimal(10, 2)
+  paymentFrequency PaymentFrequency @default(MONTHLY)
+  anticipatedAmount   Decimal?          @db.Decimal(10, 2)
   nextPaymentDate DateTime?
   
   calculationMode CalculationMode   @default(AUTOMATIC)
