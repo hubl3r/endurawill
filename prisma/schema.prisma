@@ -1,6 +1,6 @@
 // Endurawill - Production-Ready Database Schema
 // Built for scale, audit trails, and granular permissions
-// Version: 2.1 - Added Account Management System
+// Version: 2.2 - Added Scalable Wizard Architecture & Power Limitations
 
 generator client {
   provider = "prisma-client-js"
@@ -74,6 +74,9 @@ model Tenant {
   healthcarePOAs     HealthcarePOA[] @relation("HealthcarePOAs")
   poaRevocations     POARevocation[] @relation("POARevocations")
   
+  // NEW: Wizard System Relations
+  wizardProgress     WizardProgress[]
+  
   @@index([type])
 }
 
@@ -125,6 +128,9 @@ model User {
   healthcarePOAAuditLogs HealthcarePOAAuditLog[] @relation("UserHealthcarePOAAuditLogs")
   uploadedStatutoryForms StatutoryPOAForm[] @relation("UploadedStatutoryForms")
   uploadedNotaryTemplates NotaryBlockTemplate[] @relation("UploadedNotaryTemplates")
+  
+  // NEW: Wizard System Relations
+  wizardProgress        WizardProgress[]
   
   @@unique([tenantId, clerkId])
   @@index([clerkId])
@@ -281,56 +287,84 @@ model TenantSettings {
 }
 
 // ============================================
-// DOCUMENTS = Wills, Trusts, Directives
+// SESSION = User authentication sessions
 // ============================================
-model Document {
+model Session {
   id        String   @id @default(uuid())
-  tenantId  String
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
-  isFolder     Boolean  @default(false)
-  parentId     String?
-  parent       Document? @relation("FolderHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
-  children     Document[] @relation("FolderHierarchy")
+  sessionId String   @unique
+  clientIP  String?
+  userAgent String?
   
-  type      String
-  title     String
-  description String? @db.Text
-  content   Json?
-  
-  fileUrl   String?
-  fileName  String?
-  fileType  String?
-  fileSize  Int?
-  
-  version   Int      @default(1)
-  status    String   @default("draft")
-  
-  signedAt  DateTime?
-  signedBy  Json?
-  witnessedBy Json?
-  
-  createdById  String?
-  createdBy    User?   @relation("CreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  modifiedById String?
-  modifiedBy   User?   @relation("ModifiedBy", fields: [modifiedById], references: [id], onDelete: SetNull)
+  isActive  Boolean  @default(true)
+  lastSeen  DateTime @default(now())
+  expiresAt DateTime
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   
-  accessLogs DocumentAccess[]
-  comments   Comment[]
-  
-  @@index([tenantId])
-  @@index([type])
-  @@index([status])
-  @@index([createdById])
-  @@index([parentId])
-  @@index([isFolder])
+  @@index([userId, isActive])
+  @@index([sessionId])
 }
 
 // ============================================
-// COMMENTS = Document comments
+// DOCUMENT = Files and folders in the system
+// ============================================
+model Document {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  
+  isFolder    Boolean  @default(false)
+  type        String?
+  parentId    String?
+  parent      Document? @relation("SubDocuments", fields: [parentId], references: [id])
+  children    Document[] @relation("SubDocuments")
+  
+  status      String   @default("active")
+  
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  createdById  String
+  createdBy    User     @relation("CreatedBy", fields: [createdById], references: [id])
+  
+  modifiedById String?
+  modifiedBy   User?    @relation("ModifiedBy", fields: [modifiedById], references: [id])
+  
+  fileUrl     String?
+  fileName    String?
+  fileType    String?
+  fileSize    Int?
+  
+  content     Json?
+  
+  tags        String[]
+  
+  isShared    Boolean  @default(false)
+  sharedWith  String[]
+  
+  isPublic    Boolean  @default(false)
+  publicUrl   String?
+  
+  version     Int      @default(1)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  comments    Comment[]
+  
+  @@index([tenantId])
+  @@index([createdById])
+  @@index([type])
+  @@index([status])
+  @@index([parentId])
+}
+
+// ============================================
+// COMMENT = Document comments
 // ============================================
 model Comment {
   id         String   @id @default(uuid())
@@ -338,66 +372,57 @@ model Comment {
   document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
   
   userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id])
   
   content    String   @db.Text
+  isResolved Boolean  @default(false)
   
-  parentCommentId String?
-  parentComment   Comment?  @relation("CommentReplies", fields: [parentCommentId], references: [id], onDelete: Cascade)
-  replies         Comment[] @relation("CommentReplies")
-  
-  isEdited   Boolean  @default(false)
-  editedAt   DateTime?
+  parentId   String?
+  parent     Comment? @relation("Replies", fields: [parentId], references: [id])
+  replies    Comment[] @relation("Replies")
   
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
   
   @@index([documentId])
   @@index([userId])
-  @@index([parentCommentId])
 }
 
 // ============================================
-// ASSETS = Property, accounts, valuables
+// ASSET = Assets in the estate
 // ============================================
 model Asset {
-  id          String   @id @default(uuid())
-  tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id           String   @id @default(uuid())
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   
-  type        String
-  description String
+  category     String
+  subcategory  String?
+  name         String
+  description  String?
   
-  estimatedValue Decimal? @db.Decimal(15, 2)
-  currency       String   @default("USD")
-  valuationDate  DateTime?
+  currentValue Decimal? @db.Decimal(15, 2)
+  basisValue   Decimal? @db.Decimal(15, 2)
   
-  accountNumber  String?
-  institution    String?
-  location       String?
-  serialNumber   String?
+  location     String?
+  accountNumber String?
   
-  ownershipType  String   @default("joint")
-  ownedBy        Json?
-  ownershipPct   Json?
+  isJointlyOwned Boolean @default(false)
+  ownershipPercentage Decimal? @db.Decimal(5, 2)
   
-  hasBeneficiary Boolean  @default(false)
-  beneficiaryInfo Json?
+  beneficiaryDesignation String?
   
-  notes          String?
-  attachments    Json?
+  metadata     Json?
   
-  dispositionInstructions String?
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
   
   @@index([tenantId])
-  @@index([type])
+  @@index([category])
 }
 
 // ============================================
-// LIABILITIES = Debts, mortgages, loans
+// LIABILITY = Debts and liabilities
 // ============================================
 model Liability {
   id          String   @id @default(uuid())
@@ -405,167 +430,137 @@ model Liability {
   tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   
   type        String
-  description String
-  creditor    String?
+  creditor    String
+  description String?
   
-  amount      Decimal  @db.Decimal(15, 2)
-  currency    String   @default("USD")
+  balance     Decimal  @db.Decimal(15, 2)
+  monthlyPayment Decimal? @db.Decimal(10, 2)
+  
+  isSecured   Boolean  @default(false)
+  collateral  String?
   
   accountNumber String?
-  interestRate  Decimal? @db.Decimal(5, 2)
   
-  paymentSchedule String?
-  monthlyPayment  Decimal? @db.Decimal(15, 2)
+  metadata    Json?
   
-  notes       String?
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
   
   @@index([tenantId])
   @@index([type])
 }
 
 // ============================================
-// BENEFICIARIES = Who inherits what
+// BENEFICIARY = People who inherit
 // ============================================
 model Beneficiary {
+  id           String   @id @default(uuid())
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  type         String
+  fullName     String
+  relationship String?
+  
+  contactInfo  Json?
+  address      Json?
+  
+  percentage   Decimal? @db.Decimal(5, 2)
+  contingent   Boolean  @default(false)
+  
+  notes        String?
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  @@index([tenantId])
+  @@index([type])
+}
+
+// ============================================
+// DIRECTIVE = Healthcare and personal directives
+// ============================================
+model Directive {
   id          String   @id @default(uuid())
   tenantId    String
   tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   
-  fullName    String
-  relationship String
-  email       String?
-  phone       String?
-  address     Json?
+  type        String
+  title       String
+  content     String   @db.Text
   
-  isPrimary   Boolean  @default(true)
-  isCharity   Boolean  @default(false)
-  charityTaxId String?
+  isActive    Boolean  @default(true)
+  effectiveDate DateTime?
+  expirationDate DateTime?
   
-  shareType   String   @default("percentage")
-  shareValue  Decimal? @db.Decimal(15, 2)
-  sharePercent Decimal? @db.Decimal(5, 2)
+  witnessInfo Json?
+  notaryInfo  Json?
   
-  conditions  String?
-  trusteeInfo Json?
-  
-  notes       String?
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
   
   @@index([tenantId])
-  @@index([relationship])
+  @@index([type])
 }
 
 // ============================================
-// DELEGATE = Someone with access to estate
+// FINAL ARRANGEMENT = End-of-life preferences
+// ============================================
+model FinalArrangement {
+  id            String   @id @default(uuid())
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  type          String
+  preferences   Json
+  
+  servicePlans  Json?
+  contactInfo   Json?
+  
+  specialInstructions String? @db.Text
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@index([tenantId])
+}
+
+// ============================================
+// DELEGATE = Temporary access users
 // ============================================
 model Delegate {
   id          String   @id @default(uuid())
   tenantId    String
   tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   
-  invitedByUserId String
-  invitedBy       User    @relation("InvitedBy", fields: [invitedByUserId], references: [id], onDelete: Restrict)
+  userId      String?  @unique
+  user        User?    @relation("DelegateUser", fields: [userId], references: [id])
   
-  fullName    String
   email       String
-  phone       String?
-  relationship String
+  fullName    String
+  role        String
   
-  hasAccount      Boolean  @default(false)
-  userId          String?  @unique
-  user            User?    @relation("DelegateUser", fields: [userId], references: [id], onDelete: SetNull)
+  invitedById String
+  invitedBy   User     @relation("InvitedBy", fields: [invitedById], references: [id])
   
-  status          String   @default("invited")
-  isApproved      Boolean  @default(false)
-  approvedBy      String?
-  approvedAt      DateTime?
+  permissions Json
   
-  invitationToken  String?  @unique
-  invitedAt        DateTime @default(now())
-  lastInviteSentAt DateTime?
-  acceptedAt       DateTime?
-  expiresAt        DateTime?
-  revokedAt        DateTime?
-  revokedBy        String?
+  status      String   @default("pending")
+  expiresAt   DateTime
   
-  canAccessWhen   String   @default("after_death")
-  customTrigger   String?
+  acceptedAt  DateTime?
+  revokedAt   DateTime?
   
-  documentPermissions    Json? @default("{ \"default\": { \"view\": false, \"edit\": false, \"delete\": false, \"download\": false, \"share\": false }, \"overrides\": {} }")
-  assetPermissions       Json? @default("{ \"default\": { \"view\": false, \"edit\": false, \"delete\": false, \"download\": false, \"share\": false }, \"overrides\": {} }")
-  liabilityPermissions   Json? @default("{ \"default\": { \"view\": false, \"edit\": false, \"delete\": false, \"download\": false, \"share\": false }, \"overrides\": {} }")
-  beneficiaryPermissions Json? @default("{ \"view\": false, \"edit\": false, \"delete\": false }")
-  settingsPermissions    Json? @default("{ \"view\": false, \"edit\": false }")
-  profilePermissions     Json? @default("{ \"view\": false, \"edit\": false }")
-  
-  hasAnyPermissions Boolean @default(false)
-  
-  poaPermissions  Json?
-  poaStartDate    DateTime?
-  poaEndDate      DateTime?
-  
-  lastAccessedAt  DateTime?
-  accessCount     Int      @default(0)
-  lastNotifiedAt  DateTime?
-  
-  notes           String?
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
-  auditLogs AuditLog[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
   
   @@index([tenantId])
   @@index([email])
   @@index([status])
-  @@index([hasAccount])
-  @@index([invitedByUserId])
 }
 
 // ============================================
-// DIRECTIVES = Healthcare, POA
-// ============================================
-model Directive {
-  id        String   @id @default(uuid())
-  tenantId  String
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  
-  type      String
-  content   Json
-  status    String   @default("draft")
-  
-  primaryAgent    Json?
-  alternateAgent  Json?
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
-  @@index([tenantId])
-  @@index([type])
-}
-
-// ============================================
-// FINAL ARRANGEMENTS = Funeral preferences
-// ============================================
-model FinalArrangement {
-  id        String   @id @default(uuid())
-  tenantId  String   @unique
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  
-  preference String
-  details    Json
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-// ============================================
-// AUDIT LOG = Track everything
+// AUDIT LOG = System audit trail
 // ============================================
 model AuditLog {
   id        String   @id @default(uuid())
@@ -573,701 +568,290 @@ model AuditLog {
   tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   
   userId    String?
-  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  delegateId String?
-  delegate  Delegate? @relation(fields: [delegateId], references: [id], onDelete: SetNull)
-  actorType String
-  actorName String
+  user      User?    @relation(fields: [userId], references: [id])
   
   action    String
-  category  String
+  resource  String
+  resourceId String?
   
-  resourceType String?
-  resourceId   String?
+  oldValues Json?
+  newValues Json?
   
-  details      Json?
-  result       String  @default("success")
-  errorMessage String?
-  
-  sessionId String?
   ipAddress String?
   userAgent String?
-  location  String?
   
   timestamp DateTime @default(now())
   
   @@index([tenantId])
   @@index([userId])
-  @@index([delegateId])
   @@index([action])
   @@index([timestamp])
-  @@index([category])
-  @@index([resourceType])
-}
-
-// ============================================
-// SESSION = Active login sessions
-// ============================================
-model Session {
-  id             String   @id @default(uuid())
-  userId         String
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  clerkSessionId String   @unique
-  
-  ipAddress   String
-  userAgent   String
-  browser     String?
-  os          String?
-  device      String?
-  location    String?
-  
-  loginAt        DateTime @default(now())
-  lastActivityAt DateTime @default(now())
-  logoutAt       DateTime?
-  expiresAt      DateTime
-  
-  isActive Boolean @default(true)
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
-  @@index([userId])
-  @@index([isActive])
-  @@index([clerkSessionId])
-}
-
-// ============================================
-// DOCUMENT ACCESS = Track who views what
-// ============================================
-model DocumentAccess {
-  id           String   @id @default(uuid())
-  documentId   String
-  document     Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  
-  accessorId   String
-  accessorType String
-  accessorName String
-  
-  action       String
-  
-  timestamp    DateTime @default(now())
-  ipAddress    String?
-  duration     Int?
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
-  @@index([documentId])
-  @@index([accessorId])
-  @@index([timestamp])
-  @@index([action])
 }
 
 // ============================================
 // ACCOUNT MANAGEMENT SYSTEM
 // ============================================
-
 model Account {
-  id                  String            @id @default(uuid())
-  tenantId            String
-  tenant              Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id              String   @id @default(uuid())
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   
-  category            String
-  subcategory         String?
+  accountName     String
+  accountType     String
+  institution     String?
   
-  accountName         String
-  companyName         String
-  companyAddress      String?
-  companyPhone        String?
-  companyWebsite      String?
-  accountNumber       String?
+  accountNumber   String?
+  routingNumber   String?
   
-  loginUsername       String?
-  loginPassword       String?
+  currentBalance  Decimal? @db.Decimal(15, 2)
+  availableBalance Decimal? @db.Decimal(15, 2)
   
-  paymentFrequency    PaymentFrequency  @default(MONTHLY)
-  customSchedule      Json?
-  anticipatedAmount   Decimal?          @db.Decimal(10, 2)
-  nextPaymentDate     DateTime?
+  isActive        Boolean  @default(true)
+  isLinked        Boolean  @default(false)
   
-  calculationMode     CalculationMode?  @default(MANUAL)
-  balanceRemaining    Decimal?          @db.Decimal(12, 2)
+  linkProvider    String?
+  linkAccountId   String?
+  linkAccessToken String?
+  lastSynced      DateTime?
   
-  notes               String?           @db.Text
-  isActive            Boolean           @default(true)
-  status              String            @default("ACTIVE")
+  paymentFrequency PaymentFrequency @default(NONE)
+  paymentAmount   Decimal?          @db.Decimal(10, 2)
+  nextPaymentDate DateTime?
   
-  createdAt           DateTime          @default(now())
-  updatedAt           DateTime          @updatedAt
-  createdById         String?
-  modifiedById        String?
+  calculationMode CalculationMode   @default(AUTOMATIC)
+  manualBalance   Decimal?          @db.Decimal(15, 2)
   
-  paymentHistory      PaymentHistory[]
-  attachments         AccountAttachment[]
-  financialDetails    FinancialAccountDetails?
-  loanDetails         LoanAccountDetails?
-  vehicleDetails      VehicleAccountDetails?
-  insuranceDetails    InsuranceAccountDetails?
-  propertyDetails     PropertyAccountDetails?
-  createdBy           User?             @relation("AccountCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  modifiedBy          User?             @relation("AccountModifiedBy", fields: [modifiedById], references: [id], onDelete: SetNull)
+  notes           String?
   
-  @@index([tenantId, category])
-  @@index([tenantId, nextPaymentDate])
-  @@index([tenantId, isActive])
-  @@index([createdById])
-  @@index([modifiedById])
+  createdById     String
+  createdBy       User    @relation("AccountCreatedBy", fields: [createdById], references: [id])
+  
+  modifiedById    String?
+  modifiedBy      User?   @relation("AccountModifiedBy", fields: [modifiedById], references: [id])
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  paymentHistory  PaymentHistory[]
+  attachments     AccountAttachment[]
+  
+  @@index([tenantId])
+  @@index([accountType])
+  @@index([isActive])
 }
 
 model PaymentHistory {
-  id                String        @id @default(uuid())
-  accountId         String
-  account           Account       @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  tenantId          String
-  tenant            Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id           String        @id @default(uuid())
+  tenantId     String
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   
-  // Scheduled Payment
-  dueDate           DateTime      // Original due date (keep for backward compatibility)
-  scheduledDate     DateTime?     // Alias/new field for clarity
-  scheduledAmount   Decimal       @db.Decimal(10, 2)
+  accountId    String
+  account      Account       @relation(fields: [accountId], references: [id], onDelete: Cascade)
   
-  // Manual Override for Due Date
-  manualDueDate     DateTime?     // User changed due date for this payment
-  originalDueDate   DateTime?     // Keep original for reference
+  paymentDate  DateTime
+  amount       Decimal       @db.Decimal(10, 2)
+  status       PaymentStatus @default(UPCOMING)
   
-  // Actual Payment
-  paidDate          DateTime?     // Keep for backward compatibility
-  actualDate        DateTime?     // Alias/new field for clarity
-  paidAmount        Decimal?      @db.Decimal(10, 2)
-  actualAmount      Decimal?      @db.Decimal(10, 2)
+  description  String?
+  reference    String?
   
-  // Payment Status
-  status            PaymentStatus @default(UPCOMING)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
   
-  // Partial Payments
-  partialPayments   Json?         // Array of partial payment records
-  remainingBalance  Decimal?      @db.Decimal(10, 2)
-  
-  // Payment Method
-  paymentMethod     String?       // "Checking", "Credit Card", "Cash", "Auto-Pay"
-  paidFromAccountId String?       // Reference to Asset account (future)
-  
-  // Amortization (for loans)
-  balanceAfter      Decimal?      @db.Decimal(12, 2)
-  principalPaid     Decimal?      @db.Decimal(10, 2)
-  interestPaid      Decimal?      @db.Decimal(10, 2)
-  
-  // Past Due Payoff Plan
-  payoffPlan        Json?         // Structured payoff plan if past due
-  
-  notes             String?       @db.Text
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
-  
-  @@index([accountId, dueDate])
-  @@index([tenantId, status])
-  @@index([tenantId, dueDate])
-}
-
-// ============================================
-// ACCOUNT ATTACHMENTS = Uploaded documents
-// ============================================
-model AccountAttachment {
-  id          String   @id @default(uuid())
-  accountId   String
-  account     Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  
-  fileName    String
-  fileSize    Int      // bytes
-  fileType    String   // MIME type
-  filePath    String   // S3/storage path
-  
-  description String?
-  category    String?  // "contract", "invoice", "statement", "other"
-  
-  uploadedById String?
-  uploadedBy   User?   @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  @@index([accountId])
   @@index([tenantId])
-  @@index([uploadedById])
+  @@index([accountId])
+  @@index([paymentDate])
 }
 
-model FinancialAccountDetails {
-  id                String   @id @default(uuid())
-  accountId         String   @unique
-  account           Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+model AccountAttachment {
+  id           String   @id @default(uuid())
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   
-  accountNumber     String?
-  routingNumber     String?
+  accountId    String
+  account      Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
   
-  institutionType   String?
-  accountType       String?
-  currentBalance    Decimal? @db.Decimal(12, 2)
-  interestRate      Decimal? @db.Decimal(5, 2)
+  fileName     String
+  fileType     String
+  fileSize     Int
+  fileUrl      String
   
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-}
-
-model LoanAccountDetails {
-  id                String   @id @default(uuid())
-  accountId         String   @unique
-  account           Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  uploadedById String
+  uploadedBy   User     @relation(fields: [uploadedById], references: [id])
   
-  accountNumber     String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
   
-  principalAmount   Decimal? @db.Decimal(12, 2)
-  currentBalance    Decimal? @db.Decimal(12, 2)
-  interestRate      Decimal? @db.Decimal(5, 2)
-  loanTerm          Int?
-  maturityDate      DateTime?
-  minimumPayment    Decimal? @db.Decimal(10, 2)
-  
-  loanType          String?
-  
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-}
-
-model VehicleAccountDetails {
-  id                  String   @id @default(uuid())
-  accountId           String   @unique
-  account             Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  
-  vin                 String?
-  make                String?
-  model               String?
-  year                Int?
-  licensePlate        String?
-  
-  loanAmount          Decimal? @db.Decimal(12, 2)
-  registrationExpires DateTime?
-  
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-}
-
-model InsuranceAccountDetails {
-  id                String   @id @default(uuid())
-  accountId         String   @unique
-  account           Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  
-  policyNumber      String?
-  policyType        String?
-  coverageAmount    Decimal? @db.Decimal(12, 2)
-  deductible        Decimal? @db.Decimal(10, 2)
-  
-  policyStart       DateTime?
-  policyEnd         DateTime?
-  
-  beneficiaries     String?  @db.Text
-  agentName         String?
-  agentContact      String?
-  
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-}
-
-model PropertyAccountDetails {
-  id                String   @id @default(uuid())
-  accountId         String   @unique
-  account           Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  
-  propertyAddress   String?
-  unitNumber        String?
-  propertyType      String?
-  
-  loanAmount        Decimal? @db.Decimal(12, 2)
-  interestRate      Decimal? @db.Decimal(5, 2)
-  leaseEndDate      DateTime?
-  
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  @@index([tenantId])
+  @@index([accountId])
 }
 
 // ============================================
-// POWER OF ATTORNEY SYSTEM - ADDED MODELS
+// POWER OF ATTORNEY SYSTEM
 // ============================================
-// These models are ADDED to your existing schema
-// Your existing models (Delegate, User, etc.) are UNCHANGED
-// ============================================
-
-// POA Enums
-enum POAType {
-  DURABLE
-  GENERAL
-  LIMITED
-  SPRINGING
-  HEALTHCARE
-}
-
-enum POAStatus {
-  DRAFT
-  ACTIVE
-  REVOKED
-  EXPIRED
-  DORMANT
-  ACTIVATION_PENDING
-  RECOVERED
-}
-
-// ============================================
-// POWER OF ATTORNEY (Financial)
-// ============================================
-
 model PowerOfAttorney {
-  id              String   @id @default(uuid())
-  tenantId        String
-  tenant          Tenant   @relation("PowerOfAttorneys", fields: [tenantId], references: [id], onDelete: Cascade)
+  id                String   @id @default(uuid())
+  tenantId          String
+  tenant            Tenant   @relation("PowerOfAttorneys", fields: [tenantId], references: [id], onDelete: Cascade)
   
-  principalUserId String?
-  principalUser   User?    @relation("PrincipalPOAs", fields: [principalUserId], references: [id], onDelete: SetNull)
-  principalName   String
-  principalAddress String
-  principalCity   String
-  principalState  String
-  principalZip    String
-  principalDOB    DateTime?
-  principalSSN    String?  @db.Text
-  principalPhone  String?
-  principalEmail  String?
+  principalUserId   String
+  principalUser     User     @relation("PrincipalPOAs", fields: [principalUserId], references: [id])
   
-  poaType         POAType
-  isDurable       Boolean  @default(true)
-  isLimited       Boolean  @default(false)
-  isSpringing     Boolean  @default(false)
+  principalName     String
+  principalAddress  String?
+  principalCity     String?
+  principalState    String?
+  principalZip      String?
+  principalEmail    String?
+  principalPhone    String?
+  principalDOB      DateTime?
   
-  effectiveDate   DateTime?
-  effectiveImmediately Boolean @default(true)
-  expirationDate  DateTime?
+  state             String
+  poaType           String
+  isDurable         Boolean  @default(false)
+  isLimited         Boolean  @default(false)
+  isSpringing       Boolean  @default(false)
   
-  springingStatus         String?
-  springingCondition      String?  @db.Text
-  requiresPhysicianCert   Boolean  @default(false)
-  numberOfPhysiciansReq   Int      @default(1)
-  physicianCertifications PhysicianCertification[]
-  activatedAt             DateTime?
-  activationNotifiedTo    Json?
-  recoveryCertification   String?
-  recoveredAt             DateTime?
-  physicianCertCost       Decimal? @db.Decimal(10, 2)
+  effectiveImmediately    Boolean @default(true)
+  expirationDate          DateTime?
   
-  status          POAStatus @default(DRAFT)
+  springingCondition      String?
+  requiresPhysicianCert   Boolean @default(false)
+  numberOfPhysiciansReq   Int     @default(1)
   
-  grantedPowers   POAGrantedPower[]
-  excludedPowers  Json?
-  limitations     String?  @db.Text
+  status            String   @default("draft")
+  
+  hasCoAgents             Boolean @default(false)
+  coAgentsMustActJointly  Boolean @default(false)
+  
+  usesStatutoryForm Boolean  @default(false)
   specialInstructions String? @db.Text
   
-  intendedUse     String   @default("general")
-  willBeRecorded  Boolean  @default(false)
-  
-  agentCompensation       Boolean  @default(false)
-  compensationDetails     String?  @db.Text
-  requireDualSignatures   Boolean  @default(false)
-  dualSignatureThreshold  Decimal? @db.Decimal(12, 2)
-  requireAnnualAccounting Boolean  @default(false)
-  
-  hasCoAgents             Boolean  @default(false)
-  coAgentsMustActJointly  Boolean  @default(false)
-  
-  notaryBlockType String?
-  notaryState     String?
-  notaryCounty    String?
-  notarizedAt     DateTime?
-  notaryName      String?
-  notaryCommission String?
-  notaryExpiration DateTime?
-  onlineNotarization Boolean @default(false)
-  
-  requiresWitnesses       Boolean  @default(false)
-  numberOfWitnesses       Int?
-  witnesses               POAWitness[]
-  
-  state                   String
-  usesStatutoryForm       Boolean  @default(false)
-  statutoryFormId         String?
-  statutoryForm           StatutoryPOAForm? @relation(fields: [statutoryFormId], references: [id])
+  notaryName        String?
+  notaryCommission  String?
+  notaryExpiration  DateTime?
+  notaryCounty      String?
+  notaryState       String?
   
   generatedDocument String?
-  signedDocument    String?
-  documentTemplateUsed String?
   
-  recordedAt        DateTime?
-  recordingCounty   String?
-  recordingBookPage String?
+  createdById       String
+  createdBy         User     @relation("CreatedPOAs", fields: [createdById], references: [id])
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // NEW: Enhanced Professional Features
+  limitations       PowerLimitation[]
+  authorityType     String? // "standard", "broad", "limited"
+  liabilityWaiver   String? // "none", "good_faith", "full"
+  compensationType  String? // "none", "reasonable", "hourly", "percentage"
+  hourlyRate        Decimal? @db.Decimal(8, 2)
+  useStatutoryForm  Boolean @default(false)
+  statutoryFormId   String?
+  statutoryForm     StatutoryPOAForm? @relation(fields: [statutoryFormId], references: [id])
   
   agents            POAAgent[]
-  revocations       POARevocation[]
+  grantedPowers     POAGrantedPower[]
+  witnesses         POAWitness[]
   auditLogs         POAAuditLog[]
-  
-  createdById     String?
-  createdBy       User?    @relation("CreatedPOAs", fields: [createdById], references: [id], onDelete: SetNull)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  revocations       POARevocation[]
   
   @@index([tenantId])
   @@index([principalUserId])
-  @@index([status])
   @@index([state])
   @@index([poaType])
+  @@index([status])
 }
 
 model POAAgent {
-  id              String @id @default(uuid())
-  poaId           String
-  poa             PowerOfAttorney @relation(fields: [poaId], references: [id], onDelete: Cascade)
+  id            String  @id @default(uuid())
+  poaId         String
+  poa           PowerOfAttorney @relation(fields: [poaId], references: [id], onDelete: Cascade)
   
-  agentType       String
-  order           Int
+  userId        String?
+  user          User?   @relation("UserPOAAgents", fields: [userId], references: [id])
   
-  userId          String?
-  user            User?   @relation("UserPOAAgents", fields: [userId], references: [id], onDelete: SetNull)
-  fullName        String
-  relationship    String?
-  email           String?
-  phone           String?
-  address         String?
-  city            String?
-  state           String?
-  zip             String?
+  agentType     String
+  order         Int     @default(1)
   
-  specificPowers  Json?
+  fullName      String
+  email         String?
+  phone         String?
+  address       String?
+  city          String?
+  state         String?
+  zip           String?
+  relationship  String?
   
-  hasAccepted     Boolean  @default(false)
-  acceptedAt      DateTime?
-  acceptanceDocument String?
-  declinedAt      DateTime?
-  declineReason   String?  @db.Text
+  hasAccepted   Boolean @default(false)
+  acceptedAt    DateTime?
+  declinedAt    DateTime?
+  requiresSignature Boolean @default(true)
   
-  isCompensated   Boolean  @default(false)
-  compensationDetails String? @db.Text
-  
-  requiresSignature       Boolean @default(false)
-  requiresNotarization    Boolean @default(false)
-  signedAt                DateTime?
-  signatureDocument       String?
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
   
   @@index([poaId])
   @@index([userId])
 }
 
-model POAWitness {
-  id          String @id @default(uuid())
-  poaId       String
-  poa         PowerOfAttorney @relation(fields: [poaId], references: [id], onDelete: Cascade)
-  
-  fullName    String
-  address     String?
-  city        String?
-  state       String?
-  zip         String?
-  relationship String?
-  
-  signedAt    DateTime?
-  signature   String?
-  
-  isAgent     Boolean @default(false)
-  isSpouse    Boolean @default(false)
-  isRelative  Boolean @default(false)
-  isNotary    Boolean @default(false)
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  @@index([poaId])
-}
-
-model POAPowerCategoryDefinition {
-  id                    String @id @default(uuid())
-  
-  categoryNumber        Int
-  categoryName          String
-  categoryLetter        String?
-  
-  statutoryDefinition   String @db.Text
-  plainLanguageDesc     String @db.Text
-  
-  isDangerous           Boolean @default(false)
-  dangerWarningText     String? @db.Text
-  
-  examples              Json
-  stateSpecificNotes    Json?
-  
-  subPowers             POASubPowerDefinition[]
-  grantedPowers         POAGrantedPower[]
-  
-  effectiveDate         DateTime
-  supersededDate        DateTime?
-  isCurrentVersion      Boolean @default(true)
-  
-  sortOrder             Int
-  
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-  
-  @@unique([categoryNumber, effectiveDate])
-  @@index([categoryNumber, isCurrentVersion])
-}
-
-model POASubPowerDefinition {
-  id          String   @id @default(uuid())
-  categoryId  String
-  category    POAPowerCategoryDefinition @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  
-  powerText   String   @db.Text
-  isDangerous Boolean  @default(false)
-  citation    String?
-  
-  sortOrder   Int
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  @@index([categoryId])
-}
-
+// UPDATED: Enhanced POAGrantedPower with limitations support
 model POAGrantedPower {
-  id              String   @id @default(uuid())
-  poaId           String
-  poa             PowerOfAttorney @relation(fields: [poaId], references: [id], onDelete: Cascade)
+  id                String  @id @default(uuid())
+  poaId             String
+  poa               PowerOfAttorney @relation(fields: [poaId], references: [id], onDelete: Cascade)
   
-  categoryId      String
-  category        POAPowerCategoryDefinition @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  categoryId        String
+  category          PowerCategory @relation(fields: [categoryId], references: [id])
   
-  grantedSubPowers Json
-  grantAllSubPowers Boolean @default(false)
+  grantAllSubPowers Boolean @default(true)
+  grantedSubPowers  Json?
   
-  principalInitials String?
-  dateInitialed     DateTime?
+  // NEW: Limitation tracking
+  hasLimitations    Boolean @default(false)
+  limitationCount   Int     @default(0)
   
-  limitations     String?  @db.Text
-  notes           String?  @db.Text
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
   
   @@unique([poaId, categoryId])
   @@index([poaId])
   @@index([categoryId])
 }
 
-model PhysicianCertification {
-  id              String   @id @default(uuid())
-  poaId           String
-  poa             PowerOfAttorney @relation(fields: [poaId], references: [id], onDelete: Cascade)
+model POAWitness {
+  id        String  @id @default(uuid())
+  poaId     String
+  poa       PowerOfAttorney @relation(fields: [poaId], references: [id], onDelete: Cascade)
   
-  certificationNumber Int @default(1)
+  fullName  String
+  address   String?
+  city      String?
+  state     String?
+  zip       String?
+  relationship String?
   
-  physicianName   String
-  licenseNumber   String
-  licenseState    String
-  specialty       String?
-  address         String
-  phone           String
-  email           String?
+  signedAt  DateTime?
+  signature String?
   
-  examinationDate DateTime
-  examinationLocation String?
-  principalName   String
-  
-  certificationText String @db.Text
-  findings        String   @db.Text
-  
-  isIncapacitated Boolean  @default(true)
-  impairmentType  String?
-  diagnosis       String?  @db.Text
-  functionalFindings Json?
-  
-  isPermanent     Boolean?
-  isTemporary     Boolean?
-  expectedRecoveryDate DateTime?
-  
-  certificationDocument String?
-  signedAt              DateTime
-  
-  isNotarized     Boolean  @default(false)
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
   
   @@index([poaId])
-}
-
-model POARevocation {
-  id              String   @id @default(uuid())
-  poaId           String?
-  poa             PowerOfAttorney? @relation(fields: [poaId], references: [id], onDelete: SetNull)
-  tenantId        String
-  tenant          Tenant   @relation("POARevocations", fields: [tenantId], references: [id], onDelete: Cascade)
-  
-  principalName   String
-  principalAddress String
-  
-  revocationType  String
-  
-  specificPOADate       DateTime?
-  specificAgentName     String?
-  
-  revokedAt             DateTime @default(now())
-  revokedById           String?
-  revokedBy             User?    @relation("UserPOARevocations", fields: [revokedById], references: [id], onDelete: SetNull)
-  reason                String?  @db.Text
-  
-  notarizedAt           DateTime?
-  notaryState           String?
-  notaryCounty          String?
-  notaryName            String?
-  notaryCommission      String?
-  notaryExpiration      DateTime?
-  
-  requiresRecording     Boolean  @default(false)
-  recordedAt            DateTime?
-  recordingCounty       String?
-  recordingBookPage     String?
-  
-  agentNotified         Boolean  @default(false)
-  agentNotifiedAt       DateTime?
-  agentNotificationMethod String?
-  agentTrackingNumber   String?
-  
-  institutionsNotified  Json?
-  
-  revocationDocument    String?
-  agentNotificationLetter String?
-  institutionNotificationLetters Json?
-  
-  notes                 String?  @db.Text
-  
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-  
-  @@index([poaId])
-  @@index([tenantId])
 }
 
 model POAAuditLog {
-  id        String @id @default(uuid())
+  id        String  @id @default(uuid())
   poaId     String
   poa       PowerOfAttorney @relation(fields: [poaId], references: [id], onDelete: Cascade)
   
   userId    String?
-  user      User?  @relation("UserPOAAuditLogs", fields: [userId], references: [id], onDelete: SetNull)
+  user      User?   @relation("UserPOAAuditLogs", fields: [userId], references: [id], onDelete: SetNull)
   
   action    String
   category  String
-  
   details   Json?
-  changes   Json?
   
   ipAddress String?
   userAgent String?
@@ -1276,91 +860,324 @@ model POAAuditLog {
   
   @@index([poaId])
   @@index([userId])
-  @@index([timestamp])
 }
 
+model POARevocation {
+  id              String  @id @default(uuid())
+  tenantId        String
+  tenant          Tenant  @relation("POARevocations", fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  originalPOAId   String
+  originalPOA     PowerOfAttorney @relation(fields: [originalPOAId], references: [id])
+  
+  userId          String
+  user            User    @relation("UserPOARevocations", fields: [userId], references: [id])
+  
+  reason          String?
+  revocationDate  DateTime @default(now())
+  notifiedParties Json?
+  
+  generatedDocument String?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([tenantId])
+  @@index([originalPOAId])
+  @@index([userId])
+}
+
+// ============================================
+// NEW: POWER LIMITATIONS SYSTEM
+// ============================================
+
+// Power categories with state-specific configurations
+model PowerCategory {
+  id                  String  @id @default(uuid())
+  
+  // Core category info
+  categoryName        String  // "Real Estate", "Banking", etc.
+  shortCode          String  // "RE", "BANK", etc.
+  plainLanguageDesc  String  @db.Text
+  
+  // State-specific configurations
+  state              String
+  letterCode         String? // "a", "b", "c" for Tennessee-style
+  isStandardPower    Boolean @default(true)
+  isHotPower         Boolean @default(false)
+  
+  // Legal text and descriptions
+  statutoryLanguage  String  @db.Text
+  exampleActions     Json?   // Array of example actions
+  commonLimitations  Json?   // Array of common limitation types
+  
+  // Ordering and display
+  displayOrder       Int
+  isActive          Boolean @default(true)
+  
+  // Relations
+  grantedPowers     POAGrantedPower[]
+  limitations       PowerLimitation[]
+  subPowers         SubPower[]
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@unique([state, shortCode])
+  @@index([state, isActive])
+}
+
+// Sub-powers within categories (optional granular control)
+model SubPower {
+  id                String  @id @default(uuid())
+  categoryId        String
+  category          PowerCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  
+  subPowerName      String
+  shortCode         String
+  description       String  @db.Text
+  
+  // Examples: Under "Banking" -> "Open accounts", "Close accounts", "Wire transfers"
+  isHighRisk        Boolean @default(false)
+  requiresSeparateConsent Boolean @default(false)
+  
+  displayOrder      Int
+  isActive          Boolean @default(true)
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@unique([categoryId, shortCode])
+  @@index([categoryId])
+}
+
+// Individual power limitations per POA
+model PowerLimitation {
+  id                String  @id @default(uuid())
+  
+  // Link to POA and power
+  poaId             String
+  poa               PowerOfAttorney @relation(fields: [poaId], references: [id], onDelete: Cascade)
+  
+  categoryId        String
+  category          PowerCategory @relation(fields: [categoryId], references: [id])
+  
+  // Limitation type and configuration
+  limitationType    String  // "financial_cap", "approval_requirement", "prohibition", "time_restriction", "custom"
+  
+  // Financial caps
+  dollarLimit       Decimal? @db.Decimal(15, 2)
+  transactionLimit  Decimal? @db.Decimal(15, 2)
+  monthlyLimit      Decimal? @db.Decimal(15, 2)
+  annualLimit       Decimal? @db.Decimal(15, 2)
+  
+  // Approval requirements
+  requiresCoAgent   Boolean @default(false)
+  requiresCourtApproval Boolean @default(false)
+  requiresFamilyNotification Boolean @default(false)
+  notificationDays  Int?    // Days advance notice required
+  notificationParties Json? // Array of people to notify
+  
+  // Prohibitions
+  prohibitSelfDealing Boolean @default(false)
+  prohibitGifting    Boolean @default(false)
+  prohibitBeneficiaryChanges Boolean @default(false)
+  prohibitedActions  Json?   // Array of specific prohibited actions
+  
+  // Time restrictions
+  effectiveDate     DateTime?
+  expirationDate    DateTime?
+  limitedDuration   String?  // "90 days", "1 year", etc.
+  daysOfWeek        Json?    // Array of allowed days
+  hoursOfDay        Json?    // Allowed time ranges
+  
+  // Custom limitations
+  customText        String?  @db.Text
+  customConditions  Json?    // Structured custom conditions
+  
+  // Monitoring and reporting
+  requiresMonthlyReport Boolean @default(false)
+  requiresQuarterlyReport Boolean @default(false)
+  reportingParties  Json?    // Who gets reports
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@unique([poaId, categoryId, limitationType])
+  @@index([poaId])
+  @@index([categoryId])
+}
+
+// ============================================
+// NEW: WIZARD PROGRESS TRACKING
+// ============================================
+
+model WizardProgress {
+  id                String  @id @default(uuid())
+  
+  tenantId          String
+  tenant            Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  userId            String
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Wizard identification
+  documentType      String  // "financial-poa", "medical-poa", "will", "trust"
+  sessionId         String  @unique
+  
+  // Progress tracking
+  currentSection    String
+  currentStep       String
+  completedSections Json    // Array of completed section IDs
+  completedSteps    Json    // Array of completed step IDs
+  
+  // Form data (encrypted for sensitive info)
+  formData          Json    // All form data as JSON
+  validationErrors  Json?   // Current validation errors
+  
+  // Timing and metadata
+  estimatedCompletion Int?  // Minutes
+  timeSpent         Int     @default(0) // Minutes
+  lastActivity      DateTime @default(now())
+  
+  // Status
+  isCompleted       Boolean @default(false)
+  isAbandoned       Boolean @default(false)
+  abandonedReason   String?
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@unique([tenantId, userId, documentType])
+  @@index([userId])
+  @@index([sessionId])
+  @@index([lastActivity])
+}
+
+// ============================================
+// STATE-SPECIFIC POWER CONFIGURATIONS
+// ============================================
+
+model StatePowerConfiguration {
+  id                String  @id @default(uuid())
+  
+  state             String
+  powerCategoryId   String
+  
+  // State-specific overrides
+  isRecognized      Boolean @default(true)
+  isRecommended     Boolean @default(true)
+  requiresSpecialConsent Boolean @default(false)
+  
+  // Display and legal text
+  stateSpecificName String?
+  stateLanguage     String? @db.Text
+  warningText       String? @db.Text
+  
+  // Common limitations for this state/power combo
+  recommendedLimitations Json? // Array of limitation templates
+  prohibitedActions Json?      // Actions banned by state law
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@unique([state, powerCategoryId])
+  @@index([state])
+}
+
+// ============================================
+// HEALTHCARE POA SYSTEM (EXISTING)
+// ============================================
 model HealthcarePOA {
   id              String   @id @default(uuid())
   tenantId        String
   tenant          Tenant   @relation("HealthcarePOAs", fields: [tenantId], references: [id], onDelete: Cascade)
   
-  principalUserId String?
-  principalUser   User?    @relation("PrincipalHealthcarePOAs", fields: [principalUserId], references: [id], onDelete: SetNull)
+  principalUserId String
+  principalUser   User     @relation("PrincipalHealthcarePOAs", fields: [principalUserId], references: [id])
+  
   principalName   String
-  principalAddress String
-  principalCity   String
-  principalState  String
-  principalZip    String
-  principalDOB    DateTime?
-  principalPhone  String?
+  principalAddress String?
+  principalCity   String?
+  principalState  String?
+  principalZip    String?
   principalEmail  String?
-  
-  agentName       String
-  agentRelationship String?
-  agentPhone      String?
-  agentEmail      String?
-  agentAddress    String?
-  
-  alternateAgents Json?
-  
-  generalMedicalCare      Boolean @default(true)
-  mentalHealthTreatment   Boolean @default(true)
-  endOfLifeDecisions      Boolean @default(true)
-  artificialNutrition     Boolean @default(true)
-  artificialHydration     Boolean @default(true)
-  painManagement          Boolean @default(true)
-  organDonation           Boolean @default(false)
-  organDonationDetails    String?  @db.Text
-  autopsyConsent          Boolean @default(false)
-  
-  hasDNR          Boolean @default(false)
-  dnrDocument     String?
-  hasPOLST        Boolean @default(false)
-  polstDocument   String?
-  
-  hipaaAuthorized Boolean @default(true)
-  authorizedParties Json?
-  
-  religiousBeliefs      String? @db.Text
-  culturalPreferences   String? @db.Text
-  painManagementPrefs   String? @db.Text
-  endOfLifePreferences  String? @db.Text
-  specialInstructions   String? @db.Text
-  
-  status          POAStatus  @default(DRAFT)
-  
-  signedAt        DateTime?
-  
-  witnesses       HealthcarePOAWitness[]
-  requiresWitnesses Boolean @default(true)
-  numberOfWitnesses Int     @default(2)
-  
-  notarizedAt     DateTime?
-  notaryState     String?
-  notaryCounty    String?
-  notaryName      String?
-  requiresNotary  Boolean  @default(false)
+  principalPhone  String?
+  principalDOB    DateTime?
   
   state           String
-  statutoryFormUsed Boolean @default(true)
-  formPDFLink     String?
+  
+  // Healthcare Powers
+  medicalTreatment      Boolean @default(true)
+  mentalHealthTreatment Boolean @default(false)
+  endOfLifeDecisions    Boolean @default(false)
+  organDonation         Boolean @default(false)
+  autopsyDecision       Boolean @default(false)
+  dispositionOfRemains  Boolean @default(false)
+  
+  // Healthcare Preferences
+  lifeSustainingTreatment String? // 'prolong_life', 'comfort_care_only', 'agent_decides'
+  organDonationPreference String? // 'any_needed', 'transplant_only', 'research_only', 'no_donation'
+  
+  // Limitations
+  nutritionHydrationRestrictions String? @db.Text
+  experimentalTreatmentLimits    String? @db.Text
+  psychiatricTreatmentLimits     String? @db.Text
+  
+  additionalDirectives String? @db.Text
+  specialInstructions  String? @db.Text
+  
+  status          String   @default("draft")
+  
+  notaryName      String?
+  notaryCommission String?
+  notaryExpiration DateTime?
+  notaryCounty    String?
+  notaryState     String?
   
   generatedDocument String?
-  signedDocument    String?
   
-  revokedAt       DateTime?
-  revocationDocument String?
+  createdById     String
+  createdBy       User     @relation("CreatedHealthcarePOAs", fields: [createdById], references: [id])
   
-  auditLogs       HealthcarePOAAuditLog[]
-  
-  createdById     String?
-  createdBy       User?    @relation("CreatedHealthcarePOAs", fields: [createdById], references: [id], onDelete: SetNull)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   
+  agents          HealthcarePOAAgent[]
+  witnesses       HealthcarePOAWitness[]
+  auditLogs       HealthcarePOAAuditLog[]
+  
   @@index([tenantId])
   @@index([principalUserId])
+  @@index([state])
   @@index([status])
+}
+
+model HealthcarePOAAgent {
+  id            String  @id @default(uuid())
+  healthcarePOAId String
+  healthcarePOA HealthcarePOA @relation(fields: [healthcarePOAId], references: [id], onDelete: Cascade)
+  
+  agentType     String
+  order         Int     @default(1)
+  
+  fullName      String
+  email         String?
+  phone         String?
+  address       String?
+  city          String?
+  state         String?
+  zip           String?
+  relationship  String?
+  
+  hasAccepted   Boolean @default(false)
+  acceptedAt    DateTime?
+  declinedAt    DateTime?
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@index([healthcarePOAId])
 }
 
 model HealthcarePOAWitness {
