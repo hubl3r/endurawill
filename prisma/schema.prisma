@@ -821,8 +821,8 @@ model POAGrantedPower {
   poaId             String
   poa               PowerOfAttorney @relation(fields: [poaId], references: [id], onDelete: Cascade)
   
-  categoryId        String
-  category          PowerCategory @relation(fields: [categoryId], references: [id])
+  categoryId        String?
+  category          PowerCategory? @relation(fields: [categoryId], references: [id])
   
   grantAllSubPowers Boolean @default(true)
   grantedSubPowers  Json?
@@ -834,7 +834,6 @@ model POAGrantedPower {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
   
-  @@unique([poaId, categoryId])
   @@index([poaId])
   @@index([categoryId])
 }
@@ -978,8 +977,8 @@ model PowerLimitation {
   poaId             String
   poa               PowerOfAttorney @relation(fields: [poaId], references: [id], onDelete: Cascade)
   
-  categoryId        String
-  category          PowerCategory @relation(fields: [categoryId], references: [id])
+  categoryId        String?
+  category          PowerCategory? @relation(fields: [categoryId], references: [id])
   
   // Limitation type and configuration
   limitationType    String  // "financial_cap", "approval_requirement", "prohibition", "time_restriction", "custom"
