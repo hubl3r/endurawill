@@ -249,6 +249,7 @@ export default function ProfessionalPOAWizard(): JSX.Element {
   const [powerCategories, setPowerCategories] = useState<PowerCategory[]>([]);
   const [states, setStates] = useState<State[]>([]);
 
+  // State management hooks
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -273,15 +274,6 @@ export default function ProfessionalPOAWizard(): JSX.Element {
 
     fetchData();
   }, []);
-
-  // Update execution requirements based on state
-  useEffect(() => {
-    if (formData.principal.state) {
-      // This would typically come from a state requirements API
-      const stateRequirements = getStateRequirements(formData.principal.state);
-      updateFormData('executionRequirements', stateRequirements);
-    }
-  }, [formData.principal.state]);
 
   const getStateRequirements = (state: string) => {
     // Simplified state requirements - in production this would come from API
@@ -354,11 +346,10 @@ export default function ProfessionalPOAWizard(): JSX.Element {
   };
 
   const getCurrentSteps = (): number => {
-    let steps = 6; // Type, Effective Date, Principal, Agents, Authority/Liability, Execution
+    let steps = 6; // Type, Effective Date, Principal, Agents, Execution, Review
     
-    if (formData.poaTypes.includes('financial')) steps += 1; // Financial Powers
+    if (formData.poaTypes.includes('financial')) steps += 2; // Financial Powers + Hot Powers
     if (formData.poaTypes.includes('healthcare')) steps += 1; // Healthcare Powers
-    if (formData.includeLimitations) steps += 1; // Limitations
     
     steps += 3; // Additional Options, Review, Legal Disclaimer
     
@@ -1271,59 +1262,41 @@ export default function ProfessionalPOAWizard(): JSX.Element {
             <h3 className="text-lg font-medium mb-4">Execution Requirements</h3>
             <p className="text-sm text-gray-600 mb-6">
               Different states have different requirements for executing a Power of Attorney. 
-              Here are the requirements for <strong>{states.find(s => s.state === formData.principal.state)?.stateName || formData.principal.state}</strong>:
+              Here are the requirements for <strong>{states.find(s => s.state === formData.principal.address.state)?.stateName || formData.principal.address.state}</strong>:
             </p>
 
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
               <h4 className="font-medium text-blue-900 mb-2">State Requirements</h4>
-              <ul className="text-sm text-blue-800 space-y-1">
-                {formData.executionRequirements.notaryRequired && (
-                  <li>✅ Notarization required</li>
-                )}
-                {formData.executionRequirements.witnessesRequired && (
-                  <li>✅ {formData.executionRequirements.witnessCount} witness(es) required</li>
-                )}
-                {!formData.executionRequirements.notaryRequired && !formData.executionRequirements.witnessesRequired && (
-                  <li>✅ Signature only (no notarization or witnesses required)</li>
-                )}
-              </ul>
+              <p className="text-sm text-blue-800">
+                Based on your state, this POA will require notarization and/or witnesses as determined by state law.
+                You can add additional security measures below if desired.
+              </p>
             </div>
 
             <div className="space-y-4">
-              <h4 className="font-medium text-gray-900">Optional Additional Security</h4>
-              <p className="text-sm text-gray-600 mb-4">
-                You can add extra protections beyond your state's minimum requirements:
-              </p>
-
-              {!formData.executionRequirements.notaryRequired && (
-                <label className="flex items-center space-x-3 cursor-pointer p-4 border rounded-lg hover:bg-gray-50">
-                  <input
-                    type="checkbox"
-                    checked={formData.executionRequirements.additionalNotarization}
-                    onChange={(e) => updateFormData('executionRequirements.additionalNotarization', e.target.checked)}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500"
-                  />
-                  <div>
-                    <div className="font-medium">Add Notarization</div>
-                    <div className="text-sm text-gray-600">Add notary requirement for extra security</div>
-                  </div>
-                </label>
-              )}
-
-              <label className="flex items-center space-x-3 cursor-pointer p-4 border rounded-lg hover:bg-gray-50">
-                <input
-                  type="checkbox"
-                  checked={formData.executionRequirements.additionalWitnesses}
-                  onChange={(e) => updateFormData('executionRequirements.additionalWitnesses', e.target.checked)}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500"
-                />
+              <h4 className="font-medium text-gray-900">Notary Information (if required by state)</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <div className="font-medium">Add Additional Witnesses</div>
-                  <div className="text-sm text-gray-600">
-                    Add {formData.executionRequirements.witnessesRequired ? 'extra' : ''} witnesses for additional protection
-                  </div>
+                  <label className="block text-sm font-medium text-gray-700">Notary Full Name</label>
+                  <input
+                    type="text"
+                    value={formData.notaryPublic?.fullName || ''}
+                    onChange={(e) => updateFormData('notaryPublic.fullName', e.target.value)}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Leave blank if not yet selected"
+                  />
                 </div>
-              </label>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Commission Number</label>
+                  <input
+                    type="text"
+                    value={formData.notaryPublic?.commissionNumber || ''}
+                    onChange={(e) => updateFormData('notaryPublic.commissionNumber', e.target.value)}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Optional"
+                  />
+                </div>
+              </div>
             </div>
 
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
@@ -1489,12 +1462,11 @@ export default function ProfessionalPOAWizard(): JSX.Element {
               <div className="bg-gray-50 p-4 rounded-lg">
                 <h4 className="font-medium mb-2">Execution Requirements</h4>
                 <div className="text-sm space-y-1">
-                  {formData.executionRequirements.notaryRequired && <div>✓ Notarization required</div>}
-                  {formData.executionRequirements.witnessesRequired && (
-                    <div>✓ {formData.executionRequirements.witnessCount} witness(es) required</div>
+                  <div>State: {formData.principal.address.state}</div>
+                  {formData.notaryPublic?.fullName && <div>✓ Notary: {formData.notaryPublic.fullName}</div>}
+                  {formData.witnesses && formData.witnesses.length > 0 && (
+                    <div>✓ {formData.witnesses.length} witness(es) designated</div>
                   )}
-                  {formData.executionRequirements.additionalWitnesses && <div>✓ Additional witnesses requested</div>}
-                  {formData.executionRequirements.additionalNotarization && <div>✓ Additional notarization requested</div>}
                 </div>
               </div>
             </div>
