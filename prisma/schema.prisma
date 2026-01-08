@@ -822,7 +822,8 @@ model POAGrantedPower {
   poa               PowerOfAttorney @relation(fields: [poaId], references: [id], onDelete: Cascade)
   
   categoryId        String?
-  category          PowerCategory? @relation(fields: [categoryId], references: [id])
+  // Temporarily removed: category relationship to allow migration
+  // category          PowerCategory? @relation(fields: [categoryId], references: [id])
   
   grantAllSubPowers Boolean @default(true)
   grantedSubPowers  Json?
@@ -933,9 +934,9 @@ model PowerCategory {
   displayOrder       Int
   isActive          Boolean @default(true)
   
-  // Relations
-  grantedPowers     POAGrantedPower[]
-  limitations       PowerLimitation[]
+  // Relations - TEMPORARILY REMOVED FOR MIGRATION
+  // grantedPowers     POAGrantedPower[]
+  // limitations       PowerLimitation[]
   subPowers         SubPower[]
   
   createdAt         DateTime @default(now())
@@ -978,7 +979,8 @@ model PowerLimitation {
   poa               PowerOfAttorney @relation(fields: [poaId], references: [id], onDelete: Cascade)
   
   categoryId        String?
-  category          PowerCategory? @relation(fields: [categoryId], references: [id])
+  // Temporarily removed: category relationship to allow migration  
+  // category          PowerCategory? @relation(fields: [categoryId], references: [id])
   
   // Limitation type and configuration
   limitationType    String  // "financial_cap", "approval_requirement", "prohibition", "time_restriction", "custom"
