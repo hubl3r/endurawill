@@ -906,24 +906,6 @@ export default function ProfessionalPOAWizard(): JSX.Element {
                     </label>
                   ))}
                 </div>
-                
-                <div className="mt-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
-                  <div className="flex items-center justify-between mb-4">
-                    <h4 className="font-medium text-gray-900">Would you like to add limitations or restrictions?</h4>
-                    <label className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        checked={formData.includeLimitations}
-                        onChange={(e) => updateFormData('includeLimitations', e.target.checked)}
-                        className="h-4 w-4 text-blue-600 focus:ring-blue-500"
-                      />
-                      <span className="text-sm text-gray-700">Add limitations</span>
-                    </label>
-                  </div>
-                  <p className="text-sm text-gray-600">
-                    You can add specific restrictions, dollar limits, approval requirements, and other limitations to control how your agent exercises these powers.
-                  </p>
-                </div>
               </>
             )}
           </div>
@@ -1443,11 +1425,9 @@ export default function ProfessionalPOAWizard(): JSX.Element {
                   <h4 className="font-medium mb-2">Financial Powers</h4>
                   <div className="text-sm">
                     <div>{formData.grantedPowers.categoryIds.length} categories selected</div>
-                    {formData.includeLimitations && (
-                      <div className="mt-2 text-blue-700">
-                        ✓ Includes custom limitations and restrictions
-                      </div>
-                    )}
+                    <div className="mt-2 text-blue-700">
+                      ✓ Includes hot powers consent settings
+                    </div>
                   </div>
                 </div>
               )}
