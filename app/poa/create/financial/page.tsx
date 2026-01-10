@@ -18,9 +18,17 @@ export default function FinancialPOAPage() {
     return <div className="p-8">Loading wizard...</div>;
   }
 
+  const formData = engine.serialize().formData;
+  const updateFormData = (path: string, value: any) => {
+    engine.updateFormData(path, value);
+  };
+
   return (
     <WizardShell engine={engine}>
-      <div>WizardShell is working!</div>
+      <DocumentTypeSelector
+        formData={formData}
+        updateFormData={updateFormData}
+      />
     </WizardShell>
   );
 }
