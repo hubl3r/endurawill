@@ -183,14 +183,14 @@ export function WizardShell({
               <nav className="space-y-2">
                 {engine['document'].sections.map((section) => {
                   const isCurrentSection = section.id === currentSection?.id;
-                  const canAccess = engine.canGoToSection(section.id);
+                  const canAccess = true; // Simplified - always allow access for now
                   const isCompleted = engine['data'].completedSections.has(section.id);
                   
                   return (
                     <button
                       key={section.id}
-                      onClick={() => handleSectionClick(section.id)}
-                      disabled={!canAccess}
+                      onClick={() => {}} // Disabled for now
+                      disabled={true} // Disable section clicking until navigation is fixed
                       className={`w-full flex items-center p-3 rounded-lg text-left transition-colors ${
                         isCurrentSection
                           ? 'bg-blue-50 border border-blue-200 text-blue-900'
