@@ -19,10 +19,8 @@ export default function FinancialPOAPage() {
   }
 
   return (
-    <div className="p-8">
-      <h1 className="text-2xl font-bold">Financial POA Test</h1>
-      <p>WizardEngine created successfully.</p>
-      <p>Current step: {engine.getCurrentStep()?.title}</p>
-    </div>
+    <WizardShell engine={engine}>
+      <div>WizardShell is working!</div>
+    </WizardShell>
   );
 }
