@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-//import { WizardEngine } from '@/lib/wizards/core/WizardEngine';
+import { WizardEngine } from '@/lib/wizards/core/WizardEngine';
 import { financialPOADocument } from '@/lib/wizards/documents/financial-poa/config';
 import { WizardShell } from '@/components/wizards/WizardShell';
 import { DocumentTypeSelector } from '@/components/wizards/financial-poa/DocumentTypeSelector';
