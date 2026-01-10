@@ -3,6 +3,7 @@
 import React from 'react';
 import { WizardEngine } from '@/lib/wizards/core/WizardEngine';
 import { financialPOADocument } from '@/lib/wizards/documents/financial-poa/config';
+import { WizardShell } from '@/components/wizards/WizardShell';
 
 export default function FinancialPOAPage() {
   return (
