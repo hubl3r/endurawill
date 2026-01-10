@@ -112,17 +112,17 @@ export function WizardShell({
     }
   };
 
-  const handleSectionClick = (sectionId: string) => {
-    if (engine.canGoToSection(sectionId)) {
-      engine.goToSection(sectionId);
-      
-      if (onStepChange) {
-        const newStep = engine.getCurrentStep();
-        const newSection = engine.getCurrentSection();
-        onStepChange(newStep?.id || '', newSection?.id || '');
-      }
-    }
-  };
+  // Remove section navigation since those methods don't exist in WizardEngine
+  // const handleSectionClick = (sectionId: string) => {
+  //   if (engine.canGoToSection(sectionId)) {
+  //     engine.goToSection(sectionId);
+  //     if (onStepChange) {
+  //       const newStep = engine.getCurrentStep();
+  //       const newSection = engine.getCurrentSection();
+  //       onStepChange(newStep?.id || '', newSection?.id || '');
+  //     }
+  //   }
+  // };
 
   const canGoNext = currentStep ? engine.validateCurrentStep().isValid : false;
   const canGoPrevious = engine.getPreviousStep() !== null;
