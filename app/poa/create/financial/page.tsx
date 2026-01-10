@@ -11,13 +11,14 @@ import { WizardShell } from '@/components/wizards/WizardShell';
 import { DocumentTypeSelector } from '@/components/wizards/financial-poa/DocumentTypeSelector';
 
 interface FinancialPOAPageProps {
-  searchParams?: {
+  searchParams: Promise<{
     session?: string;
     resume?: string;
-  };
+  }>;
 }
 
-export default function FinancialPOAPage({ searchParams }: FinancialPOAPageProps) {
+export default async function FinancialPOAPage({ searchParams }: FinancialPOAPageProps) {
+  const params = await searchParams;
   const router = useRouter();
   const [engine, setEngine] = useState<WizardEngine | null>(null);
   const [currentStepId, setCurrentStepId] = useState<string>('');
@@ -25,7 +26,7 @@ export default function FinancialPOAPage({ searchParams }: FinancialPOAPageProps
   const [error, setError] = useState<string | null>(null);
 
   // Generate or get session ID
-  const sessionId = searchParams?.session || `poa_financial_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const sessionId = params?.session || `poa_financial_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
   // Initialize wizard engine
   useEffect(() => {
@@ -36,7 +37,7 @@ export default function FinancialPOAPage({ searchParams }: FinancialPOAPageProps
         let existingData = null;
         
         // Try to load existing progress if resuming
-        if (searchParams?.resume) {
+        if (params?.resume) {
           try {
             const response = await fetch(`/api/wizard/progress/${sessionId}`);
             if (response.ok) {
@@ -57,7 +58,7 @@ export default function FinancialPOAPage({ searchParams }: FinancialPOAPageProps
         setCurrentStepId(wizardEngine.getCurrentStep()?.id || '');
         
         // Update URL with session ID if not present
-        if (!searchParams?.session) {
+        if (!params?.session) {
           const newUrl = `/poa/create/financial?session=${sessionId}`;
           window.history.replaceState({}, '', newUrl);
         }
@@ -71,7 +72,7 @@ export default function FinancialPOAPage({ searchParams }: FinancialPOAPageProps
     };
 
     initializeWizard();
-  }, [sessionId, searchParams]);
+  }, [sessionId, params]);
 
   // Handle step changes
   const handleStepChange = (stepId: string, sectionId: string) => {
