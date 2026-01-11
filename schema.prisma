@@ -604,6 +604,7 @@ model Account {
   dueDate           DateTime?
   
   paymentFrequency  PaymentFrequency @default(NONE)
+  anticipatedAmount Decimal? @db.Decimal(10, 2)
   autoPayEnabled    Boolean  @default(false)
   autoPayAmount     Decimal? @db.Decimal(10, 2)
   autoPayDay        Int?
