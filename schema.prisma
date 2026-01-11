@@ -621,6 +621,7 @@ model Account {
   tags              String[] @default([])
   
   lastSyncedAt      DateTime?
+  nextPaymentDate   DateTime?
   isActive          Boolean  @default(true)
   closedAt          DateTime?
   
