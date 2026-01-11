@@ -33,9 +33,11 @@ export function PowerSelection({ formData, updateFormData }: PowerSelectionProps
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+  const [editingLimitation, setEditingLimitation] = useState<string | null>(null);
   
   const grantAllPowers = formData.grantedPowers?.grantAllPowers ?? true;
   const selectedCategoryIds = formData.grantedPowers?.categoryIds || [];
+  const powerLimitations = formData.powerLimitations || [];
 
   useEffect(() => {
     fetchPowerCategories();
@@ -118,6 +120,207 @@ export function PowerSelection({ formData, updateFormData }: PowerSelectionProps
       }
       return next;
     });
+  };
+
+  const getLimitationForCategory = (categoryId: string) => {
+    return powerLimitations.find((lim: any) => lim.categoryId === categoryId);
+  };
+
+  const addOrEditLimitation = (categoryId: string, limitationData: any) => {
+    const existing = powerLimitations.filter((lim: any) => lim.categoryId !== categoryId);
+    const newLimitation = {
+      categoryId,
+      limitationType: limitationData.type,
+      limitationText: limitationData.text,
+      monetaryLimit: limitationData.monetaryLimit || null,
+      timeLimit: limitationData.timeLimit || null,
+      geographicLimit: limitationData.geographicLimit || null,
+      specificAsset: limitationData.specificAsset || null,
+    };
+    
+    updateFormData('powerLimitations', [...existing, newLimitation]);
+    setEditingLimitation(null);
+  };
+
+  const removeLimitation = (categoryId: string) => {
+    const updated = powerLimitations.filter((lim: any) => lim.categoryId !== categoryId);
+    updateFormData('powerLimitations', updated);
+  };
+
+  // Limitation Editor Component
+  const LimitationEditor = ({ categoryId, categoryName, onSave, onCancel, existingLimitation }: any) => {
+    const [limitationType, setLimitationType] = useState(existingLimitation?.limitationType || 'NO_LIMITATION');
+    const [limitationText, setLimitationText] = useState(existingLimitation?.limitationText || '');
+    const [monetaryLimit, setMonetaryLimit] = useState(existingLimitation?.monetaryLimit || '');
+    const [timeLimit, setTimeLimit] = useState(existingLimitation?.timeLimit || '');
+    const [geographicLimit, setGeographicLimit] = useState(existingLimitation?.geographicLimit || '');
+    const [specificAsset, setSpecificAsset] = useState(existingLimitation?.specificAsset || '');
+
+    const handleSave = () => {
+      const data: any = {
+        type: limitationType,
+        text: limitationText || getDefaultLimitationText(),
+      };
+
+      if (limitationType === 'MONETARY' && monetaryLimit) {
+        data.monetaryLimit = parseFloat(monetaryLimit);
+        data.text = `Limited to $${parseFloat(monetaryLimit).toLocaleString()}`;
+      } else if (limitationType === 'TIME' && timeLimit) {
+        data.timeLimit = timeLimit;
+        data.text = `Limited until ${new Date(timeLimit).toLocaleDateString()}`;
+      } else if (limitationType === 'GEOGRAPHIC' && geographicLimit) {
+        data.geographicLimit = geographicLimit;
+        data.text = `Limited to geographic area: ${geographicLimit}`;
+      } else if (limitationType === 'SPECIFIC_ASSET' && specificAsset) {
+        data.specificAsset = specificAsset;
+        data.text = `Limited to specific asset: ${specificAsset}`;
+      } else if (limitationType === 'SCOPE' && limitationText) {
+        data.text = limitationText;
+      }
+
+      onSave(data);
+    };
+
+    const getDefaultLimitationText = () => {
+      if (limitationType === 'NO_LIMITATION') return 'No limitation';
+      return `Custom limitation for ${categoryName}`;
+    };
+
+    return (
+      <div className="mt-3 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+        <h5 className="font-medium text-gray-900 mb-3">Add Limitation for {categoryName}</h5>
+        
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Limitation Type
+            </label>
+            <select
+              value={limitationType}
+              onChange={(e) => setLimitationType(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="NO_LIMITATION">No Limitation</option>
+              <option value="MONETARY">Monetary Limit (Dollar Amount)</option>
+              <option value="TIME">Time Limit (Expiration Date)</option>
+              <option value="GEOGRAPHIC">Geographic Limit (Location)</option>
+              <option value="SPECIFIC_ASSET">Specific Asset (Property/Account)</option>
+              <option value="SCOPE">Custom Scope Limitation</option>
+            </select>
+          </div>
+
+          {limitationType === 'MONETARY' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Maximum Dollar Amount
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                <input
+                  type="number"
+                  value={monetaryLimit}
+                  onChange={(e) => setMonetaryLimit(e.target.value)}
+                  placeholder="50000"
+                  className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Limits transactions to this dollar amount or less
+              </p>
+            </div>
+          )}
+
+          {limitationType === 'TIME' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Expiration Date
+              </label>
+              <input
+                type="date"
+                value={timeLimit}
+                onChange={(e) => setTimeLimit(e.target.value)}
+                min={new Date().toISOString().split('T')[0]}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                This power expires on the selected date
+              </p>
+            </div>
+          )}
+
+          {limitationType === 'GEOGRAPHIC' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Geographic Limitation
+              </label>
+              <input
+                type="text"
+                value={geographicLimit}
+                onChange={(e) => setGeographicLimit(e.target.value)}
+                placeholder="e.g., State of California, City of San Francisco"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Limits power to specified geographic area
+              </p>
+            </div>
+          )}
+
+          {limitationType === 'SPECIFIC_ASSET' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Specific Asset or Property
+              </label>
+              <input
+                type="text"
+                value={specificAsset}
+                onChange={(e) => setSpecificAsset(e.target.value)}
+                placeholder="e.g., 123 Main Street property, Bank Account #12345"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Limits power to this specific asset only
+              </p>
+            </div>
+          )}
+
+          {limitationType === 'SCOPE' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Custom Limitation Description
+              </label>
+              <textarea
+                value={limitationText}
+                onChange={(e) => setLimitationText(e.target.value)}
+                placeholder="Describe the specific limitation..."
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Describe any custom limitations or restrictions
+              </p>
+            </div>
+          )}
+
+          <div className="flex justify-end space-x-3 pt-2">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleSave}
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+            >
+              Save Limitation
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   if (loading) {
@@ -268,6 +471,64 @@ export function PowerSelection({ formData, updateFormData }: PowerSelectionProps
                               </div>
                             </div>
                           ))}
+                        </div>
+                      )}
+
+                      {/* Limitation UI */}
+                      {isSelected && (
+                        <div className="mt-3">
+                          {editingLimitation === category.id ? (
+                            <LimitationEditor
+                              categoryId={category.id}
+                              categoryName={category.categoryName}
+                              existingLimitation={getLimitationForCategory(category.id)}
+                              onSave={(data: any) => addOrEditLimitation(category.id, data)}
+                              onCancel={() => setEditingLimitation(null)}
+                            />
+                          ) : (
+                            <>
+                              {getLimitationForCategory(category.id) ? (
+                                <div className="flex items-start justify-between p-3 bg-amber-50 border border-amber-200 rounded-md">
+                                  <div className="flex-1">
+                                    <div className="flex items-center space-x-2 mb-1">
+                                      <AlertTriangle className="h-4 w-4 text-amber-600" />
+                                      <span className="text-sm font-medium text-amber-900">
+                                        Limitation Applied
+                                      </span>
+                                    </div>
+                                    <p className="text-sm text-amber-800">
+                                      {getLimitationForCategory(category.id).limitationText}
+                                    </p>
+                                  </div>
+                                  <div className="flex space-x-2 ml-3">
+                                    <button
+                                      type="button"
+                                      onClick={() => setEditingLimitation(category.id)}
+                                      className="text-xs text-amber-700 hover:text-amber-900 font-medium"
+                                    >
+                                      Edit
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => removeLimitation(category.id)}
+                                      className="text-xs text-red-600 hover:text-red-800 font-medium"
+                                    >
+                                      Remove
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingLimitation(category.id)}
+                                  disabled={grantAllPowers}
+                                  className="text-sm text-blue-600 hover:text-blue-800 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  + Add Limitation (Optional)
+                                </button>
+                              )}
+                            </>
+                          )}
                         </div>
                       )}
                     </div>
