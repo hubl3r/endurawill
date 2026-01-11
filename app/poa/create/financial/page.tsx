@@ -1,109 +1,241 @@
+// app/poa/create/financial/page.tsx
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { WizardEngine } from '@/lib/wizards/core/WizardEngine';
-import { financialPOADocument } from '@/lib/wizards/documents/financial-poa/config';
 import { WizardShell } from '@/components/wizards/WizardShell';
+import { WizardEngine } from '@/lib/wizards/core/WizardEngine';
 import { DocumentTypeSelector } from '@/components/wizards/financial-poa/DocumentTypeSelector';
+import { PrincipalInformation } from '@/components/wizards/financial-poa/PrincipalInformation';
+import { AgentSelection } from '@/components/wizards/financial-poa/AgentSelection';
+import { PowerSelection } from '@/components/wizards/financial-poa/PowerSelection';
+import { ReviewAndSubmit } from '@/components/wizards/financial-poa/ReviewAndSubmit';
+import { z } from 'zod';
 
-export default function FinancialPOAPage() {
-  const router = useRouter();
+// Validation schemas for each step
+const documentTypeSchema = z.object({
+  poaType: z.enum(['DURABLE', 'SPRINGING', 'LIMITED']),
+  isDurable: z.boolean().optional(),
+  isSpringing: z.boolean().optional(),
+  isLimited: z.boolean().optional(),
+});
+
+const principalSchema = z.object({
+  principal: z.object({
+    fullName: z.string().min(1, 'Full name is required'),
+    email: z.string().email().optional().or(z.literal('')),
+    phone: z.string().optional(),
+    dateOfBirth: z.string().optional(),
+    address: z.object({
+      street: z.string().min(1, 'Street address is required'),
+      city: z.string().min(1, 'City is required'),
+      state: z.string().min(2, 'State is required'),
+      zipCode: z.string().regex(/^\d{5}$/, 'ZIP code must be 5 digits'),
+    }),
+  }),
+});
+
+const agentSchema = z.object({
+  agents: z.array(z.object({
+    type: z.enum(['PRIMARY', 'SUCCESSOR', 'CO_AGENT']),
+    fullName: z.string().min(1),
+    email: z.string().email(),
+    phone: z.string().min(1),
+    relationship: z.string().optional(),
+    address: z.object({
+      street: z.string().min(1),
+      city: z.string().min(1),
+      state: z.string().min(2),
+      zipCode: z.string().regex(/^\d{5}$/),
+    }),
+  })).min(1, 'At least one agent is required')
+    .refine(agents => agents.some(a => a.type === 'PRIMARY'), {
+      message: 'At least one primary agent is required',
+    }),
+});
+
+const powerSchema = z.object({
+  grantedPowers: z.object({
+    grantAllPowers: z.boolean().optional(),
+    categoryIds: z.array(z.string()).min(1, 'At least one power must be granted'),
+    grantAllSubPowers: z.boolean().optional(),
+  }),
+});
+
+export default function FinancialPOAWizardPage() {
   const [engine, setEngine] = useState<WizardEngine | null>(null);
-  const [currentStepId, setCurrentStepId] = useState<string>('');
-
-  // Generate session ID
-  const sessionId = `poa_financial_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const [currentStepId, setCurrentStepId] = useState('document-type');
+  const [sessionId] = useState(() => `poa-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
 
   useEffect(() => {
-    const wizardEngine = new WizardEngine(financialPOADocument, { sessionId });
-    setEngine(wizardEngine);
-    setCurrentStepId(wizardEngine.getCurrentStep()?.id || '');
-  }, [sessionId]);
+    // Initialize wizard engine
+    const wizardEngine = new WizardEngine({
+      documentType: 'financial-poa',
+      sections: [
+        {
+          id: 'basics',
+          title: 'POA Basics',
+          steps: [
+            {
+              id: 'document-type',
+              title: 'Document Type',
+              description: 'Choose the type of Power of Attorney',
+              component: 'DocumentTypeSelector',
+              validationSchema: documentTypeSchema,
+              estimatedMinutes: 2,
+            },
+            {
+              id: 'principal-info',
+              title: 'Your Information',
+              description: 'Enter your personal information',
+              component: 'PrincipalInformation',
+              validationSchema: principalSchema,
+              estimatedMinutes: 3,
+            },
+          ],
+        },
+        {
+          id: 'agents',
+          title: 'Agents',
+          steps: [
+            {
+              id: 'agent-selection',
+              title: 'Select Your Agents',
+              description: 'Choose who will act on your behalf',
+              component: 'AgentSelection',
+              validationSchema: agentSchema,
+              estimatedMinutes: 5,
+            },
+          ],
+        },
+        {
+          id: 'powers',
+          title: 'Powers & Review',
+          steps: [
+            {
+              id: 'power-selection',
+              title: 'Grant Powers',
+              description: 'Choose which powers to grant',
+              component: 'PowerSelection',
+              validationSchema: powerSchema,
+              estimatedMinutes: 4,
+            },
+            {
+              id: 'review',
+              title: 'Review & Submit',
+              description: 'Review and create your POA',
+              component: 'ReviewAndSubmit',
+              validationSchema: z.object({}), // No additional validation needed
+              estimatedMinutes: 3,
+            },
+          ],
+        },
+      ],
+    });
 
-  const handleStepChange = (stepId: string, sectionId: string) => {
-    setCurrentStepId(stepId);
+    // Try to load existing progress
+    loadProgress(wizardEngine);
+
+    setEngine(wizardEngine);
+  }, []);
+
+  const loadProgress = async (wizardEngine: WizardEngine) => {
+    try {
+      const response = await fetch(`/api/wizard/progress?sessionId=${sessionId}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.progress) {
+          wizardEngine.deserialize(data.progress);
+          setCurrentStepId(data.progress.currentStep);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load wizard progress:', error);
+    }
   };
 
-  const handleSaveProgress = async (data: any) => {
+  const handleSave = async (data: any) => {
     try {
       await fetch('/api/wizard/progress', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          sessionId: data.sessionId,
-          documentType: data.documentType,
-          currentSection: data.currentSection,
-          currentStep: data.currentStep,
-          completedSections: data.completedSections,
-          completedSteps: data.completedSteps,
-          formData: data.formData,
-          validationErrors: data.validationErrors,
-          timeSpent: data.timeSpent,
-          isCompleted: data.isComplete,
+          sessionId,
+          documentType: 'financial-poa',
+          ...data,
         }),
       });
-    } catch (err) {
-      console.error('Failed to save progress:', err);
+    } catch (error) {
+      console.error('Failed to save progress:', error);
     }
   };
 
-  const renderStepComponent = () => {
-    if (!engine || !currentStepId) return null;
+  const handleStepChange = (stepId: string, sectionId: string) => {
+    setCurrentStepId(stepId);
+  };
 
-    const currentStep = engine.getCurrentStep();
-    if (!currentStep) return null;
+  if (!engine) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-gray-600">Loading wizard...</div>
+      </div>
+    );
+  }
 
-    const formData = engine.serialize().formData;
+  const renderCurrentStep = () => {
+    const formData = engine.getFormData();
     const updateFormData = (path: string, value: any) => {
       engine.updateFormData(path, value);
     };
 
-    switch (currentStep.component) {
-      case 'DocumentTypeSelector':
+    switch (currentStepId) {
+      case 'document-type':
         return (
           <DocumentTypeSelector
             formData={formData}
             updateFormData={updateFormData}
           />
         );
-        
-      default:
+      case 'principal-info':
         return (
-          <div className="p-8 text-center bg-gray-50 rounded-lg">
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
-              Step: {currentStep.title}
-            </h3>
-            <p className="text-gray-600">This step component will be implemented next.</p>
-            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded">
-              <p className="text-sm text-blue-700">
-                <strong>Form data:</strong> {JSON.stringify(formData, null, 2)}
-              </p>
-            </div>
-          </div>
+          <PrincipalInformation
+            formData={formData}
+            updateFormData={updateFormData}
+          />
         );
+      case 'agent-selection':
+        return (
+          <AgentSelection
+            formData={formData}
+            updateFormData={updateFormData}
+          />
+        );
+      case 'power-selection':
+        return (
+          <PowerSelection
+            formData={formData}
+            updateFormData={updateFormData}
+          />
+        );
+      case 'review':
+        return (
+          <ReviewAndSubmit
+            formData={formData}
+            updateFormData={updateFormData}
+          />
+        );
+      default:
+        return <div>Unknown step</div>;
     }
   };
-
-  if (!engine) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin h-8 w-8 border border-gray-300 rounded-full border-t-blue-600 mx-auto mb-4"></div>
-          <h2 className="text-lg font-medium text-gray-900">Loading Financial POA Wizard...</h2>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <WizardShell
       engine={engine}
       onStepChange={handleStepChange}
-      onSave={handleSaveProgress}
+      onSave={handleSave}
       autoSaveInterval={30000}
     >
-      {renderStepComponent()}
+      {renderCurrentStep()}
     </WizardShell>
   );
 }
