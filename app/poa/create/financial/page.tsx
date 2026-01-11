@@ -81,6 +81,10 @@ export default function FinancialPOAWizardPage() {
               description: 'Choose the type of Power of Attorney',
               component: 'DocumentTypeSelector',
               estimatedMinutes: 2,
+              validation: {
+                required: ['poaType'],
+                schema: documentTypeSchema,
+              },
             },
             {
               id: 'principal-info',
@@ -88,6 +92,10 @@ export default function FinancialPOAWizardPage() {
               description: 'Enter your personal information',
               component: 'PrincipalInformation',
               estimatedMinutes: 3,
+              validation: {
+                required: ['principal.fullName', 'principal.address.street', 'principal.address.city', 'principal.address.state', 'principal.address.zipCode'],
+                schema: principalSchema,
+              },
             },
           ],
         },
@@ -101,6 +109,10 @@ export default function FinancialPOAWizardPage() {
               description: 'Choose who will act on your behalf',
               component: 'AgentSelection',
               estimatedMinutes: 5,
+              validation: {
+                required: ['agents'],
+                schema: agentSchema,
+              },
             },
           ],
         },
@@ -114,6 +126,10 @@ export default function FinancialPOAWizardPage() {
               description: 'Choose which powers to grant',
               component: 'PowerSelection',
               estimatedMinutes: 4,
+              validation: {
+                required: ['grantedPowers.categoryIds'],
+                schema: powerSchema,
+              },
             },
             {
               id: 'review',
@@ -121,6 +137,10 @@ export default function FinancialPOAWizardPage() {
               description: 'Review and create your POA',
               component: 'ReviewAndSubmit',
               estimatedMinutes: 3,
+              validation: {
+                required: [],
+                schema: z.object({}),
+              },
             },
           ],
         },
