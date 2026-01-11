@@ -112,6 +112,7 @@ model User {
   createdPOAs           PowerOfAttorney[] @relation("CreatedPOAs")
   revokedPOAs           POARevocation[] @relation("UserPOARevocations")
   poaAuditLogs          POAAuditLog[] @relation("UserPOAAuditLogs")
+  uploadedNotaryTemplates NotaryBlockTemplate[] @relation("UploadedNotaryTemplates")
   
   @@unique([tenantId, clerkId])
   @@index([clerkId])
@@ -1324,6 +1325,106 @@ model StateRequirements {
   
   createdAt                 DateTime @default(now())
   updatedAt                 DateTime @updatedAt
+  
+  @@index([state])
+}
+
+model NotaryBlockTemplate {
+  id              String @id @default(uuid())
+  
+  state           String
+  documentType    String
+  
+  templateText    String @db.Text
+  
+  statutoryCitation String?
+  effectiveDate     DateTime
+  supersededDate    DateTime?
+  isCurrentVersion  Boolean @default(true)
+  
+  requiresWitnesses Boolean @default(false)
+  numberOfWitnesses Int?
+  witnessRelationshipRules String? @db.Text
+  requiresNotary    Boolean @default(true)
+  notaryCanBeWitness Boolean @default(false)
+  
+  requiresMaritalStatus   Boolean @default(false)
+  requiresCommissionNumber Boolean @default(false)
+  requiresSeal            Boolean @default(true)
+  allowsOnlineNotarization Boolean @default(false)
+  
+  specialInstructions     String? @db.Text
+  commonRejectionReasons  String? @db.Text
+  
+  uploadedById    String?
+  uploadedBy      User?   @relation("UploadedNotaryTemplates", fields: [uploadedById], references: [id], onDelete: SetNull)
+  
+  usageCount      Int     @default(0)
+  lastUsedAt      DateTime?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@unique([state, documentType, effectiveDate])
+  @@index([state, documentType, isCurrentVersion])
+}
+
+model IncapacityDefinition {
+  id              String   @id @default(uuid())
+  state           String   @unique
+  
+  definitionType  String
+  
+  statutoryText   String   @db.Text
+  plainLanguage   String   @db.Text
+  
+  isUPOAAState    Boolean  @default(false)
+  includesMissing Boolean  @default(false)
+  includesAbroad  Boolean  @default(false)
+  
+  requiresCognitiveTesting Boolean @default(false)
+  requiresFunctionalAssess Boolean @default(false)
+  requiresSpecificDiagnosis Boolean @default(false)
+  
+  physicianGuidance String? @db.Text
+  exampleFindings   String? @db.Text
+  
+  specialNotes    String?  @db.Text
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([state])
+}
+
+model HealthcarePOAStateForm {
+  id              String   @id @default(uuid())
+  state           String   @unique
+  stateName       String
+  
+  formName        String
+  pdfLink         String
+  spanishLink     String?
+  
+  requiresNotary  Boolean
+  requiresWitnesses Boolean
+  numberOfWitnesses Int?
+  notaryOrWitnesses Boolean @default(false)
+  
+  witnessRestrictions String? @db.Text
+  
+  includesDNR     Boolean @default(false)
+  includesPOLST   Boolean @default(false)
+  includesOrganDonation Boolean @default(true)
+  includesLivingWill Boolean @default(false)
+  
+  specialInstructions String? @db.Text
+  commonMistakes      String? @db.Text
+  
+  lastUpdated     DateTime
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
   
   @@index([state])
 }
