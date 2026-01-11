@@ -67,6 +67,7 @@ model Tenant {
   accounts          Account[]
   paymentHistory    PaymentHistory[]
   powerOfAttorneys  PowerOfAttorney[]
+  healthcarePOAs    HealthcarePOA[] @relation("HealthcarePOAs")
   poaRevocations    POARevocation[]
   
   @@index([type])
@@ -112,6 +113,9 @@ model User {
   createdPOAs           PowerOfAttorney[] @relation("CreatedPOAs")
   revokedPOAs           POARevocation[] @relation("UserPOARevocations")
   poaAuditLogs          POAAuditLog[] @relation("UserPOAAuditLogs")
+  principalHealthcarePOAs HealthcarePOA[] @relation("PrincipalHealthcarePOAs")
+  createdHealthcarePOAs HealthcarePOA[] @relation("CreatedHealthcarePOAs")
+  healthcarePOAAuditLogs HealthcarePOAAuditLog[] @relation("UserHealthcarePOAAuditLogs")
   uploadedNotaryTemplates NotaryBlockTemplate[] @relation("UploadedNotaryTemplates")
   
   @@unique([tenantId, clerkId])
@@ -1268,6 +1272,134 @@ model POAAuditLog {
   @@index([userId])
   @@index([action])
   @@index([timestamp])
+}
+
+model HealthcarePOA {
+  id              String   @id @default(uuid())
+  tenantId        String
+  tenant          Tenant   @relation("HealthcarePOAs", fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  principalUserId String?
+  principalUser   User?    @relation("PrincipalHealthcarePOAs", fields: [principalUserId], references: [id], onDelete: SetNull)
+  principalName   String
+  principalAddress String
+  principalCity   String
+  principalState  String
+  principalZip    String
+  principalDOB    DateTime?
+  principalPhone  String?
+  principalEmail  String?
+  
+  agentName       String
+  agentRelationship String?
+  agentPhone      String?
+  agentEmail      String?
+  agentAddress    String?
+  
+  alternateAgents Json?
+  
+  generalMedicalCare      Boolean @default(true)
+  mentalHealthTreatment   Boolean @default(true)
+  endOfLifeDecisions      Boolean @default(true)
+  artificialNutrition     Boolean @default(true)
+  artificialHydration     Boolean @default(true)
+  painManagement          Boolean @default(true)
+  organDonation           Boolean @default(false)
+  organDonationDetails    String?  @db.Text
+  autopsyConsent          Boolean @default(false)
+  
+  hasDNR          Boolean @default(false)
+  dnrDocument     String?
+  hasPOLST        Boolean @default(false)
+  polstDocument   String?
+  
+  hipaaAuthorized Boolean @default(true)
+  authorizedParties Json?
+  
+  religiousBeliefs      String? @db.Text
+  culturalPreferences   String? @db.Text
+  painManagementPrefs   String? @db.Text
+  endOfLifePreferences  String? @db.Text
+  specialInstructions   String? @db.Text
+  
+  status          POAStatus  @default(DRAFT)
+  
+  signedAt        DateTime?
+  
+  witnesses       HealthcarePOAWitness[]
+  requiresWitnesses Boolean @default(true)
+  numberOfWitnesses Int     @default(2)
+  
+  notarizedAt     DateTime?
+  notaryState     String?
+  notaryCounty    String?
+  notaryName      String?
+  requiresNotary  Boolean  @default(false)
+  
+  state           String
+  statutoryFormUsed Boolean @default(true)
+  formPDFLink     String?
+  
+  generatedDocument String?
+  signedDocument    String?
+  
+  revokedAt       DateTime?
+  revocationDocument String?
+  
+  auditLogs       HealthcarePOAAuditLog[]
+  
+  createdById     String?
+  createdBy       User?    @relation("CreatedHealthcarePOAs", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([tenantId])
+  @@index([principalUserId])
+  @@index([status])
+}
+
+model HealthcarePOAWitness {
+  id              String @id @default(uuid())
+  healthcarePOAId String
+  healthcarePOA   HealthcarePOA @relation(fields: [healthcarePOAId], references: [id], onDelete: Cascade)
+  
+  fullName        String
+  address         String?
+  city            String?
+  state           String?
+  zip             String?
+  relationship    String?
+  
+  signedAt        DateTime?
+  signature       String?
+  
+  isAgent         Boolean @default(false)
+  isHealthcareProvider Boolean @default(false)
+  isFacilityOwner Boolean @default(false)
+  isRelative      Boolean @default(false)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([healthcarePOAId])
+}
+
+model HealthcarePOAAuditLog {
+  id              String @id @default(uuid())
+  healthcarePOAId String
+  healthcarePOA   HealthcarePOA @relation(fields: [healthcarePOAId], references: [id], onDelete: Cascade)
+  
+  userId          String?
+  user            User?  @relation("UserHealthcarePOAAuditLogs", fields: [userId], references: [id], onDelete: SetNull)
+  
+  action          String
+  category        String
+  details         Json?
+  
+  timestamp       DateTime @default(now())
+  
+  @@index([healthcarePOAId])
+  @@index([userId])
 }
 
 model StateRequirements {
