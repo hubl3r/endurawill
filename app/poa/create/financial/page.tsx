@@ -67,6 +67,21 @@ export default function FinancialPOAWizardPage() {
   const [sessionId] = useState(() => `poa-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
 
   useEffect(() => {
+    const loadProgress = async (wizardEngine: WizardEngine) => {
+      try {
+        const response = await fetch(`/api/wizard/progress?sessionId=${sessionId}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.progress) {
+            wizardEngine.deserialize(data.progress);
+            setCurrentStepId(data.progress.currentStep);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load wizard progress:', error);
+      }
+    };
+
     // Initialize wizard engine
     const wizardEngine = new WizardEngine({
       documentType: 'financial-poa',
@@ -81,10 +96,7 @@ export default function FinancialPOAWizardPage() {
               description: 'Choose the type of Power of Attorney',
               component: 'DocumentTypeSelector',
               estimatedMinutes: 2,
-              validation: {
-                required: ['poaType'],
-                schema: documentTypeSchema,
-              },
+              validation: documentTypeSchema,
             },
             {
               id: 'principal-info',
@@ -92,10 +104,7 @@ export default function FinancialPOAWizardPage() {
               description: 'Enter your personal information',
               component: 'PrincipalInformation',
               estimatedMinutes: 3,
-              validation: {
-                required: ['principal.fullName', 'principal.address.street', 'principal.address.city', 'principal.address.state', 'principal.address.zipCode'],
-                schema: principalSchema,
-              },
+              validation: principalSchema,
             },
           ],
         },
@@ -109,10 +118,7 @@ export default function FinancialPOAWizardPage() {
               description: 'Choose who will act on your behalf',
               component: 'AgentSelection',
               estimatedMinutes: 5,
-              validation: {
-                required: ['agents'],
-                schema: agentSchema,
-              },
+              validation: agentSchema,
             },
           ],
         },
@@ -126,10 +132,7 @@ export default function FinancialPOAWizardPage() {
               description: 'Choose which powers to grant',
               component: 'PowerSelection',
               estimatedMinutes: 4,
-              validation: {
-                required: ['grantedPowers.categoryIds'],
-                schema: powerSchema,
-              },
+              validation: powerSchema,
             },
             {
               id: 'review',
@@ -137,74 +140,18 @@ export default function FinancialPOAWizardPage() {
               description: 'Review and create your POA',
               component: 'ReviewAndSubmit',
               estimatedMinutes: 3,
-              validation: {
-                required: [],
-                schema: z.object({}),
-              },
+              validation: z.object({}),
             },
           ],
         },
       ],
     });
 
-    // Set up validation for each step
-    wizardEngine.setStepValidator('document-type', (data) => {
-      const result = documentTypeSchema.safeParse(data);
-      if (!result.success) {
-        return { isValid: false, errors: result.error.flatten().fieldErrors };
-      }
-      return { isValid: true, errors: {} };
-    });
-
-    wizardEngine.setStepValidator('principal-info', (data) => {
-      const result = principalSchema.safeParse(data);
-      if (!result.success) {
-        return { isValid: false, errors: result.error.flatten().fieldErrors };
-      }
-      return { isValid: true, errors: {} };
-    });
-
-    wizardEngine.setStepValidator('agent-selection', (data) => {
-      const result = agentSchema.safeParse(data);
-      if (!result.success) {
-        return { isValid: false, errors: result.error.flatten().fieldErrors };
-      }
-      return { isValid: true, errors: {} };
-    });
-
-    wizardEngine.setStepValidator('power-selection', (data) => {
-      const result = powerSchema.safeParse(data);
-      if (!result.success) {
-        return { isValid: false, errors: result.error.flatten().fieldErrors };
-      }
-      return { isValid: true, errors: {} };
-    });
-
-    wizardEngine.setStepValidator('review', () => {
-      // Always valid - review step just displays data
-      return { isValid: true, errors: {} };
-    });
-
     // Try to load existing progress
     loadProgress(wizardEngine);
 
     setEngine(wizardEngine);
-  }, []);
-
-  const loadProgress = async (wizardEngine: WizardEngine) => {
-    try {
-      const response = await fetch(`/api/wizard/progress?sessionId=${sessionId}`);
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.progress) {
-          wizardEngine.deserialize(data.progress);
-          setCurrentStepId(data.progress.currentStep);
-        }
-      }
-    } catch (error) {
-      console.error('Failed to load wizard progress:', error);
-    }
-  };
+  }, [sessionId]);
 
   const handleSave = async (data: any) => {
     try {
