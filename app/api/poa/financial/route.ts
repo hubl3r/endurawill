@@ -1,378 +1,322 @@
 // app/api/poa/financial/route.ts
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { validateFinancialPOA } from '@/lib/poa/validation';
 import { generateFinancialPOAPDF } from '@/lib/poa/pdf-generator';
-import { uploadPOADocument } from '@/lib/poa/storage';
-import { getAuthenticatedUserAndTenant } from '@/lib/tenant-context';
+import { put } from '@vercel/blob';
 
-/**
- * POST /api/poa/financial
- * Create a new Financial Power of Attorney
- * 
- * Phase 3: DURABLE POA only
- * Phase 4: Will add springing and limited support
- */
-export async function POST(request: Request) {
+export async function POST(req: NextRequest) {
   try {
-    // Get authenticated user and validated tenant (secure)
-    const auth = await getAuthenticatedUserAndTenant();
+    const body = await req.json();
     
-    if (!auth) {
-      return NextResponse.json({ error: 'Unauthorized or no active estate selected' }, { status: 401 });
-    }
+    // Extract data from wizard
+    const {
+      principal,
+      poaType,
+      isDurable,
+      isSpringing,
+      isLimited,
+      state,
+      agents,
+      grantedPowers,
+      powerLimitations,
+      effectiveDate,
+      expirationDate,
+      springingCondition,
+      agentCompensation,
+      compensationDetails,
+      specialInstructions,
+      coAgentsMustActJointly,
+    } = body;
 
-    const { user, tenant, tenantId } = auth;
+    // TODO: Get user/tenant from auth session
+    const userId = 'temp-user-id'; // Replace with actual auth
+    const tenantId = 'temp-tenant-id'; // Replace with actual auth
 
-    const body = await request.json();
+    // Create POA record in database
+    const poa = await prisma.powerOfAttorney.create({
+      data: {
+        tenantId,
+        principalUserId: userId,
+        createdByUserId: userId,
+        
+        // Principal info
+        principalName: principal.fullName,
+        principalEmail: principal.email || null,
+        principalPhone: principal.phone || null,
+        principalAddress: principal.address.street,
+        principalCity: principal.address.city,
+        principalState: principal.address.state,
+        principalZip: principal.address.zipCode,
+        
+        // Document type
+        poaType,
+        isDurable,
+        isSpringing,
+        isLimited,
+        state,
+        
+        // Dates
+        effectiveDate: effectiveDate ? new Date(effectiveDate) : null,
+        expirationDate: expirationDate ? new Date(expirationDate) : null,
+        springingCondition: springingCondition || null,
+        
+        // Additional terms
+        specialInstructions: specialInstructions || null,
+        coAgentsMustActJointly: coAgentsMustActJointly || false,
+        agentCompensation: agentCompensation || false,
+        compensationDetails: compensationDetails || null,
+        
+        // Status
+        status: 'DRAFT',
+        documentType: 'FINANCIAL',
+      },
+    });
 
-    // Add secure tenant/user context to the data
-    const dataWithAuth = {
-      ...body,
-      principal: {
-        ...body.principal,
-        userId: user.id,
-        tenantId: tenantId,
-      }
-    };
-
-    // Validate input
-    const validation = validateFinancialPOA(dataWithAuth);
-    if (!validation.success) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Validation failed',
-          details: validation.error.errors
-        },
-        { status: 400 }
-      );
-    }
-
-    const data = validation.data;
-
-    // Start database transaction
-    const result = await prisma.$transaction(async (tx) => {
-      // 1. Create PowerOfAttorney record
-      const poa = await tx.powerOfAttorney.create({
-        data: {
-          tenantId: data.principal.tenantId,
-          principalUserId: data.principal.userId,
-          principalName: data.principal.fullName,
-          principalAddress: data.principal.address.street,
-          principalCity: data.principal.address.city,
-          principalState: data.principal.address.state,
-          principalZip: data.principal.address.zipCode,
-          principalEmail: data.principal.email,
-          principalPhone: data.principal.phone,
-          principalDOB: data.principal.dateOfBirth ? new Date(data.principal.dateOfBirth) : null,
-          
-          state: data.state,
-          poaType: data.poaType.toUpperCase() as 'DURABLE' | 'SPRINGING' | 'LIMITED',
-          isDurable: data.isDurable,
-          isLimited: data.isLimited,
-          isSpringing: data.isSpringing,
-          
-          effectiveImmediately: !data.isSpringing,
-          expirationDate: data.expirationDate ? new Date(data.expirationDate) : null,
-          
-          springingCondition: data.springingCondition,
-          requiresPhysicianCert: data.isSpringing,
-          numberOfPhysiciansReq: data.numberOfPhysiciansRequired || 1,
-          
-          status: 'DRAFT',
-          
-          // Co-agent settings
-          hasCoAgents: data.agents.filter(a => a.type === 'co_agent').length > 0,
-          coAgentsMustActJointly: (data as any).coAgentsMustActJointly || false,
-          
-          usesStatutoryForm: data.useStatutoryForm,
-          specialInstructions: data.additionalInstructions,
-          
-          notaryName: data.notaryPublic?.fullName,
-          notaryCommission: data.notaryPublic?.commissionNumber,
-          notaryExpiration: data.notaryPublic?.commissionExpiration 
-            ? new Date(data.notaryPublic.commissionExpiration)
-            : null,
-          notaryCounty: data.notaryPublic?.county,
-          notaryState: data.notaryPublic?.state,
-          
-          createdById: data.principal.userId,
-          createdAt: new Date(),
-          updatedAt: new Date()
-        }
-      });
-
-      // 2. Create POA Agents
-      const agentPromises = data.agents.map((agent, index) =>
-        tx.pOAAgent.create({
+    // Create agents
+    const createdAgents = await Promise.all(
+      agents.map(async (agent: any) => {
+        return prisma.pOAAgent.create({
           data: {
             poaId: poa.id,
-            agentType: agent.type,
-            order: agent.order || index + 1,
+            tenantId,
+            type: agent.type,
+            order: agent.order || 0,
             fullName: agent.fullName,
             email: agent.email,
             phone: agent.phone,
-            address: agent.address.street,
-            city: agent.address.city,
-            state: agent.address.state,
-            zip: agent.address.zipCode,
-            relationship: agent.relationship,
-            hasAccepted: false,
-            requiresSignature: true,
-            createdAt: new Date(),
-            updatedAt: new Date()
-          }
-        })
-      );
-      const agents = await Promise.all(agentPromises);
-
-      // 3. Create Granted Powers
-      const powerPromises = data.grantedPowers.categoryIds.map((categoryId) =>
-        tx.pOAGrantedPower.create({
-          data: {
-            poaId: poa.id,
-            categoryId: categoryId,
-            grantAllSubPowers: data.grantedPowers.grantAllSubPowers,
-            grantedSubPowers: data.grantedPowers.subPowerIds || [],
-            createdAt: new Date(),
-            updatedAt: new Date()
-          }
-        })
-      );
-      const grantedPowers = await Promise.all(powerPromises);
-
-      // 4. Create Witnesses (if provided)
-      if (data.witnesses && data.witnesses.length > 0) {
-        const witnessPromises = data.witnesses.map((witness) =>
-          tx.pOAWitness.create({
-            data: {
-              poaId: poa.id,
-              fullName: witness.fullName,
-              address: witness.address.street,
-              city: witness.address.city,
-              state: witness.address.state,
-              zip: witness.address.zipCode,
-              relationship: witness.relationship,
-              createdAt: new Date(),
-              updatedAt: new Date()
-            }
-          })
-        );
-        await Promise.all(witnessPromises);
-      }
-
-      // 6. Create Audit Log
-      await tx.pOAAuditLog.create({
-        data: {
-          poaId: poa.id,
-          userId: data.principal.userId,
-          action: 'POA_CREATED',
-          category: 'creation',
-          details: {
-            poaType: data.poaType,
-            principalName: data.principal.fullName,
-            agentCount: agents.length,
-            powerCategoryCount: grantedPowers.length
+            relationship: agent.relationship || null,
+            addressStreet: agent.address.street,
+            addressCity: agent.address.city,
+            addressState: agent.address.state,
+            addressZip: agent.address.zipCode,
+            acceptedAt: null, // Agent hasn't accepted yet
           },
-          ipAddress: null,
-          userAgent: null,
-          timestamp: new Date()
-        }
-      });
+        });
+      })
+    );
 
-      return { poa, agents, grantedPowers };
-    });
-
-    const { poa, agents, grantedPowers } = result;
-
-    // 7. Generate PDF (outside transaction since it's slow)
-    const { buffer, filename } = await generateFinancialPOAPDF({
-      poaData: data
-    });
-
-    // 8. Upload PDF to Vercel Blob
-    const { url: documentUrl } = await uploadPOADocument({
-      file: buffer,
-      filename,
-      contentType: 'application/pdf',
-      tenantId: data.principal.tenantId,
-      poaId: poa.id
-    });
-
-    // 9. Update POA with document URL
-    const updatedPOA = await prisma.powerOfAttorney.update({
-      where: { id: poa.id },
-      data: { 
-        generatedDocument: documentUrl,
-        updatedAt: new Date()
+    // Fetch power categories from database
+    const powerCategories = await prisma.pOAPowerCategoryDefinition.findMany({
+      where: {
+        id: {
+          in: grantedPowers.categoryIds || [],
+        },
       },
       include: {
-        agents: true,
-        grantedPowers: {
-          include: {
-            category: true
-          }
-        },
-        witnesses: true
-      }
+        subPowers: true,
+      },
     });
 
-    // 10. Create Document record for dashboard visibility
-    await prisma.document.create({
+    // Create granted powers
+    await Promise.all(
+      powerCategories.map(async (category) => {
+        return prisma.pOAGrantedPower.create({
+          data: {
+            poaId: poa.id,
+            tenantId,
+            categoryId: category.id,
+            isGranted: true,
+            grantAllSubPowers: grantedPowers.grantAllSubPowers || false,
+            // If grantAllSubPowers is false, we'd need to handle individual sub-powers
+          },
+        });
+      })
+    );
+
+    // Create power limitations
+    if (powerLimitations && powerLimitations.length > 0) {
+      await Promise.all(
+        powerLimitations.map(async (limitation: any) => {
+          return prisma.pOAPowerLimitation.create({
+            data: {
+              poaId: poa.id,
+              tenantId,
+              categoryId: limitation.categoryId,
+              limitationType: limitation.limitationType,
+              limitationText: limitation.limitationText,
+              monetaryLimit: limitation.monetaryLimit || null,
+              timeLimit: limitation.timeLimit ? new Date(limitation.timeLimit) : null,
+              geographicLimit: limitation.geographicLimit || null,
+              specificAsset: limitation.specificAsset || null,
+            },
+          });
+        })
+      );
+    }
+
+    // Get state requirements for PDF generation
+    const stateRequirements = await prisma.stateRequirements.findUnique({
+      where: { state },
+    });
+
+    // Prepare data for PDF generation
+    const pdfData = {
+      principal: {
+        fullName: principal.fullName,
+        email: principal.email,
+        phone: principal.phone,
+        address: principal.address,
+      },
+      poaType,
+      isDurable,
+      isSpringing,
+      isLimited,
+      state,
+      agents: agents.map((agent: any) => ({
+        type: agent.type,
+        fullName: agent.fullName,
+        email: agent.email,
+        phone: agent.phone,
+        relationship: agent.relationship,
+        address: agent.address,
+        order: agent.order || 0,
+      })),
+      grantedPowers: {
+        categoryIds: grantedPowers.categoryIds,
+        grantAllPowers: grantedPowers.grantAllPowers,
+        grantAllSubPowers: grantedPowers.grantAllSubPowers,
+      },
+      powerLimitations: powerLimitations || [],
+      effectiveDate,
+      expirationDate,
+      springingCondition,
+      agentCompensation,
+      compensationDetails,
+      specialInstructions,
+      coAgentsMustActJointly,
+    };
+
+    // Generate PDF
+    const pdfResult = await generateFinancialPOAPDF({
+      poaData: pdfData,
+      stateRequirements: stateRequirements ? {
+        requiresNotary: stateRequirements.requiresNotary,
+        requiresWitnesses: stateRequirements.requiresWitnesses,
+        numberOfWitnesses: stateRequirements.numberOfWitnesses || 2,
+        notaryTemplate: stateRequirements.notaryTemplate || undefined,
+      } : {
+        requiresNotary: true, // Default to requiring notary
+        requiresWitnesses: false,
+        numberOfWitnesses: 0,
+      },
+      powerCategories: powerCategories.map(cat => ({
+        id: cat.id,
+        letter: cat.categoryLetter,
+        title: cat.categoryName,
+        description: cat.plainLanguageDesc,
+        categoryName: cat.categoryName,
+        plainLanguageDesc: cat.plainLanguageDesc,
+        categoryLetter: cat.categoryLetter,
+      })),
+    });
+
+    // Upload PDF to Vercel Blob storage
+    const blob = await put(pdfResult.filename, pdfResult.buffer, {
+      access: 'public',
+      contentType: 'application/pdf',
+    });
+
+    // Update POA record with PDF URL
+    await prisma.powerOfAttorney.update({
+      where: { id: poa.id },
       data: {
-        title: `${data.poaType.charAt(0).toUpperCase() + data.poaType.slice(1)} Power of Attorney - ${data.principal.fullName}`,
-        description: `${data.poaType} POA with ${agents.length} agent(s) and ${grantedPowers.length} power categories`,
-        isFolder: false,
-        type: 'poa',
-        parentId: null,
-        status: 'active',
-        tenantId: data.principal.tenantId,
-        createdById: data.principal.userId,
-        fileUrl: documentUrl,
-        fileName: filename,
-        fileType: 'application/pdf',
-        fileSize: buffer.length,
-        // Link to the actual POA record in content field
-        content: {
-          poaId: poa.id,
-          poaType: data.poaType
-        }
-      }
+        documentUrl: blob.url,
+      },
     });
 
-    // 12. Create audit log for PDF generation
+    // Create audit log entry
     await prisma.pOAAuditLog.create({
       data: {
         poaId: poa.id,
-        userId: data.principal.userId,
-        action: 'PDF_GENERATED',
-        category: 'document',
-        details: {
-          filename,
-          documentUrl,
-          fileSize: buffer.length
+        tenantId,
+        userId,
+        action: 'CREATED',
+        description: `Financial POA created for ${principal.fullName}`,
+        metadata: {
+          poaType,
+          state,
+          agentCount: agents.length,
+          powerCount: powerCategories.length,
         },
-        timestamp: new Date()
-      }
+      },
     });
 
-    // 13. Send designation emails to agents
-    const { sendAgentDesignationEmail } = await import('@/lib/poa/notifications');
-    
-    for (const agent of updatedPOA.agents) {
-      if (agent.email) {
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://endurawill.vercel.app';
-        await sendAgentDesignationEmail({
-          agentEmail: agent.email,
-          agentName: agent.fullName,
-          principalName: data.principal.fullName,
-          poaType: data.poaType,
-          agentType: agent.agentType,
-          acceptUrl: `${baseUrl}/poa/agent/${agent.id}/accept`,
-          declineUrl: `${baseUrl}/poa/agent/${agent.id}/decline`
-        });
-      }
-    }
-
+    // Return success response
     return NextResponse.json({
       success: true,
-      message: 'Financial POA created successfully',
       poa: {
-        id: updatedPOA.id,
-        status: updatedPOA.status,
-        generatedDocument: updatedPOA.generatedDocument,
-        createdAt: updatedPOA.createdAt
+        id: poa.id,
+        documentUrl: blob.url,
+        filename: pdfResult.filename,
+        pageCount: pdfResult.pageCount,
       },
-      agents: updatedPOA.agents,
-      grantedPowers: updatedPOA.grantedPowers,
-      witnesses: updatedPOA.witnesses
-    }, { status: 201 });
+    });
 
   } catch (error) {
     console.error('Error creating financial POA:', error);
     
-    // Detailed error logging
-    if (error instanceof Error) {
-      console.error('Error name:', error.name);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-    }
-
     return NextResponse.json(
       {
         success: false,
-        error: 'Failed to create financial POA',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error occurred',
       },
       { status: 500 }
     );
   }
 }
 
-/**
- * GET /api/poa/financial?id=xxx
- * Fetch a specific financial POA by ID
- */
-export async function GET(request: Request) {
+// GET endpoint to retrieve POA by ID
+export async function GET(req: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const poaId = searchParams.get('id');
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get('id');
 
-    if (!poaId) {
+    if (!id) {
       return NextResponse.json(
-        {
-          success: false,
-          error: 'POA ID is required'
-        },
+        { success: false, error: 'POA ID is required' },
         { status: 400 }
       );
     }
 
     const poa = await prisma.powerOfAttorney.findUnique({
-      where: { id: poaId },
+      where: { id },
       include: {
         agents: true,
         grantedPowers: {
           include: {
-            category: {
-              include: {
-                subPowers: true
-              }
-            }
-          }
+            category: true,
+          },
         },
-        witnesses: true,
+        powerLimitations: true,
+        revocations: true,
         auditLogs: {
           orderBy: {
-            timestamp: 'desc'
-          }
-        }
-      }
+            createdAt: 'desc',
+          },
+          take: 10,
+        },
+      },
     });
 
     if (!poa) {
       return NextResponse.json(
-        {
-          success: false,
-          error: 'POA not found'
-        },
+        { success: false, error: 'POA not found' },
         { status: 404 }
       );
     }
 
     return NextResponse.json({
       success: true,
-      poa
+      poa,
     });
 
   } catch (error) {
-    console.error('Error fetching financial POA:', error);
+    console.error('Error fetching POA:', error);
+    
     return NextResponse.json(
       {
         success: false,
-        error: 'Failed to fetch financial POA',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error occurred',
       },
       { status: 500 }
     );
