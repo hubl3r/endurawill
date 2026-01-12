@@ -48,7 +48,7 @@ export function ReviewAndSubmit({ formData, updateFormData }: ReviewAndSubmitPro
         isLimited: formData.isLimited || false,
         state: formData.state || formData.principal?.address?.state,
         agents: (formData.agents || []).map((agent: any, index: number) => ({
-          type: agent.type.toLowerCase(),
+          type: agent.type,
           order: index + 1,
           fullName: agent.fullName,
           email: agent.email,
@@ -58,22 +58,20 @@ export function ReviewAndSubmit({ formData, updateFormData }: ReviewAndSubmitPro
         })),
         grantedPowers: {
           categoryIds: formData.grantedPowers?.categoryIds || [],
+          grantAllPowers: formData.grantedPowers?.grantAllPowers || false,
           grantAllSubPowers: formData.grantedPowers?.grantAllSubPowers || true,
           subPowerIds: formData.grantedPowers?.subPowerIds || [],
         },
+        powerLimitations: formData.powerLimitations || [],
+        effectiveDate: formData.effectiveDate || null,
+        expirationDate: formData.expirationDate || null,
+        springingCondition: formData.springingCondition || null,
+        agentCompensation: formData.agentCompensation || false,
+        compensationDetails: formData.compensationDetails || null,
+        specialInstructions: formData.specialInstructions || null,
         coAgentsMustActJointly: formData.coAgentsMustActJointly || false,
         useStatutoryForm: false,
         additionalInstructions: formData.additionalInstructions || '',
-        // Springing-specific fields
-        ...(formData.isSpringing && {
-          springingCondition: formData.springingCondition || 'Upon physician certification of incapacity',
-          numberOfPhysiciansRequired: formData.numberOfPhysiciansRequired || 1,
-        }),
-        // Limited-specific fields
-        ...(formData.isLimited && {
-          specificPurpose: formData.specificPurpose || '',
-          expirationDate: formData.expirationDate || null,
-        }),
       };
 
       const response = await fetch('/api/poa/financial', {
