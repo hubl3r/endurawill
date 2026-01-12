@@ -267,7 +267,7 @@ class POAPDFBuilder {
     } else if (data.effectiveDate) {
       this.writeText(`[X] This power of attorney becomes effective on ${new Date(data.effectiveDate).toLocaleDateString()}.`, 11, false, 20);
     } else {
-      this.writeText('[X] This power of attorney is effective immediately.', 11, false, 20);
+      this.writeText('[X] This power of attorney is effective immediately upon signing.', 11, false, 20);
     }
     
     if (data.expirationDate) {
@@ -302,28 +302,39 @@ class POAPDFBuilder {
     const grantedIds = new Set(data.grantedPowers?.categoryIds || []);
     const grantAll = data.grantedPowers?.grantAllPowers;
     
+    // Always show ALL categories with checkboxes
     powerCategories.forEach((category: any) => {
       const isGranted = grantAll || grantedIds.has(category.id);
       
       this.checkPageBreak(60);
-      this.writeCheckbox(category.categoryLetter || category.letter, category.categoryName || category.title, isGranted);
+      this.writeCheckbox(
+        category.categoryLetter || category.letter, 
+        category.categoryName || category.title, 
+        isGranted
+      );
       
+      // Always show description for granted powers
       if (isGranted) {
         const description = category.plainLanguageDesc || category.description;
         this.writeMultiline(description, 10, false, 20);
       }
       
-      // Add special instructions for the last category
-      if (category.letter === 'o' && data.specialInstructions) {
-        this.spacer(0.5);
-        const instructions = data.specialInstructions.split('\n');
-        instructions.forEach((line: string) => {
-          this.writeText(line, 10, false, 30);
-        });
-      }
-      
       this.spacer(0.5);
     });
+    
+    // Add special instructions section if provided
+    if (data.specialInstructions) {
+      this.spacer(1);
+      this.writeText('SPECIAL INSTRUCTIONS:', 11, true);
+      this.spacer(0.5);
+      const instructions = data.specialInstructions.split('\n');
+      instructions.forEach((line: string) => {
+        if (line.trim()) {
+          this.writeText(line, 10, false, 20);
+        }
+      });
+      this.spacer(0.5);
+    }
   }
 
   buildSuccessorAgents(data: any): void {
@@ -368,7 +379,8 @@ class POAPDFBuilder {
   }
 
   buildLimitations(data: any): void {
-    if (!data.powerLimitations || data.powerLimitations.length === 0) return;
+    const limitations = data.powerLimitations || [];
+    if (limitations.length === 0) return;
     
     this.checkPageBreak(100);
     this.writeText('LIMITATIONS AND RESTRICTIONS:', 11, true);
@@ -379,10 +391,13 @@ class POAPDFBuilder {
     );
     this.spacer(0.5);
     
-    data.powerLimitations.forEach((limitation: any, index: number) => {
+    limitations.forEach((limitation: any, index: number) => {
       this.checkPageBreak(40);
-      this.writeText(`${index + 1}. ${limitation.limitationType}:`, 11, true, 20);
-      this.writeMultiline(limitation.limitationText, 10, false, 30);
+      const type = limitation.limitationType || 'LIMITATION';
+      const text = limitation.limitationText || limitation.text || 'No description provided';
+      
+      this.writeText(`${index + 1}. ${type}:`, 11, true, 20);
+      this.writeMultiline(text, 10, false, 30);
       this.spacer(0.5);
     });
     
