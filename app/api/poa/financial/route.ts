@@ -197,10 +197,10 @@ export async function POST(req: NextRequest) {
     const pdfResult = await generateFinancialPOAPDF({
       poaData: pdfData,
       stateRequirements: stateRequirements ? {
-        requiresNotary: stateRequirements.requiresNotary,
-        requiresWitnesses: stateRequirements.requiresWitnesses,
+        requiresNotary: stateRequirements.notarizationRequired,
+        requiresWitnesses: stateRequirements.witnessesRequired,
         numberOfWitnesses: stateRequirements.numberOfWitnesses || 2,
-        notaryTemplate: stateRequirements.notaryTemplate || undefined,
+        notaryTemplate: undefined, // Could fetch from NotaryBlockTemplate if needed
       } : {
         requiresNotary: true, // Default to requiring notary
         requiresWitnesses: false,
