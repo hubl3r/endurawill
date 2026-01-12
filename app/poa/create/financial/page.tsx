@@ -8,6 +8,7 @@ import { DocumentTypeSelector } from '@/components/wizards/financial-poa/Documen
 import { PrincipalInformation } from '@/components/wizards/financial-poa/PrincipalInformation';
 import { AgentSelection } from '@/components/wizards/financial-poa/AgentSelection';
 import { PowerSelection } from '@/components/wizards/financial-poa/PowerSelection';
+import { AdditionalTerms } from '@/components/wizards/financial-poa/AdditionalTerms';
 import { ReviewAndSubmit } from '@/components/wizards/financial-poa/ReviewAndSubmit';
 import { z } from 'zod';
 
@@ -59,6 +60,22 @@ const powerSchema = z.object({
     categoryIds: z.array(z.string()).min(1, 'At least one power must be granted'),
     grantAllSubPowers: z.boolean().optional(),
   }),
+});
+
+const additionalTermsSchema = z.object({
+  effectiveDate: z.string().optional(),
+  expirationDate: z.string().optional(),
+  agentCompensation: z.boolean().optional(),
+  compensationDetails: z.string().optional(),
+}).refine((data) => {
+  // If compensation is checked, details are required
+  if (data.agentCompensation && !data.compensationDetails) {
+    return false;
+  }
+  return true;
+}, {
+  message: 'Compensation details required when compensation is selected',
+  path: ['compensationDetails'],
 });
 
 export default function FinancialPOAWizardPage() {
@@ -125,6 +142,14 @@ export default function FinancialPOAWizardPage() {
               component: 'PowerSelection',
               estimatedMinutes: 4,
               validation: powerSchema,
+            },
+            {
+              id: 'additional-terms',
+              title: 'Additional Terms',
+              description: 'Set effective date and compensation',
+              component: 'AdditionalTerms',
+              estimatedMinutes: 2,
+              validation: additionalTermsSchema,
             },
             {
               id: 'review',
@@ -205,6 +230,13 @@ export default function FinancialPOAWizardPage() {
       case 'power-selection':
         return (
           <PowerSelection
+            formData={formData}
+            updateFormData={updateFormData}
+          />
+        );
+      case 'additional-terms':
+        return (
+          <AdditionalTerms
             formData={formData}
             updateFormData={updateFormData}
           />
