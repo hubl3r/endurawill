@@ -81,6 +81,7 @@ const additionalTermsSchema = z.object({
 export default function FinancialPOAWizardPage() {
   const [engine, setEngine] = useState<WizardEngine | null>(null);
   const [currentStepId, setCurrentStepId] = useState('document-type');
+  const [, forceUpdate] = useState({});
 
   useEffect(() => {
     // Create WizardDocument definition
@@ -203,6 +204,7 @@ export default function FinancialPOAWizardPage() {
     const formData = engine.getFormData();
     const updateFormData = (path: string, value: any) => {
       engine.updateFormData(path, value);
+      forceUpdate({}); // Trigger re-render
     };
 
     switch (currentStepId) {
