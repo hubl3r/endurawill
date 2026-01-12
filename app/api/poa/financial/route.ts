@@ -29,8 +29,42 @@ export async function POST(req: NextRequest) {
     } = body;
 
     // TODO: Get user/tenant from auth session
-    const userId = 'temp-user-id'; // Replace with actual auth
-    const tenantId = 'temp-tenant-id'; // Replace with actual auth
+    // For now, create/get a default tenant and user
+    let tenant = await prisma.tenant.findFirst({
+      where: { name: 'Default Tenant' }
+    });
+    
+    if (!tenant) {
+      tenant = await prisma.tenant.create({
+        data: {
+          name: 'Default Tenant',
+          subdomain: 'default',
+          planType: 'FREE',
+          maxUsers: 10,
+          maxDocuments: 100,
+          maxStorage: 1073741824, // 1GB
+        }
+      });
+    }
+
+    let user = await prisma.user.findFirst({
+      where: { email: 'default@endurawill.com' }
+    });
+
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          tenantId: tenant.id,
+          email: 'default@endurawill.com',
+          name: 'Default User',
+          role: 'OWNER',
+          hashedPassword: 'temp-hash', // Will be replaced with real auth
+        }
+      });
+    }
+
+    const userId = user.id;
+    const tenantId = tenant.id;
 
     // Create POA record in database
     const poa = await prisma.powerOfAttorney.create({
