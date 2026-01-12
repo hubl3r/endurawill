@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { usePOACount } from '@/hooks/usePOACount';
 import {
   Shield,
   ChevronDown,
@@ -62,6 +63,7 @@ export default function Sidebar({
 }: SidebarProps) {
   const [expandedSections, setExpandedSections] = useState<string[]>(['main', 'estate', 'vault', 'profile']);
   const [showEstateSwitcher, setShowEstateSwitcher] = useState(false);
+  const { count: poaCount } = usePOACount();
 
   const toggleSection = (sectionId: string) => {
     setExpandedSections(prev =>
@@ -186,8 +188,8 @@ export default function Sidebar({
       label: 'Power of Attorney',
       icon: ClipboardList,
       items: [
-        { id: 'create-poa', label: 'Create New', href: '/dashboard/poa/create' },
-        { id: 'my-poas', label: 'My POAs', href: '/dashboard/poa', badge: '0' }
+        { id: 'create-poa', label: 'Create New', href: '/poa/create/financial' },
+        { id: 'my-poas', label: 'My POAs', href: '/dashboard/poa', badge: String(poaCount) }
       ]
     },
     {
