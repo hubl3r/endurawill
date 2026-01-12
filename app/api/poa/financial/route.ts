@@ -38,27 +38,24 @@ export async function POST(req: NextRequest) {
       tenant = await prisma.tenant.create({
         data: {
           name: 'Default Tenant',
-          subdomain: 'default',
-          planType: 'FREE',
-          maxUsers: 10,
-          maxDocuments: 100,
-          maxStorage: 1073741824, // 1GB
+          type: 'individual',
         }
       });
     }
 
     let user = await prisma.user.findFirst({
-      where: { email: 'default@endurawill.com' }
+      where: { clerkId: 'default-clerk-id' }
     });
 
     if (!user) {
       user = await prisma.user.create({
         data: {
           tenantId: tenant.id,
+          clerkId: 'default-clerk-id',
+          fullName: 'Default User',
           email: 'default@endurawill.com',
-          name: 'Default User',
           role: 'OWNER',
-          hashedPassword: 'temp-hash', // Will be replaced with real auth
+          isPrimary: true,
         }
       });
     }
