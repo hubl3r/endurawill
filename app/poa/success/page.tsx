@@ -1,11 +1,11 @@
 // app/poa/success/page.tsx
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { CheckCircle, Download, FileText, ArrowRight, Loader2 } from 'lucide-react';
 
-export default function POASuccessPage() {
+function POASuccessContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const poaId = searchParams.get('id');
@@ -256,5 +256,20 @@ export default function POASuccessPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function POASuccessPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 text-blue-600 animate-spin mx-auto mb-4" />
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    }>
+      <POASuccessContent />
+    </Suspense>
   );
 }
