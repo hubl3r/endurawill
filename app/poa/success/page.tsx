@@ -141,7 +141,7 @@ export default function POASuccessPage() {
         </div>
 
         {/* Download Section */}
-        {poa.documentUrl && (
+        {poa.generatedDocument && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
             <div className="flex items-start space-x-3">
               <Download className="h-6 w-6 text-blue-600 mt-0.5 flex-shrink-0" />
@@ -154,7 +154,7 @@ export default function POASuccessPage() {
                   before signing.
                 </p>
                 <a
-                  href={poa.documentUrl}
+                  href={poa.generatedDocument}
                   download
                   className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
                 >
