@@ -57,18 +57,19 @@ export async function POST(req: NextRequest) {
         
         // Dates
         effectiveDate: effectiveDate ? new Date(effectiveDate) : null,
+        effectiveImmediately: !effectiveDate,
         expirationDate: expirationDate ? new Date(expirationDate) : null,
         springingCondition: springingCondition || null,
         
         // Additional terms
         specialInstructions: specialInstructions || null,
         coAgentsMustActJointly: coAgentsMustActJointly || false,
+        hasCoAgents: agents.some((a: any) => a.type === 'CO_AGENT'),
         agentCompensation: agentCompensation || false,
         compensationDetails: compensationDetails || null,
         
         // Status
         status: 'DRAFT',
-        documentType: 'FINANCIAL',
       },
     });
 
@@ -79,17 +80,17 @@ export async function POST(req: NextRequest) {
           data: {
             poaId: poa.id,
             tenantId,
-            type: agent.type,
+            agentType: agent.type,
             order: agent.order || 0,
             fullName: agent.fullName,
             email: agent.email,
             phone: agent.phone,
             relationship: agent.relationship || null,
-            addressStreet: agent.address.street,
-            addressCity: agent.address.city,
-            addressState: agent.address.state,
-            addressZip: agent.address.zipCode,
-            acceptedAt: null, // Agent hasn't accepted yet
+            address: agent.address.street,
+            city: agent.address.city,
+            state: agent.address.state,
+            zip: agent.address.zipCode,
+            hasAccepted: false, // Agent hasn't accepted yet
           },
         });
       })
@@ -220,7 +221,7 @@ export async function POST(req: NextRequest) {
     await prisma.powerOfAttorney.update({
       where: { id: poa.id },
       data: {
-        documentUrl: blob.url,
+        generatedDocument: blob.url,
       },
     });
 
