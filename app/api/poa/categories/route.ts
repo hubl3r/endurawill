@@ -1,39 +1,34 @@
 // app/api/poa/categories/route.ts
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
-/**
- * GET /api/poa/categories
- * Fetch all POA power categories with their sub-powers
- */
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    // Fetch all power categories with their sub-powers
     const categories = await prisma.pOAPowerCategoryDefinition.findMany({
       include: {
         subPowers: {
           orderBy: {
-            sortOrder: 'asc'
-          }
-        }
+            sortOrder: 'asc',
+          },
+        },
       },
       orderBy: {
-        categoryNumber: 'asc'
-      }
+        categoryNumber: 'asc',
+      },
     });
 
     return NextResponse.json({
       success: true,
-      count: categories.length,
-      categories
+      categories,
     });
-
   } catch (error) {
-    console.error('Error fetching POA categories:', error);
+    console.error('Error fetching power categories:', error);
+    
     return NextResponse.json(
       {
         success: false,
-        error: 'Failed to fetch POA categories',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Failed to fetch categories',
       },
       { status: 500 }
     );
