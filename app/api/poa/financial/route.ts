@@ -210,19 +210,28 @@ export async function POST(req: NextRequest) {
         order: agent.order || 0,
       })),
       grantedPowers: {
-        categoryIds: grantedPowers.categoryIds,
-        grantAllPowers: grantedPowers.grantAllPowers,
-        grantAllSubPowers: grantedPowers.grantAllSubPowers,
+        categoryIds: grantedPowers?.categoryIds || [],
+        grantAllPowers: grantedPowers?.grantAllPowers || false,
+        grantAllSubPowers: grantedPowers?.grantAllSubPowers || false,
       },
       powerLimitations: powerLimitations || [],
-      effectiveDate,
-      expirationDate,
-      springingCondition,
-      agentCompensation,
-      compensationDetails,
-      specialInstructions,
-      coAgentsMustActJointly,
+      effectiveDate: effectiveDate || null,
+      expirationDate: expirationDate || null,
+      springingCondition: springingCondition || null,
+      agentCompensation: agentCompensation || false,
+      compensationDetails: compensationDetails || null,
+      specialInstructions: specialInstructions || null,
+      coAgentsMustActJointly: coAgentsMustActJointly || false,
     };
+
+    // Debug logging
+    console.log('=== PDF Data Debug ===');
+    console.log('Effective Date:', pdfData.effectiveDate);
+    console.log('Agent Compensation:', pdfData.agentCompensation);
+    console.log('Compensation Details:', pdfData.compensationDetails);
+    console.log('Power Limitations:', pdfData.powerLimitations);
+    console.log('Special Instructions:', pdfData.specialInstructions);
+    console.log('=====================');
 
     // Generate PDF
     const pdfResult = await generateFinancialPOAPDF({
