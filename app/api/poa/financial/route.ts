@@ -298,7 +298,7 @@ export async function GET(req: NextRequest) {
         revocations: true,
         auditLogs: {
           orderBy: {
-            createdAt: 'desc',
+            timestamp: 'desc',
           },
           take: 10,
         },
