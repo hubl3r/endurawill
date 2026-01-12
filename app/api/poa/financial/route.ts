@@ -79,7 +79,6 @@ export async function POST(req: NextRequest) {
         return prisma.pOAAgent.create({
           data: {
             poaId: poa.id,
-            tenantId,
             agentType: agent.type,
             order: agent.order || 0,
             fullName: agent.fullName,
@@ -90,7 +89,7 @@ export async function POST(req: NextRequest) {
             city: agent.address.city,
             state: agent.address.state,
             zip: agent.address.zipCode,
-            hasAccepted: false, // Agent hasn't accepted yet
+            hasAccepted: false,
           },
         });
       })
@@ -108,31 +107,38 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Create granted powers
-    await Promise.all(
+    // Create granted powers and their limitations
+    const grantedPowerRecords = await Promise.all(
       powerCategories.map(async (category) => {
         return prisma.pOAGrantedPower.create({
           data: {
             poaId: poa.id,
-            tenantId,
             categoryId: category.id,
-            isGranted: true,
             grantAllSubPowers: grantedPowers.grantAllSubPowers || false,
-            // If grantAllSubPowers is false, we'd need to handle individual sub-powers
+            grantedSubPowers: {}, // Empty object for now, could be populated with specific sub-powers
           },
         });
       })
     );
 
-    // Create power limitations
+    // Create power limitations (if any) linked to granted powers
     if (powerLimitations && powerLimitations.length > 0) {
       await Promise.all(
         powerLimitations.map(async (limitation: any) => {
+          // Find the granted power record for this category
+          const grantedPower = grantedPowerRecords.find(
+            gp => powerCategories.find(pc => pc.id === gp.categoryId)?.id === limitation.categoryId
+          );
+          
+          if (!grantedPower) {
+            console.warn(`No granted power found for limitation on category ${limitation.categoryId}`);
+            return;
+          }
+
           return prisma.pOAPowerLimitation.create({
             data: {
               poaId: poa.id,
-              tenantId,
-              categoryId: limitation.categoryId,
+              grantedPowerId: grantedPower.id,
               limitationType: limitation.limitationType,
               limitationText: limitation.limitationText,
               monetaryLimit: limitation.monetaryLimit || null,
@@ -229,15 +235,15 @@ export async function POST(req: NextRequest) {
     await prisma.pOAAuditLog.create({
       data: {
         poaId: poa.id,
-        tenantId,
         userId,
         action: 'CREATED',
-        description: `Financial POA created for ${principal.fullName}`,
-        metadata: {
+        category: 'POA_LIFECYCLE',
+        details: {
           poaType,
           state,
           agentCount: agents.length,
           powerCount: powerCategories.length,
+          principalName: principal.fullName,
         },
       },
     });
