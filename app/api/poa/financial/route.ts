@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
       data: {
         tenantId,
         principalUserId: userId,
-        createdByUserId: userId,
+        createdById: userId,
         
         // Principal info
         principalName: principal.fullName,
