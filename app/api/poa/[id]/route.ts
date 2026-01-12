@@ -4,9 +4,10 @@ import { prisma } from '@/lib/prisma';
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await context.params;
     const poa = await prisma.powerOfAttorney.findUnique({
       where: { id: params.id },
       include: {
@@ -57,9 +58,11 @@ export async function GET(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await context.params;
+    
     // Check if POA exists and is DRAFT
     const poa = await prisma.powerOfAttorney.findUnique({
       where: { id: params.id },
