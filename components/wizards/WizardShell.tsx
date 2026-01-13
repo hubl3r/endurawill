@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Clock, CheckCircle, Menu, X, Check } from 'lucide-react';
-import { WizardEngine, WizardSection, WizardStep } from '@/lib/wizards/core/WizardEngine';
+import { WizardEngine, WizardSection, WizardStep, WizardDocument } from '@/lib/wizards/core/WizardEngine';
 
 interface WizardShellProps {
   engine: WizardEngine;
@@ -11,6 +11,7 @@ interface WizardShellProps {
   onStepChange?: (stepId: string, sectionId: string) => void;
   onSave?: (data: any) => Promise<void>;
   autoSaveInterval?: number;
+  wizardDocument?: WizardDocument;
 }
 
 export function WizardShell({
@@ -19,6 +20,7 @@ export function WizardShell({
   onStepChange,
   onSave,
   autoSaveInterval = 30000,
+  wizardDocument,
 }: WizardShellProps) {
   const [currentSection, setCurrentSection] = useState<WizardSection | null>(null);
   const [currentStep, setCurrentStep] = useState<WizardStep | null>(null);
@@ -116,9 +118,8 @@ export function WizardShell({
   const canGoPrevious = engine.getPreviousStep() !== null;
   const isLastStep = engine.getNextStep() === null;
 
-  // Get wizard document from engine
-  const wizardDoc = engine.getDocument();
-  const allSections = wizardDoc.sections;
+  // Get sections from prop or empty array
+  const allSections = wizardDocument?.sections || [];
   
   // Get completed steps from engine's internal state
   const serialized = engine.serialize();
