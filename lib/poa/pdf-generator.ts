@@ -202,7 +202,8 @@ class POAPDFBuilder {
   }
 
   private writeCheckbox(letter: string, title: string, checked: boolean, indent = 0): void {
-    const checkbox = checked ? `${letter}) ___X___ ${title}` : `${letter}) _______ ${title}`;
+    const statusText = checked ? title : `${title} (NOT AUTHORIZED)`;
+    const checkbox = checked ? `${letter}) ___X___ ${statusText}` : `${letter}) _______ ${statusText}`;
     this.writeText(checkbox, 11, false, indent);
   }
 
@@ -378,7 +379,7 @@ class POAPDFBuilder {
     }
   }
 
-  buildLimitations(data: any): void {
+  buildLimitations(data: any, powerCategories: any[]): void {
     const limitations = data.powerLimitations || [];
     if (limitations.length === 0) return;
     
@@ -392,11 +393,27 @@ class POAPDFBuilder {
     this.spacer(0.5);
     
     limitations.forEach((limitation: any, index: number) => {
-      this.checkPageBreak(40);
+      this.checkPageBreak(50);
+      
+      // Find the category name for this limitation
+      const category = powerCategories.find(cat => cat.id === limitation.categoryId);
+      
+      console.log('🔍 Limitation Debug:', {
+        limitationCategoryId: limitation.categoryId,
+        foundCategory: category?.id,
+        categoryName: category?.categoryName,
+        categoryLetter: category?.categoryLetter,
+      });
+      
+      const categoryName = category?.categoryName || category?.title || 'Unknown Power';
+      const categoryLetter = (category?.categoryLetter || category?.letter || '?').toUpperCase();
+      
       const type = limitation.limitationType || 'LIMITATION';
       const text = limitation.limitationText || limitation.text || 'No description provided';
       
-      this.writeText(`${index + 1}. ${type}:`, 11, true, 20);
+      // Show which power this limitation applies to
+      this.writeText(`${index + 1}. Limitation on Power ${categoryLetter} (${categoryName}):`, 11, true, 20);
+      this.writeText(`Type: ${type}`, 10, false, 30);
       this.writeMultiline(text, 10, false, 30);
       this.spacer(0.5);
     });
@@ -599,7 +616,7 @@ export async function generateFinancialPOAPDF(
   builder.buildAgentDesignation(data);
   builder.buildPowersOfAgent(data, categories);
   builder.buildSuccessorAgents(data);
-  builder.buildLimitations(data);
+  builder.buildLimitations(data, categories);
   builder.buildDutiesOfAgent();
   builder.buildCompensation(data);
   builder.buildRevocation();
