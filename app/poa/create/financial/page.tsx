@@ -57,9 +57,19 @@ const agentSchema = z.object({
 const powerSchema = z.object({
   grantedPowers: z.object({
     grantAllPowers: z.boolean().optional(),
-    categoryIds: z.array(z.string()).min(1, 'At least one power must be granted'),
+    categoryIds: z.array(z.string()),
     grantAllSubPowers: z.boolean().optional(),
   }),
+}).refine((data) => {
+  // If grantAllPowers is true, categoryIds can be empty
+  // Otherwise, at least one category must be selected
+  if (data.grantedPowers.grantAllPowers) {
+    return true;
+  }
+  return data.grantedPowers.categoryIds.length > 0;
+}, {
+  message: 'Please select at least one power or check "Grant All Powers"',
+  path: ['grantedPowers', 'categoryIds'],
 });
 
 const additionalTermsSchema = z.object({
