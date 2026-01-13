@@ -31,8 +31,8 @@ export async function POST(
       );
     }
 
-    // Check if schema has revision fields (backwards compatibility)
-    const schemaHasRevisions = 'versionNumber' in originalPoa;
+    // Check if this POA has revision fields (POAs created before schema update won't have them)
+    const schemaHasRevisions = originalPoa.versionNumber !== undefined && originalPoa.versionNumber !== null;
     
     if (schemaHasRevisions) {
       // Mark original as not latest version
@@ -82,7 +82,12 @@ export async function POST(
 
     // Add revision fields if schema supports it
     if (schemaHasRevisions) {
-      newPoaData.versionNumber = (originalPoa as any).versionNumber + 1;
+      newPoaData.versionNumber = originalPoa.versionNumber + 1;
+      newPoaData.parentPoaId = originalPoaId;
+      newPoaData.isLatestVersion = true;
+    } else {
+      // Old POA without version - start at version 2
+      newPoaData.versionNumber = 2;
       newPoaData.parentPoaId = originalPoaId;
       newPoaData.isLatestVersion = true;
     }
