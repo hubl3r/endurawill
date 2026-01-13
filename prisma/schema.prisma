@@ -120,7 +120,6 @@ model Tenant {
   wizardProgress    WizardProgress[]
   basisAdjustments  BasisAdjustment[]
   valueHistory      ValueHistory[]
-  assetBeneficiaries AssetBeneficiary[]
   
   @@index([type])
 }
