@@ -109,7 +109,7 @@ export async function POST(
           poaId: newPoa.id,
           categoryId: power.categoryId,
           grantAllSubPowers: power.grantAllSubPowers,
-          grantedSubPowers: power.grantedSubPowers, // Required Json field
+          grantedSubPowers: power.grantedSubPowers || {}, // Handle null/undefined, default to empty object
         },
       });
     }
