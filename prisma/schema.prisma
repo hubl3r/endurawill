@@ -1208,6 +1208,13 @@ model PowerOfAttorney {
   signedDocument    String?
   documentTemplateUsed String?
   
+  // Revision tracking
+  versionNumber     Int      @default(1)
+  parentPoaId       String?
+  parentPoa         PowerOfAttorney? @relation("POARevisions", fields: [parentPoaId], references: [id], onDelete: SetNull)
+  revisions         PowerOfAttorney[] @relation("POARevisions")
+  isLatestVersion   Boolean  @default(true)
+  
   recordedAt        DateTime?
   recordingCounty   String?
   recordingBookPage String?
@@ -1227,6 +1234,9 @@ model PowerOfAttorney {
   @@index([status])
   @@index([state])
   @@index([poaType])
+  @@index([parentPoaId])
+  @@index([versionNumber])
+  @@index([isLatestVersion])
 }
 
 model POAAgent {
