@@ -559,7 +559,6 @@ model Liability {
   @@index([nextPaymentDate])
   @@index([annualReviewReminder])
 }
-}
 
 // ============================================
 // BENEFICIARIES = Who inherits what
