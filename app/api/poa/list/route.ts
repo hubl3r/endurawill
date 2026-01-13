@@ -39,10 +39,23 @@ export async function GET(req: NextRequest) {
           },
         },
         powerLimitations: true,
+        revisions: {
+          select: {
+            id: true,
+            versionNumber: true,
+            status: true,
+            createdAt: true,
+            generatedDocument: true,
+          },
+          orderBy: {
+            versionNumber: 'desc',
+          },
+        },
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      orderBy: [
+        { isLatestVersion: 'desc' }, // Latest versions first
+        { createdAt: 'desc' },
+      ],
     });
 
     return NextResponse.json({
