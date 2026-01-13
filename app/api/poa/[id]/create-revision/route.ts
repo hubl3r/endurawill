@@ -18,9 +18,9 @@ export async function POST(
         grantedPowers: {
           include: {
             category: true,
+            powerLimitations: true, // Include limitations under granted powers
           },
         },
-        powerLimitations: true,
       },
     });
 
@@ -31,55 +31,64 @@ export async function POST(
       );
     }
 
-    // Mark original as not latest version
-    await prisma.powerOfAttorney.update({
-      where: { id: originalPoaId },
-      data: { isLatestVersion: false },
-    });
+    // Check if schema has revision fields (backwards compatibility)
+    const schemaHasRevisions = 'versionNumber' in originalPoa;
+    
+    if (schemaHasRevisions) {
+      // Mark original as not latest version
+      await prisma.powerOfAttorney.update({
+        where: { id: originalPoaId },
+        data: { isLatestVersion: false },
+      });
+    }
 
     // Create new POA (revision) with copied data
+    const newPoaData: any = {
+      tenantId: originalPoa.tenantId,
+      principalUserId: originalPoa.principalUserId,
+      principalName: originalPoa.principalName,
+      principalAddress: originalPoa.principalAddress,
+      principalCity: originalPoa.principalCity,
+      principalState: originalPoa.principalState,
+      principalZip: originalPoa.principalZip,
+      principalDOB: originalPoa.principalDOB,
+      principalPhone: originalPoa.principalPhone,
+      principalEmail: originalPoa.principalEmail,
+      
+      poaType: originalPoa.poaType,
+      isDurable: originalPoa.isDurable,
+      isLimited: originalPoa.isLimited,
+      isSpringing: originalPoa.isSpringing,
+      
+      effectiveDate: originalPoa.effectiveDate,
+      expirationDate: originalPoa.expirationDate,
+      springingCondition: originalPoa.springingCondition,
+      
+      status: 'DRAFT', // New revision starts as draft
+      
+      agentCompensation: originalPoa.agentCompensation,
+      compensationDetails: originalPoa.compensationDetails,
+      hasCoAgents: originalPoa.hasCoAgents,
+      coAgentsMustActJointly: originalPoa.coAgentsMustActJointly,
+      
+      specialInstructions: originalPoa.specialInstructions,
+      state: originalPoa.state,
+      
+      // Attach original POA document as reference
+      documentTemplateUsed: originalPoa.generatedDocument,
+      
+      createdById: originalPoa.createdById,
+    };
+
+    // Add revision fields if schema supports it
+    if (schemaHasRevisions) {
+      newPoaData.versionNumber = (originalPoa as any).versionNumber + 1;
+      newPoaData.parentPoaId = originalPoaId;
+      newPoaData.isLatestVersion = true;
+    }
+
     const newPoa = await prisma.powerOfAttorney.create({
-      data: {
-        tenantId: originalPoa.tenantId,
-        principalUserId: originalPoa.principalUserId,
-        principalName: originalPoa.principalName,
-        principalAddress: originalPoa.principalAddress,
-        principalCity: originalPoa.principalCity,
-        principalState: originalPoa.principalState,
-        principalZip: originalPoa.principalZip,
-        principalDOB: originalPoa.principalDOB,
-        principalPhone: originalPoa.principalPhone,
-        principalEmail: originalPoa.principalEmail,
-        
-        poaType: originalPoa.poaType,
-        isDurable: originalPoa.isDurable,
-        isLimited: originalPoa.isLimited,
-        isSpringing: originalPoa.isSpringing,
-        
-        effectiveDate: originalPoa.effectiveDate,
-        expirationDate: originalPoa.expirationDate,
-        springingCondition: originalPoa.springingCondition,
-        
-        status: 'DRAFT', // New revision starts as draft
-        
-        agentCompensation: originalPoa.agentCompensation,
-        compensationDetails: originalPoa.compensationDetails,
-        hasCoAgents: originalPoa.hasCoAgents,
-        coAgentsMustActJointly: originalPoa.coAgentsMustActJointly,
-        
-        specialInstructions: originalPoa.specialInstructions,
-        state: originalPoa.state,
-        
-        // Revision tracking
-        versionNumber: originalPoa.versionNumber + 1,
-        parentPoaId: originalPoaId,
-        isLatestVersion: true,
-        
-        // Attach original POA document as reference
-        documentTemplateUsed: originalPoa.generatedDocument,
-        
-        createdById: originalPoa.createdById,
-      },
+      data: newPoaData,
     });
 
     // Copy agents
@@ -102,28 +111,34 @@ export async function POST(
       });
     }
 
-    // Copy granted powers
+    // Copy granted powers WITH their limitations
     for (const power of originalPoa.grantedPowers) {
-      await prisma.pOAGrantedPower.create({
+      const newGrantedPower = await prisma.pOAGrantedPower.create({
         data: {
           poaId: newPoa.id,
           categoryId: power.categoryId,
           grantAllSubPowers: power.grantAllSubPowers,
-          grantedSubPowers: power.grantedSubPowers || {}, // Handle null/undefined, default to empty object
+          grantedSubPowers: power.grantedSubPowers || {}, // Handle null
         },
       });
-    }
 
-    // Copy power limitations
-    for (const limitation of originalPoa.powerLimitations) {
-      await prisma.pOAPowerLimitation.create({
-        data: {
-          poaId: newPoa.id,
-          categoryId: limitation.categoryId,
-          limitationType: limitation.limitationType,
-          limitationText: limitation.limitationText,
-        },
-      });
+      // Copy limitations for this granted power
+      if (power.powerLimitations && power.powerLimitations.length > 0) {
+        for (const limitation of power.powerLimitations) {
+          await prisma.pOAPowerLimitation.create({
+            data: {
+              poaId: newPoa.id,
+              grantedPowerId: newGrantedPower.id, // Link to new granted power
+              limitationType: limitation.limitationType,
+              limitationText: limitation.limitationText,
+              monetaryLimit: limitation.monetaryLimit,
+              timeLimit: limitation.timeLimit,
+              geographicLimit: limitation.geographicLimit,
+              specificAsset: limitation.specificAsset,
+            },
+          });
+        }
+      }
     }
 
     // Create audit log
@@ -135,8 +150,8 @@ export async function POST(
         category: 'POA_LIFECYCLE',
         details: {
           originalPoaId,
-          originalVersion: originalPoa.versionNumber,
-          newVersion: newPoa.versionNumber,
+          originalVersion: schemaHasRevisions ? (originalPoa as any).versionNumber : 1,
+          newVersion: schemaHasRevisions ? newPoaData.versionNumber : 2,
         },
       },
     });
@@ -144,8 +159,8 @@ export async function POST(
     return NextResponse.json({
       success: true,
       newPoaId: newPoa.id,
-      versionNumber: newPoa.versionNumber,
-      message: `Revision ${newPoa.versionNumber} created successfully`,
+      versionNumber: schemaHasRevisions ? newPoaData.versionNumber : 2,
+      message: `Revision created successfully`,
     });
   } catch (error) {
     console.error('Error creating POA revision:', error);
