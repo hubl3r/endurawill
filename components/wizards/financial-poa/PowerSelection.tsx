@@ -35,7 +35,7 @@ export function PowerSelection({ formData, updateFormData }: PowerSelectionProps
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [editingLimitation, setEditingLimitation] = useState<string | null>(null);
   
-  const grantAllPowers = formData.grantedPowers?.grantAllPowers ?? true;
+  const grantAllPowers = formData.grantedPowers?.grantAllPowers ?? false;
   const selectedCategoryIds = formData.grantedPowers?.categoryIds || [];
   const powerLimitations = formData.powerLimitations || [];
 
@@ -54,8 +54,11 @@ export function PowerSelection({ formData, updateFormData }: PowerSelectionProps
 
       const data = await response.json();
       
+      console.log('📋 Fetched power categories:', data.categories?.length || 0);
+      
       if (data.success && data.categories) {
         setCategories(data.categories);
+        console.log('✅ Categories set in state:', data.categories.length);
         
         // If grantAllPowers is true, select all categories by default
         if (grantAllPowers && selectedCategoryIds.length === 0) {
