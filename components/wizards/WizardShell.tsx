@@ -116,8 +116,13 @@ export function WizardShell({
   const canGoPrevious = engine.getPreviousStep() !== null;
   const isLastStep = engine.getNextStep() === null;
 
-  const allSections = engine.getAllSections();
-  const completedSteps = engine.getCompletedSteps();
+  // Get wizard document from engine
+  const wizardDoc = engine.getDocument();
+  const allSections = wizardDoc.sections;
+  
+  // Get completed steps from engine's internal state
+  const serialized = engine.serialize();
+  const completedSteps = serialized.completedSteps || [];
 
   return (
     <div className="min-h-screen bg-gray-50">
