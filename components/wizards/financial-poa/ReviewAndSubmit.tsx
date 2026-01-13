@@ -31,6 +31,22 @@ export function ReviewAndSubmit({ formData, updateFormData }: ReviewAndSubmitPro
       return;
     }
 
+    // Friendly validation checks
+    if (!formData.principal?.fullName) {
+      setError('Please complete Step 2: Your Information before submitting');
+      return;
+    }
+
+    if (!formData.agents || formData.agents.length === 0) {
+      setError('Please complete Step 3: Select Your Agents before submitting');
+      return;
+    }
+
+    if (!formData.grantedPowers?.grantAllPowers && (!formData.grantedPowers?.categoryIds || formData.grantedPowers.categoryIds.length === 0)) {
+      setError('Please complete Step 4: Grant Powers before submitting');
+      return;
+    }
+
     setIsSubmitting(true);
     setError(null);
 
