@@ -80,6 +80,7 @@ const additionalTermsSchema = z.object({
 
 export default function FinancialPOAWizardPage() {
   const [engine, setEngine] = useState<WizardEngine | null>(null);
+  const [wizardDoc, setWizardDoc] = useState<WizardDocument | null>(null);
   const [currentStepId, setCurrentStepId] = useState('document-type');
   const [, forceUpdate] = useState({});
 
@@ -168,6 +169,7 @@ export default function FinancialPOAWizardPage() {
     // Initialize wizard engine with the document
     const wizardEngine = new WizardEngine(wizardDocument);
 
+    setWizardDoc(wizardDocument);
     setEngine(wizardEngine);
   }, []);
 
@@ -258,6 +260,7 @@ export default function FinancialPOAWizardPage() {
   return (
     <WizardShell
       engine={engine}
+      wizardDocument={wizardDoc || undefined}
       onStepChange={handleStepChange}
       onSave={handleSave}
       autoSaveInterval={30000}
