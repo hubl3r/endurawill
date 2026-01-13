@@ -17,6 +17,9 @@ import {
   XCircle,
   Eye,
   Search,
+  Share2,
+  ExternalLink,
+  History,
 } from 'lucide-react';
 
 interface POA {
@@ -29,6 +32,9 @@ interface POA {
   signedDocument: string | null;
   createdAt: string;
   updatedAt: string;
+  versionNumber: number;
+  parentPoaId: string | null;
+  isLatestVersion: boolean;
   agents: {
     id: string;
     agentType: string;
@@ -41,6 +47,7 @@ interface POA {
       categoryName: string;
     };
   }[];
+  revisions?: POA[];
 }
 
 export default function POAPage() {
@@ -50,6 +57,7 @@ export default function POAPage() {
   const [filter, setFilter] = useState<'all' | 'DRAFT' | 'ACTIVE' | 'REVOKED'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [uploadingNotarized, setUploadingNotarized] = useState<string | null>(null);
+  const [showRevisions, setShowRevisions] = useState<string | null>(null);
 
   useEffect(() => {
     loadPOAs();
@@ -123,6 +131,74 @@ export default function POAPage() {
       alert('Failed to upload document');
     } finally {
       setUploadingNotarized(null);
+    }
+  };
+
+  const handleShare = async (poa: POA) => {
+    const url = poa.signedDocument || poa.generatedDocument;
+    if (!url) return;
+
+    // Try native Web Share API first
+    if (navigator.share) {
+      try {
+        // Fetch the file
+        const response = await fetch(url);
+        const blob = await response.blob();
+        const file = new File([blob], `${poa.principalName}-POA-v${poa.versionNumber}.pdf`, { type: 'application/pdf' });
+
+        await navigator.share({
+          title: `Power of Attorney - ${poa.principalName}`,
+          text: `${poa.poaType} POA (Version ${poa.versionNumber})`,
+          files: [file],
+        });
+      } catch (error) {
+        console.error('Share failed:', error);
+        // Fallback to download
+        handleDownload(poa);
+      }
+    } else {
+      // Fallback: trigger download with suggested filename
+      handleDownload(poa);
+    }
+  };
+
+  const handleDownload = (poa: POA) => {
+    const url = poa.signedDocument || poa.generatedDocument;
+    if (!url) return;
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${poa.principalName.replace(/\s+/g, '_')}-POA-v${poa.versionNumber}.pdf`;
+    link.target = '_blank';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleViewNotarized = (url: string) => {
+    window.open(url, '_blank');
+  };
+
+  const handleEdit = async (poa: POA) => {
+    if (!confirm(`This will create a new revision (v${poa.versionNumber + 1}) of this POA. The current version will be preserved. Continue?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/poa/${poa.id}/create-revision`, {
+        method: 'POST',
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Redirect to wizard with pre-filled data
+        router.push(`/poa/edit/${data.newPoaId}`);
+      } else {
+        alert('Failed to create revision');
+      }
+    } catch (error) {
+      console.error('Error creating revision:', error);
+      alert('Failed to create revision');
     }
   };
 
@@ -269,6 +345,11 @@ export default function POAPage() {
                           {poa.poaType} Financial POA
                         </h3>
                         {getStatusBadge(poa.status)}
+                        {poa.versionNumber > 1 && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                            v{poa.versionNumber}
+                          </span>
+                        )}
                       </div>
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm mb-4">
@@ -304,22 +385,77 @@ export default function POAPage() {
                             <span className="text-green-600 font-medium">Notarized copy attached</span>
                           </>
                         )}
+                        {poa.parentPoaId && (
+                          <>
+                            <span>•</span>
+                            <span className="text-purple-600 font-medium">Revision of previous POA</span>
+                          </>
+                        )}
                       </div>
+
+                      {/* Revision history */}
+                      {poa.revisions && poa.revisions.length > 0 && (
+                        <div className="mt-3">
+                          <button
+                            onClick={() => setShowRevisions(showRevisions === poa.id ? null : poa.id)}
+                            className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                          >
+                            <History className="h-4 w-4" />
+                            {poa.revisions.length} revision(s)
+                            {showRevisions === poa.id ? ' (hide)' : ' (show)'}
+                          </button>
+                          
+                          {showRevisions === poa.id && (
+                            <div className="mt-2 ml-4 space-y-2">
+                              {poa.revisions.map((revision) => (
+                                <div key={revision.id} className="text-xs text-gray-600 flex items-center gap-2">
+                                  <span className="font-medium">v{revision.versionNumber}</span>
+                                  <span>•</span>
+                                  <span>{new Date(revision.createdAt).toLocaleDateString()}</span>
+                                  <span>•</span>
+                                  {getStatusBadge(revision.status)}
+                                  {revision.generatedDocument && (
+                                    <button
+                                      onClick={() => window.open(revision.generatedDocument!, '_blank')}
+                                      className="text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                                    >
+                                      <ExternalLink className="h-3 w-3" />
+                                      View
+                                    </button>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {/* Actions */}
                     <div className="flex items-center gap-2 ml-4">
+                      {/* Share/Download */}
                       {poa.generatedDocument && (
-                        <a
-                          href={poa.generatedDocument}
-                          download
+                        <button
+                          onClick={() => handleShare(poa)}
                           className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
-                          title="Download POA"
+                          title="Share or download POA"
                         >
-                          <Download className="h-5 w-5" />
-                        </a>
+                          <Share2 className="h-5 w-5" />
+                        </button>
                       )}
 
+                      {/* View Notarized Document */}
+                      {poa.signedDocument && (
+                        <button
+                          onClick={() => handleViewNotarized(poa.signedDocument!)}
+                          className="p-2 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-lg"
+                          title="View notarized document"
+                        >
+                          <ExternalLink className="h-5 w-5" />
+                        </button>
+                      )}
+
+                      {/* View Details */}
                       <button
                         onClick={() => router.push(`/poa/${poa.id}`)}
                         className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
@@ -328,41 +464,42 @@ export default function POAPage() {
                         <Eye className="h-5 w-5" />
                       </button>
 
+                      {/* Edit (creates revision) */}
+                      {poa.isLatestVersion && poa.status !== 'REVOKED' && (
+                        <button
+                          onClick={() => handleEdit(poa)}
+                          className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                          title="Create new revision"
+                        >
+                          <Edit className="h-5 w-5" />
+                        </button>
+                      )}
+
+                      {/* Upload Notarized Copy */}
+                      <label className="p-2 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-lg cursor-pointer">
+                        <Upload className="h-5 w-5" />
+                        <input
+                          type="file"
+                          accept="application/pdf"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              handleUploadNotarized(poa.id, file);
+                            }
+                          }}
+                        />
+                      </label>
+
+                      {/* Delete (always available) */}
                       {poa.status === 'DRAFT' && (
-                        <>
-                          <button
-                            onClick={() => router.push(`/poa/edit/${poa.id}`)}
-                            className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
-                            title="Edit POA"
-                          >
-                            <Edit className="h-5 w-5" />
-                          </button>
-
-                          {!poa.signedDocument && (
-                            <label className="p-2 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-lg cursor-pointer">
-                              <Upload className="h-5 w-5" />
-                              <input
-                                type="file"
-                                accept="application/pdf"
-                                className="hidden"
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0];
-                                  if (file) {
-                                    handleUploadNotarized(poa.id, file);
-                                  }
-                                }}
-                              />
-                            </label>
-                          )}
-
-                          <button
-                            onClick={() => handleDelete(poa.id)}
-                            className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg"
-                            title="Delete POA"
-                          >
-                            <Trash2 className="h-5 w-5" />
-                          </button>
-                        </>
+                        <button
+                          onClick={() => handleDelete(poa.id)}
+                          className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                          title="Delete POA"
+                        >
+                          <Trash2 className="h-5 w-5" />
+                        </button>
                       )}
                     </div>
                   </div>
