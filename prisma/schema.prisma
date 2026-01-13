@@ -40,6 +40,54 @@ enum CalculationMode {
   MANUAL
 }
 
+// Asset & Liability Tax Tracking Enums
+enum AcquisitionMethod {
+  PURCHASE
+  GIFT
+  INHERITANCE
+  CREATION        // For IP, businesses created
+  EXCHANGE        // 1031 exchange
+  CONVERSION      // Conversion of property type
+  OTHER
+}
+
+enum BasisAdjustmentType {
+  IMPROVEMENT     // Capital improvements
+  DEPRECIATION    // Depreciation deductions
+  CASUALTY_LOSS   // Casualty/theft loss
+  EASEMENT        // Grant of easement
+  SUBDIVISION     // Subdivision of property
+  WASH_SALE       // Wash sale adjustments
+  STOCK_SPLIT     // Stock splits
+  OTHER
+}
+
+enum HoldingPeriod {
+  SHORT_TERM      // ≤1 year
+  LONG_TERM       // >1 year
+  INHERITED       // Special rules for inherited assets
+  UNKNOWN
+}
+
+enum ProbateStatus {
+  PROBATE         // Subject to probate
+  NON_PROBATE     // Passes outside probate (TOD, JTWROS, etc)
+  TRUST_ASSET     // Held in trust
+  EXEMPT          // Exempt from probate (small estate)
+  UNKNOWN
+}
+
+enum ValueSourceType {
+  APPRAISAL       // Professional appraisal
+  MARKET_DATA     // Comparable sales, stock quotes
+  STATEMENT       // Account statement
+  COST_BASIS      // Original purchase price
+  ESTIMATE        // Owner estimate
+  TAX_ASSESSMENT  // Property tax assessment
+  PLAID_API       // Auto-imported from Plaid
+  OTHER
+}
+
 // ============================================
 // TENANT = An Estate (Individual or Joint)
 // ============================================
@@ -70,6 +118,9 @@ model Tenant {
   healthcarePOAs    HealthcarePOA[] @relation("HealthcarePOAs")
   poaRevocations    POARevocation[]
   wizardProgress    WizardProgress[]
+  basisAdjustments  BasisAdjustment[]
+  valueHistory      ValueHistory[]
+  assetBeneficiaries AssetBeneficiary[]
   
   @@index([type])
 }
@@ -359,35 +410,85 @@ model Asset {
   tenantId    String
   tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   
-  type        String
+  // Basic Info
+  type        String   // real_estate, stocks, bonds, bank_account, vehicle, etc.
   description String
+  category    String?  // For grouping: investment, personal, business
   
+  // Current Valuation
   estimatedValue Decimal? @db.Decimal(15, 2)
   currency       String   @default("USD")
   valuationDate  DateTime?
   
+  // Identification
   accountNumber  String?
   institution    String?
-  location       String?
-  serialNumber   String?
+  location       String?  // Physical location or address
+  serialNumber   String?  // VIN, serial number, parcel ID
   
-  ownershipType  String   @default("joint")
-  ownedBy        Json?
-  ownershipPct   Json?
+  // Ownership Structure
+  ownershipType  String   @default("sole")  // sole, joint, community, tenancy_in_common
+  ownedBy        Json?    // Array of {userId, percentage} for partial ownership
+  ownershipPct   Json?    // Deprecated - use ownedBy
   
+  // Beneficiary Designation (for non-probate assets)
   hasBeneficiary Boolean  @default(false)
-  beneficiaryInfo Json?
+  beneficiaryInfo Json?   // Deprecated - use AssetBeneficiary model
   
-  notes          String?
-  attachments    Json?
+  // === TAX BASIS TRACKING ===
   
-  dispositionInstructions String?
+  // Acquisition Details
+  acquisitionDate     DateTime?
+  acquisitionMethod   AcquisitionMethod?
   
+  // Cost Basis (IRC §1012, §1014, §1015)
+  originalCostBasis   Decimal? @db.Decimal(15, 2)  // Initial basis
+  adjustedBasis       Decimal? @db.Decimal(15, 2)  // Current basis after adjustments
+  
+  // Fair Market Values
+  fairMarketValueAtAcquisition Decimal? @db.Decimal(15, 2)  // For gifts under §1015
+  fairMarketValueAtDeath       Decimal? @db.Decimal(15, 2)  // For step-up under §1014
+  
+  // Inheritance Tracking
+  dateOfDeath         DateTime?  // Date of decedent's death for inherited assets
+  carryoverBasis      Boolean?   // True for gifts, false for inherited (stepped-up)
+  
+  // Holding Period (affects capital gains rate)
+  holdingPeriod       HoldingPeriod?
+  
+  // Complex Basis Scenarios
+  taxLotInfo          Json?  // For stocks: [{purchaseDate, shares, costPerShare, totalCost}]
+  basisNotes          String? @db.Text  // References to IRS Pub 551, court cases, etc.
+  
+  // Estate Planning
+  probateStatus       ProbateStatus?
+  includedInEstate    Boolean @default(true)  // Include in estate value calculation
+  
+  // Review & Compliance
+  annualReviewReminder DateTime?  // Next review date
+  lastReviewedAt       DateTime?
+  reviewedBy           String?    // userId of who reviewed
+  
+  // Documentation
+  notes          String? @db.Text
+  attachments    Json?  // URLs to deeds, statements, appraisals
+  dispositionInstructions String? @db.Text
+  
+  // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   
+  // Relations
+  basisAdjustments  BasisAdjustment[]  // History of basis changes
+  valueHistory      ValueHistory[]     // Time-series valuations
+  assetBeneficiaries AssetBeneficiary[] // Beneficiary allocations
+  
   @@index([tenantId])
   @@index([type])
+  @@index([category])
+  @@index([probateStatus])
+  @@index([acquisitionDate])
+  @@index([annualReviewReminder])
 }
 
 // ============================================
@@ -398,26 +499,66 @@ model Liability {
   tenantId    String
   tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   
-  type        String
+  // Basic Info
+  type        String   // mortgage, auto_loan, credit_card, student_loan, personal_loan, etc.
   description String
   creditor    String?
+  category    String?  // secured, unsecured, tax_debt, etc.
   
-  amount      Decimal  @db.Decimal(15, 2)
-  currency    String   @default("USD")
+  // Amount Details
+  originalAmount    Decimal  @db.Decimal(15, 2)  // Original loan amount
+  currentBalance    Decimal  @db.Decimal(15, 2)  // Current balance
+  currency          String   @default("USD")
   
+  // Account Info
   accountNumber String?
-  interestRate  Decimal? @db.Decimal(5, 2)
+  loanNumber    String?
   
-  paymentSchedule String?
+  // Terms
+  interestRate     Decimal? @db.Decimal(5, 2)   // Annual percentage rate
+  originationDate  DateTime?
+  maturityDate     DateTime?
+  
+  // Payment Info
+  paymentSchedule String?   // monthly, quarterly, etc.
   monthlyPayment  Decimal? @db.Decimal(15, 2)
+  nextPaymentDate DateTime?
   
-  notes       String?
+  // Collateral (if secured)
+  isSecured       Boolean  @default(false)
+  collateralAssetId String?  // Link to Asset if applicable
+  collateralDescription String?
+  
+  // Estate Planning
+  probateStatus   ProbateStatus?  // How this debt is handled in probate
+  
+  // Tax Deductibility
+  isDeductible    Boolean? // Is interest tax-deductible?
+  taxCategory     String?  // mortgage_interest, student_loan_interest, etc.
+  
+  // Review
+  annualReviewReminder DateTime?
+  lastReviewedAt       DateTime?
+  
+  // Backwards compatibility
+  amount      Decimal  @db.Decimal(15, 2)  // Deprecated - use currentBalance
+  
+  notes       String? @db.Text
+  attachments Json?   // Loan documents, statements
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   
+  // Relations
+  valueHistory      ValueHistory[]  // Track balance over time
+  
   @@index([tenantId])
   @@index([type])
+  @@index([category])
+  @@index([maturityDate])
+  @@index([nextPaymentDate])
+  @@index([annualReviewReminder])
+}
 }
 
 // ============================================
@@ -447,11 +588,125 @@ model Beneficiary {
   
   notes       String?
   
+  // Relations
+  assetAllocations  AssetBeneficiary[]  // Specific asset allocations
+  
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   
   @@index([tenantId])
   @@index([relationship])
+}
+
+// ============================================
+// ASSET BENEFICIARY ALLOCATION
+// ============================================
+model AssetBeneficiary {
+  id              String   @id @default(uuid())
+  assetId         String
+  asset           Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  
+  beneficiaryId   String
+  beneficiary     Beneficiary @relation(fields: [beneficiaryId], references: [id], onDelete: Cascade)
+  
+  // Allocation
+  allocationType  String   @default("percentage")  // percentage, specific_amount, residuary
+  percentage      Decimal? @db.Decimal(5, 2)      // 0.00 to 100.00
+  specificAmount  Decimal? @db.Decimal(15, 2)     // Fixed dollar amount
+  
+  // Tax Planning
+  taxAllocation   String?  // How taxes should be allocated: "proportional", "from_residue", "beneficiary_pays"
+  taxNotes        String?  @db.Text
+  
+  // Conditions
+  conditions      String?  @db.Text  // Conditions for receiving (age, marriage, etc.)
+  isPrimary       Boolean  @default(true)
+  isContingent    Boolean  @default(false)
+  
+  // Order of distribution
+  priority        Int      @default(1)  // 1 = primary, 2 = first contingent, etc.
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([assetId])
+  @@index([beneficiaryId])
+  @@index([isPrimary])
+  @@unique([assetId, beneficiaryId, priority])
+}
+
+// ============================================
+// BASIS ADJUSTMENT TRACKING (Tax Compliance)
+// ============================================
+model BasisAdjustment {
+  id              String   @id @default(uuid())
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  assetId         String
+  asset           Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  
+  adjustmentDate  DateTime
+  adjustmentType  BasisAdjustmentType
+  amount          Decimal  @db.Decimal(15, 2)  // Positive or negative
+  
+  basisBefore     Decimal  @db.Decimal(15, 2)  // Basis before adjustment
+  basisAfter      Decimal  @db.Decimal(15, 2)  // Basis after adjustment
+  
+  reason          String   @db.Text  // Detailed explanation
+  documentation   String?  // URL to receipt, invoice, contractor bill, etc.
+  
+  // IRS Compliance
+  taxYear         Int?     // Tax year this applies to
+  formReference   String?  // e.g., "Form 4797", "Schedule D"
+  irsPublication  String?  // e.g., "Pub 551", "Pub 523"
+  
+  // Audit Trail (immutable)
+  createdBy       String   // userId
+  createdAt       DateTime @default(now())
+  
+  // No updatedAt - these records are immutable for compliance
+  
+  @@index([tenantId])
+  @@index([assetId])
+  @@index([adjustmentDate])
+  @@index([adjustmentType])
+  @@index([taxYear])
+}
+
+// ============================================
+// VALUE HISTORY (Time-Series Tracking)
+// ============================================
+model ValueHistory {
+  id              String   @id @default(uuid())
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  assetId         String?
+  asset           Asset?   @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  
+  liabilityId     String?
+  liability       Liability? @relation(fields: [liabilityId], references: [id], onDelete: Cascade)
+  
+  valueDate       DateTime
+  amount          Decimal  @db.Decimal(15, 2)
+  currency        String   @default("USD")
+  
+  source          ValueSourceType
+  sourceDetails   String?  // Name of appraiser, statement date, etc.
+  
+  appraisalDoc    String?  // URL to appraisal document
+  notes           String?  @db.Text
+  
+  // Audit
+  recordedBy      String?  // userId who entered this value
+  recordedAt      DateTime @default(now())
+  
+  @@index([tenantId])
+  @@index([assetId])
+  @@index([liabilityId])
+  @@index([valueDate])
+  @@index([source])
 }
 
 // ============================================
