@@ -14,6 +14,50 @@ export function AdditionalTerms({ formData, updateFormData }: AdditionalTermsPro
   const agentCompensation = formData.agentCompensation || false;
   const compensationDetails = formData.compensationDetails || '';
   const isDurable = formData.isDurable || false;
+  const [dateError, setDateError] = React.useState<string | null>(null);
+  const [expirationError, setExpirationError] = React.useState<string | null>(null);
+
+  const handleEffectiveDateChange = (value: string) => {
+    // Validate date is not in the past
+    if (value) {
+      const selectedDate = new Date(value);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); // Reset time to start of day
+      
+      if (selectedDate < today) {
+        setDateError('Effective date cannot be in the past');
+        return;
+      }
+    }
+    
+    setDateError(null);
+    updateFormData('effectiveDate', value);
+  };
+
+  const handleExpirationDateChange = (value: string) => {
+    // Validate expiration is not in the past and is after effective date
+    if (value) {
+      const selectedDate = new Date(value);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      if (selectedDate < today) {
+        setExpirationError('Expiration date cannot be in the past');
+        return;
+      }
+      
+      if (effectiveDate) {
+        const effective = new Date(effectiveDate);
+        if (selectedDate <= effective) {
+          setExpirationError('Expiration date must be after effective date');
+          return;
+        }
+      }
+    }
+    
+    setExpirationError(null);
+    updateFormData('expirationDate', value);
+  };
 
   return (
     <div className="space-y-8">
@@ -35,39 +79,48 @@ export function AdditionalTerms({ formData, updateFormData }: AdditionalTermsPro
             <div className="flex items-start space-x-2">
               <Info className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
               <div className="text-sm text-blue-900">
-                {isDurable ? (
-                  <p>
-                    <strong>Durable POAs are effective immediately upon signing.</strong> This
-                    Power of Attorney will remain in effect even if you become incapacitated.
-                  </p>
-                ) : (
-                  <p>
-                    If no date is selected below, this Power of Attorney will be{' '}
-                    <strong>effective immediately upon signing</strong>.
-                  </p>
-                )}
+                <p>
+                  {isDurable && (
+                    <>
+                      <strong>Durable POAs typically take effect immediately upon signing.</strong> 
+                      However, you may optionally specify a future effective date below.
+                    </>
+                  )}
+                  {!isDurable && (
+                    <>
+                      If no date is selected below, this Power of Attorney will be{' '}
+                      <strong>effective immediately upon signing</strong>.
+                    </>
+                  )}
+                </p>
               </div>
             </div>
           </div>
 
-          {/* Optional specific date */}
-          {!isDurable && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Specific Effective Date (Optional)
-              </label>
-              <input
-                type="date"
-                value={effectiveDate}
-                onChange={(e) => updateFormData('effectiveDate', e.target.value)}
-                min={new Date().toISOString().split('T')[0]}
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
+          {/* Optional specific date - NOW AVAILABLE FOR ALL TYPES */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Specific Effective Date (Optional)
+            </label>
+            <input
+              type="date"
+              value={effectiveDate}
+              onChange={(e) => handleEffectiveDateChange(e.target.value)}
+              min={new Date().toISOString().split('T')[0]}
+              className={`w-full px-4 py-2 border rounded-md focus:ring-2 ${
+                dateError
+                  ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
+                  : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+              }`}
+            />
+            {dateError ? (
+              <p className="text-xs text-red-600 mt-1">{dateError}</p>
+            ) : (
               <p className="text-xs text-gray-500 mt-1">
                 Leave blank for immediate effect upon signing
               </p>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Expiration date for LIMITED POAs */}
           {formData.isLimited && (
@@ -78,13 +131,21 @@ export function AdditionalTerms({ formData, updateFormData }: AdditionalTermsPro
               <input
                 type="date"
                 value={formData.expirationDate || ''}
-                onChange={(e) => updateFormData('expirationDate', e.target.value)}
+                onChange={(e) => handleExpirationDateChange(e.target.value)}
                 min={effectiveDate || new Date().toISOString().split('T')[0]}
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className={`w-full px-4 py-2 border rounded-md focus:ring-2 ${
+                  expirationError
+                    ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
+                    : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                }`}
               />
-              <p className="text-xs text-gray-500 mt-1">
-                Limited POAs must have an expiration date
-              </p>
+              {expirationError ? (
+                <p className="text-xs text-red-600 mt-1">{expirationError}</p>
+              ) : (
+                <p className="text-xs text-gray-500 mt-1">
+                  Limited POAs must have an expiration date
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -177,6 +238,36 @@ export function AdditionalTerms({ formData, updateFormData }: AdditionalTermsPro
         </div>
       </div>
 
+      {/* Special Instructions Section */}
+      <div className="bg-white border border-gray-200 rounded-lg p-6">
+        <div className="flex items-start space-x-3 mb-4">
+          <Info className="h-5 w-5 text-purple-600 mt-0.5" />
+          <div className="flex-1">
+            <h3 className="text-lg font-medium text-gray-900">Special Instructions</h3>
+            <p className="text-sm text-gray-600 mt-1">
+              Add any special instructions, limitations, or conditions for your agent (optional)
+            </p>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Additional Instructions or Limitations (Optional)
+          </label>
+          <textarea
+            value={formData.specialInstructions || ''}
+            onChange={(e) => updateFormData('specialInstructions', e.target.value)}
+            rows={6}
+            placeholder="Example: My agent may not sell or mortgage my primary residence without my written consent..."
+            className="w-full px-4 py-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
+          />
+          <p className="text-xs text-gray-500 mt-2">
+            Use this field to add specific instructions, limitations, or conditions that apply to all granted powers.
+            These instructions will appear in the final POA document.
+          </p>
+        </div>
+      </div>
+
       {/* Summary box */}
       <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
         <h4 className="text-sm font-medium text-gray-900 mb-2">Summary of Additional Terms</h4>
@@ -184,11 +275,10 @@ export function AdditionalTerms({ formData, updateFormData }: AdditionalTermsPro
           <div className="flex justify-between">
             <dt className="text-gray-600">Effective Date:</dt>
             <dd className="text-gray-900 font-medium">
-              {isDurable
-                ? 'Immediately upon signing (Durable)'
-                : effectiveDate
+              {effectiveDate
                 ? new Date(effectiveDate).toLocaleDateString()
                 : 'Immediately upon signing'}
+              {isDurable && ' (Durable - survives incapacity)'}
             </dd>
           </div>
           {formData.expirationDate && (
@@ -205,6 +295,12 @@ export function AdditionalTerms({ formData, updateFormData }: AdditionalTermsPro
               {agentCompensation ? 'Yes - ' + (compensationDetails || 'Details required') : 'No (expenses only)'}
             </dd>
           </div>
+          {formData.specialInstructions && (
+            <div className="flex justify-between">
+              <dt className="text-gray-600">Special Instructions:</dt>
+              <dd className="text-gray-900 font-medium">Added</dd>
+            </div>
+          )}
         </dl>
       </div>
     </div>
