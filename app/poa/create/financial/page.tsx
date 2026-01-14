@@ -93,6 +93,7 @@ export default function FinancialPOAWizardPage() {
   const [wizardDoc, setWizardDoc] = useState<WizardDocument | null>(null);
   const [currentStepId, setCurrentStepId] = useState('document-type');
   const [, forceUpdate] = useState({});
+  const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
     // Create WizardDocument definition
@@ -182,6 +183,24 @@ export default function FinancialPOAWizardPage() {
     setWizardDoc(wizardDocument);
     setEngine(wizardEngine);
   }, []);
+
+  // Initialize default grantAllPowers value
+  useEffect(() => {
+    if (engine && !initialized) {
+      const currentData = engine.getCurrentStepData();
+      if (!currentData?.grantedPowers?.grantAllPowers && !currentData?.grantedPowers?.categoryIds?.length) {
+        // Only set default if user hasn't made any power selections yet
+        engine.updateStepData({
+          ...currentData,
+          grantedPowers: {
+            grantAllPowers: true,
+            categoryIds: [],
+          },
+        });
+        setInitialized(true);
+      }
+    }
+  }, [engine, initialized]);
 
   const handleSave = async (data: any) => {
     try {
