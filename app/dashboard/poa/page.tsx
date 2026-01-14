@@ -15,7 +15,6 @@ import {
   CheckCircle,
   Clock,
   XCircle,
-  Eye,
   Search,
   Share2,
   ExternalLink,
@@ -99,6 +98,56 @@ export default function POAPage() {
     } catch (error) {
       console.error('Error deleting POA:', error);
       alert('Failed to delete POA');
+    }
+  };
+
+  const handleDeleteNotarized = async (poaId: string) => {
+    if (!confirm('Remove the notarized copy? The POA will revert to DRAFT status.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/poa/${poaId}/delete-notarized`, {
+        method: 'POST',
+      });
+
+      if (response.ok) {
+        // Update the POA in the list
+        setPoas(poas.map(p => 
+          p.id === poaId 
+            ? { ...p, signedDocument: null, status: 'DRAFT' as const }
+            : p
+        ));
+        alert('Notarized copy removed');
+      } else {
+        alert('Failed to remove notarized copy');
+      }
+    } catch (error) {
+      console.error('Error removing notarized copy:', error);
+      alert('Failed to remove notarized copy');
+    }
+  };
+
+  const handleDeleteRevision = async (revisionId: string) => {
+    if (!confirm('Delete this old revision? This cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/poa/${revisionId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        // Refresh to update revision counts
+        loadPOAs();
+        alert('Revision deleted');
+      } else {
+        alert('Failed to delete revision');
+      }
+    } catch (error) {
+      console.error('Error deleting revision:', error);
+      alert('Failed to delete revision');
     }
   };
 
@@ -191,8 +240,9 @@ export default function POAPage() {
 
       if (response.ok) {
         const data = await response.json();
-        // Redirect to wizard with pre-filled data
-        router.push(`/poa/edit/${data.newPoaId}`);
+        // Reload the page to show the new revision
+        alert(`Revision ${data.versionNumber} created! It appears as a new draft POA.`);
+        loadPOAs(); // Refresh the list
       } else {
         alert('Failed to create revision');
       }
@@ -415,13 +465,22 @@ export default function POAPage() {
                                   <span>•</span>
                                   {getStatusBadge(revision.status)}
                                   {revision.generatedDocument && (
-                                    <button
-                                      onClick={() => window.open(revision.generatedDocument!, '_blank')}
-                                      className="text-blue-600 hover:text-blue-700 flex items-center gap-1"
-                                    >
-                                      <ExternalLink className="h-3 w-3" />
-                                      View
-                                    </button>
+                                    <>
+                                      <button
+                                        onClick={() => window.open(revision.generatedDocument!, '_blank')}
+                                        className="text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                                      >
+                                        <ExternalLink className="h-3 w-3" />
+                                        View
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteRevision(revision.id)}
+                                        className="text-red-600 hover:text-red-700 flex items-center gap-1"
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                        Delete
+                                      </button>
+                                    </>
                                   )}
                                 </div>
                               ))}
@@ -446,25 +505,25 @@ export default function POAPage() {
 
                       {/* View Notarized Document */}
                       {poa.signedDocument && (
-                        <button
-                          onClick={() => handleViewNotarized(poa.signedDocument!)}
-                          className="p-2 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-lg"
-                          title="View notarized document"
-                        >
-                          <ExternalLink className="h-5 w-5" />
-                        </button>
+                        <>
+                          <button
+                            onClick={() => handleViewNotarized(poa.signedDocument!)}
+                            className="p-2 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-lg"
+                            title="View notarized document"
+                          >
+                            <ExternalLink className="h-5 w-5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteNotarized(poa.id)}
+                            className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                            title="Remove notarized copy"
+                          >
+                            <Trash2 className="h-5 w-5" />
+                          </button>
+                        </>
                       )}
 
-                      {/* View Details */}
-                      <button
-                        onClick={() => router.push(`/poa/${poa.id}`)}
-                        className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
-                        title="View details"
-                      >
-                        <Eye className="h-5 w-5" />
-                      </button>
-
-                      {/* Edit (creates revision) */}
+                      {/* Edit (creates revision) - only for latest version */}
                       {poa.isLatestVersion && poa.status !== 'REVOKED' && (
                         <button
                           onClick={() => handleEdit(poa)}
@@ -476,27 +535,29 @@ export default function POAPage() {
                       )}
 
                       {/* Upload Notarized Copy */}
-                      <label className="p-2 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-lg cursor-pointer">
-                        <Upload className="h-5 w-5" />
-                        <input
-                          type="file"
-                          accept="application/pdf"
-                          className="hidden"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              handleUploadNotarized(poa.id, file);
-                            }
-                          }}
-                        />
-                      </label>
+                      {!poa.signedDocument && (
+                        <label className="p-2 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-lg cursor-pointer" title="Upload notarized copy">
+                          <Upload className="h-5 w-5" />
+                          <input
+                            type="file"
+                            accept="application/pdf"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                handleUploadNotarized(poa.id, file);
+                              }
+                            }}
+                          />
+                        </label>
+                      )}
 
-                      {/* Delete (always available) */}
-                      {poa.status === 'DRAFT' && (
+                      {/* Delete POA - only for drafts without notarized copy */}
+                      {poa.status === 'DRAFT' && !poa.signedDocument && (
                         <button
                           onClick={() => handleDelete(poa.id)}
                           className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg"
-                          title="Delete POA"
+                          title="Delete entire POA"
                         >
                           <Trash2 className="h-5 w-5" />
                         </button>
