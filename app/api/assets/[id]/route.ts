@@ -5,9 +5,10 @@ import { prisma } from '@/lib/prisma';
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const clerkUser = await currentUser();
     if (!clerkUser) {
       return NextResponse.json(
@@ -30,7 +31,7 @@ export async function GET(
 
     const asset = await prisma.asset.findFirst({
       where: {
-        id: params.id,
+        id: id,
         tenantId: user.tenantId,
       },
       include: {
@@ -73,9 +74,10 @@ export async function GET(
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const clerkUser = await currentUser();
     if (!clerkUser) {
       return NextResponse.json(
@@ -99,7 +101,7 @@ export async function PUT(
     // Verify asset belongs to user's tenant
     const existingAsset = await prisma.asset.findFirst({
       where: {
-        id: params.id,
+        id: id,
         tenantId: user.tenantId,
       },
     });
@@ -115,7 +117,7 @@ export async function PUT(
 
     // Update asset
     const asset = await prisma.asset.update({
-      where: { id: params.id },
+      where: { id: id },
       data: {
         type: body.type,
         description: body.description,
@@ -200,9 +202,10 @@ export async function PUT(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const clerkUser = await currentUser();
     if (!clerkUser) {
       return NextResponse.json(
@@ -226,7 +229,7 @@ export async function DELETE(
     // Verify asset belongs to user's tenant
     const asset = await prisma.asset.findFirst({
       where: {
-        id: params.id,
+        id: id,
         tenantId: user.tenantId,
       },
     });
@@ -240,7 +243,7 @@ export async function DELETE(
 
     // Delete asset (cascade will handle related records)
     await prisma.asset.delete({
-      where: { id: params.id },
+      where: { id: id },
     });
 
     return NextResponse.json({
