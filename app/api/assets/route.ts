@@ -1,12 +1,12 @@
 // app/api/assets/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs';
+import { currentUser } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
 
 export async function GET(req: NextRequest) {
   try {
-    const { userId } = auth();
-    if (!userId) {
+    const clerkUser = await currentUser();
+    if (!clerkUser) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 401 }
@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
 
     // Get user's tenant
     const user = await prisma.user.findUnique({
-      where: { clerkId: userId },
+      where: { clerkId: clerkUser.id },
       select: { 
         tenantId: true,
         tenant: {
@@ -110,8 +110,8 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { userId } = auth();
-    if (!userId) {
+    const clerkUser = await currentUser();
+    if (!clerkUser) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 401 }
@@ -119,7 +119,7 @@ export async function POST(req: NextRequest) {
     }
 
     const user = await prisma.user.findUnique({
-      where: { clerkId: userId },
+      where: { clerkId: clerkUser.id },
       select: { tenantId: true, id: true },
     });
 
