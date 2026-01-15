@@ -168,7 +168,7 @@ export default function CreateLiabilityModal({
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center z-10">
           <h2 className="text-2xl font-bold text-gray-900">
             {editLiability ? 'Edit Liability' : 'Add New Liability'}
           </h2>
@@ -248,7 +248,7 @@ export default function CreateLiabilityModal({
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Creditor/Lender
@@ -280,7 +280,7 @@ export default function CreateLiabilityModal({
           <div className="space-y-4">
             <h3 className="text-lg font-semibold text-gray-900">Amount Details</h3>
             
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Original Amount
@@ -332,7 +332,7 @@ export default function CreateLiabilityModal({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Interest Rate (%)
@@ -368,7 +368,7 @@ export default function CreateLiabilityModal({
           <div className="space-y-4">
             <h3 className="text-lg font-semibold text-gray-900">Important Dates</h3>
             
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Origination Date
