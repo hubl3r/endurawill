@@ -284,12 +284,15 @@ export default function CreateLiabilityModal({
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Original Amount
-                  <Tooltip content={
-                    <div className="space-y-1">
-                      <p className="font-semibold">How much did you originally borrow?</p>
-                      <p className="text-xs">The total principal amount when the loan was first issued.</p>
-                    </div>
-                  } />
+                  <Tooltip 
+                    position="right"
+                    content={
+                      <div className="space-y-1">
+                        <p className="font-semibold">How much did you originally borrow?</p>
+                        <p className="text-xs">The total principal amount when the loan was first issued.</p>
+                      </div>
+                    } 
+                  />
                 </label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
@@ -305,12 +308,15 @@ export default function CreateLiabilityModal({
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Current Balance <span className="text-red-600">*</span>
-                  <Tooltip content={
-                    <div className="space-y-1">
-                      <p className="font-semibold">What do you currently owe?</p>
-                      <p className="text-xs">The remaining balance as of today.</p>
-                    </div>
-                  } />
+                  <Tooltip 
+                    position="right"
+                    content={
+                      <div className="space-y-1">
+                        <p className="font-semibold">What do you currently owe?</p>
+                        <p className="text-xs">The remaining balance as of today.</p>
+                      </div>
+                    } 
+                  />
                 </label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
@@ -514,12 +520,15 @@ export default function CreateLiabilityModal({
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Probate Status
-                <Tooltip content={
-                  <div className="space-y-2">
-                    <p className="font-semibold">How is this debt handled in probate?</p>
-                    <p className="text-xs">Most debts must be paid from estate assets before distribution to heirs. Secured debts remain with the collateral.</p>
-                  </div>
-                } />
+                <Tooltip 
+                  position="right"
+                  content={
+                    <div className="space-y-2">
+                      <p className="font-semibold">How is this debt handled in probate?</p>
+                      <p className="text-xs">Most debts must be paid from estate assets before distribution to heirs. Secured debts remain with the collateral.</p>
+                    </div>
+                  } 
+                />
               </label>
               <select
                 value={formData.probateStatus}
