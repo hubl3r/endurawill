@@ -502,19 +502,22 @@ export default function CreateAssetModal({
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Original Cost Basis
-                    <Tooltip content={
-                      <div className="space-y-2">
-                        <p className="font-semibold">What was your initial investment?</p>
-                        <p className="text-xs">This is what you paid for the asset, including:</p>
-                        <ul className="space-y-1 text-xs">
-                          <li>• Purchase price</li>
-                          <li>• Closing costs</li>
-                          <li>• Sales tax</li>
-                          <li>• Installation fees</li>
-                        </ul>
-                        <p className="text-xs italic mt-2">For gifts: donor's basis. For inheritance: FMV at death</p>
-                      </div>
-                    } />
+                    <Tooltip 
+                      position="right"
+                      content={
+                        <div className="space-y-2">
+                          <p className="font-semibold">What was your initial investment?</p>
+                          <p className="text-xs">This is what you paid for the asset, including:</p>
+                          <ul className="space-y-1 text-xs">
+                            <li>• Purchase price</li>
+                            <li>• Closing costs</li>
+                            <li>• Sales tax</li>
+                            <li>• Installation fees</li>
+                          </ul>
+                          <p className="text-xs italic mt-2">For gifts: donor's basis. For inheritance: FMV at death</p>
+                        </div>
+                      } 
+                    />
                   </label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
@@ -530,22 +533,25 @@ export default function CreateAssetModal({
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Adjusted Basis
-                    <Tooltip content={
-                      <div className="space-y-2">
-                        <p className="font-semibold">Current basis after adjustments</p>
-                        <p className="text-xs">Original basis plus:</p>
-                        <ul className="space-y-1 text-xs">
-                          <li>• Capital improvements</li>
-                          <li>• Renovation costs</li>
-                        </ul>
-                        <p className="text-xs">Minus:</p>
-                        <ul className="space-y-1 text-xs">
-                          <li>• Depreciation taken</li>
-                          <li>• Casualty losses</li>
-                        </ul>
-                        <p className="text-xs italic mt-2">Used to calculate capital gains tax</p>
-                      </div>
-                    } />
+                    <Tooltip 
+                      position="right"
+                      content={
+                        <div className="space-y-2">
+                          <p className="font-semibold">Current basis after adjustments</p>
+                          <p className="text-xs">Original basis plus:</p>
+                          <ul className="space-y-1 text-xs">
+                            <li>• Capital improvements</li>
+                            <li>• Renovation costs</li>
+                          </ul>
+                          <p className="text-xs">Minus:</p>
+                          <ul className="space-y-1 text-xs">
+                            <li>• Depreciation taken</li>
+                            <li>• Casualty losses</li>
+                          </ul>
+                          <p className="text-xs italic mt-2">Used to calculate capital gains tax</p>
+                        </div>
+                      } 
+                    />
                   </label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
