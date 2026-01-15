@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Get user's tenant
-    const user = await prisma.user.findUnique({
+    const user = await prisma.user.findFirst({
       where: { clerkId: clerkUser.id },
       select: { 
         tenantId: true,
@@ -118,7 +118,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const user = await prisma.user.findUnique({
+    const user = await prisma.user.findFirst({
       where: { clerkId: clerkUser.id },
       select: { tenantId: true, id: true },
     });
