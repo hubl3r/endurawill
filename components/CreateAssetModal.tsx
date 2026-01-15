@@ -504,7 +504,7 @@ export default function CreateAssetModal({
                 >
                   <option value="">Select period...</option>
                   <option value="SHORT_TERM">Short-term (≤1 year)</option>
-                  <option value="LONG_TERM">Long-term (>1 year)</option>
+                  <option value="LONG_TERM">Long-term (&gt;1 year)</option>
                   <option value="INHERITED">Inherited</option>
                 </select>
               </div>
