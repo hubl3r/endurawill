@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { X, ChevronDown, AlertCircle, Info } from 'lucide-react';
+import Tooltip from '@/components/Tooltip';
 import {
   ASSET_CATEGORIES,
   getAssetCategory,
@@ -360,6 +361,17 @@ export default function CreateAssetModal({
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Ownership Type
+                  <Tooltip content={
+                    <div className="space-y-2">
+                      <p className="font-semibold">How is this asset owned?</p>
+                      <ul className="space-y-1 text-xs">
+                        <li><strong>Sole:</strong> You own it alone</li>
+                        <li><strong>Joint (JTWROS):</strong> Passes automatically to surviving owner, avoids probate</li>
+                        <li><strong>Tenancy in Common:</strong> Your share goes through probate to your beneficiaries</li>
+                        <li><strong>Community Property:</strong> Married couples in community property states</li>
+                      </ul>
+                    </div>
+                  } />
                 </label>
                 <select
                   value={formData.ownershipType}
@@ -375,6 +387,18 @@ export default function CreateAssetModal({
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Probate Status
+                  <Tooltip content={
+                    <div className="space-y-2">
+                      <p className="font-semibold">How will this asset transfer after death?</p>
+                      <ul className="space-y-1 text-xs">
+                        <li><strong>Probate:</strong> Goes through court process, follows will/intestacy laws</li>
+                        <li><strong>Non-Probate:</strong> Has beneficiary designation (TOD, POD, JTWROS), bypasses probate</li>
+                        <li><strong>Trust Asset:</strong> Held in trust, transfers per trust terms</li>
+                        <li><strong>Exempt:</strong> Small estate exemption or other statutory exception</li>
+                      </ul>
+                      <p className="text-xs italic mt-2">Tip: Assets with beneficiaries or joint ownership often avoid probate</p>
+                    </div>
+                  } />
                 </label>
                 <select
                   value={formData.probateStatus}
@@ -442,6 +466,20 @@ export default function CreateAssetModal({
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Acquisition Method
+                    <Tooltip content={
+                      <div className="space-y-2">
+                        <p className="font-semibold">How did you acquire this asset?</p>
+                        <ul className="space-y-1 text-xs">
+                          <li><strong>Purchase:</strong> Bought with your own money</li>
+                          <li><strong>Gift:</strong> Received as a gift (carryover basis)</li>
+                          <li><strong>Inheritance:</strong> Inherited (stepped-up basis)</li>
+                          <li><strong>Created:</strong> You created it (IP, business)</li>
+                          <li><strong>1031 Exchange:</strong> Tax-deferred property exchange</li>
+                          <li><strong>Conversion:</strong> Property type conversion</li>
+                        </ul>
+                        <p className="text-xs italic mt-2">This affects your tax basis calculation</p>
+                      </div>
+                    } />
                   </label>
                   <select
                     value={formData.acquisitionMethod}
@@ -464,6 +502,19 @@ export default function CreateAssetModal({
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Original Cost Basis
+                    <Tooltip content={
+                      <div className="space-y-2">
+                        <p className="font-semibold">What was your initial investment?</p>
+                        <p className="text-xs">This is what you paid for the asset, including:</p>
+                        <ul className="space-y-1 text-xs">
+                          <li>• Purchase price</li>
+                          <li>• Closing costs</li>
+                          <li>• Sales tax</li>
+                          <li>• Installation fees</li>
+                        </ul>
+                        <p className="text-xs italic mt-2">For gifts: donor's basis. For inheritance: FMV at death</p>
+                      </div>
+                    } />
                   </label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
@@ -479,6 +530,22 @@ export default function CreateAssetModal({
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Adjusted Basis
+                    <Tooltip content={
+                      <div className="space-y-2">
+                        <p className="font-semibold">Current basis after adjustments</p>
+                        <p className="text-xs">Original basis plus:</p>
+                        <ul className="space-y-1 text-xs">
+                          <li>• Capital improvements</li>
+                          <li>• Renovation costs</li>
+                        </ul>
+                        <p className="text-xs">Minus:</p>
+                        <ul className="space-y-1 text-xs">
+                          <li>• Depreciation taken</li>
+                          <li>• Casualty losses</li>
+                        </ul>
+                        <p className="text-xs italic mt-2">Used to calculate capital gains tax</p>
+                      </div>
+                    } />
                   </label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
@@ -496,6 +563,17 @@ export default function CreateAssetModal({
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Holding Period
+                  <Tooltip content={
+                    <div className="space-y-2">
+                      <p className="font-semibold">How long have you owned this?</p>
+                      <ul className="space-y-1 text-xs">
+                        <li><strong>Short-term (≤1 year):</strong> Taxed as ordinary income</li>
+                        <li><strong>Long-term (&gt;1 year):</strong> Lower capital gains tax rates (0%, 15%, 20%)</li>
+                        <li><strong>Inherited:</strong> Automatic long-term treatment regardless of actual holding period</li>
+                      </ul>
+                      <p className="text-xs italic mt-2">Holding period affects your capital gains tax rate when you sell</p>
+                    </div>
+                  } />
                 </label>
                 <select
                   value={formData.holdingPeriod}
