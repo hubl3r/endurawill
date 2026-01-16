@@ -29,6 +29,16 @@ interface ReportData {
     value: number;
   };
   netWorth: number;
+  debtToAssetRatio: number;
+  securedDebt: {
+    count: number;
+    value: number;
+  };
+  unsecuredDebt: {
+    count: number;
+    value: number;
+  };
+  taxDeductibleDebt: number;
   beneficiaries: {
     count: number;
     primary: number;
@@ -40,6 +50,11 @@ interface ReportData {
     trustAsset: { count: number; value: number };
   };
   assetsByCategory: Array<{
+    category: string;
+    count: number;
+    value: number;
+  }>;
+  liabilitiesByCategory: Array<{
     category: string;
     count: number;
     value: number;
@@ -90,6 +105,40 @@ export default function ReportsPage() {
 
         const totalAssetValue = assets.reduce((sum: number, a: any) => sum + (Number(a.estimatedValue) || 0), 0);
         const totalLiabilityValue = liabilities.reduce((sum: number, l: any) => sum + (Number(l.currentBalance) || 0), 0);
+
+        // Secured vs Unsecured debt
+        const securedDebt = liabilities
+          .filter((l: any) => l.isSecured)
+          .reduce((sum: number, l: any) => sum + (Number(l.currentBalance) || 0), 0);
+        const unsecuredDebt = totalLiabilityValue - securedDebt;
+        
+        const securedCount = liabilities.filter((l: any) => l.isSecured).length;
+        const unsecuredCount = liabilities.length - securedCount;
+
+        // Tax deductible debt
+        const taxDeductibleDebt = liabilities
+          .filter((l: any) => l.isDeductible)
+          .reduce((sum: number, l: any) => sum + (Number(l.currentBalance) || 0), 0);
+
+        // Debt to asset ratio
+        const debtToAssetRatio = totalAssetValue > 0 ? (totalLiabilityValue / totalAssetValue) * 100 : 0;
+
+        // Liabilities by category
+        const liabilityCategories = liabilities.reduce((acc: any, liability: any) => {
+          const category = liability.category || 'other';
+          if (!acc[category]) {
+            acc[category] = { count: 0, value: 0 };
+          }
+          acc[category].count++;
+          acc[category].value += Number(liability.currentBalance) || 0;
+          return acc;
+        }, {});
+
+        const liabilitiesByCategory = Object.entries(liabilityCategories).map(([category, data]: any) => ({
+          category,
+          count: data.count,
+          value: data.value,
+        })).sort((a, b) => b.value - a.value);
 
         // Probate status breakdown
         const probateBreakdown = assets.reduce((acc: any, asset: any) => {
@@ -195,6 +244,16 @@ export default function ReportsPage() {
             value: totalLiabilityValue,
           },
           netWorth: totalAssetValue - totalLiabilityValue,
+          debtToAssetRatio,
+          securedDebt: {
+            count: securedCount,
+            value: securedDebt,
+          },
+          unsecuredDebt: {
+            count: unsecuredCount,
+            value: unsecuredDebt,
+          },
+          taxDeductibleDebt,
           beneficiaries: {
             count: beneficiaries.length,
             primary: beneficiaries.filter((b: any) => b.isPrimary).length,
@@ -202,6 +261,7 @@ export default function ReportsPage() {
           },
           probateStatus: probateBreakdown,
           assetsByCategory,
+          liabilitiesByCategory,
           allocationStatus,
           topBeneficiaries: topBeneficiaries as any,
         });
@@ -235,6 +295,19 @@ export default function ReportsPage() {
       crypto: 'Cryptocurrency',
       collectibles: 'Collectibles',
       other: 'Other',
+    };
+    return labels[category] || category;
+  };
+
+  const getLiabilityCategoryLabel = (category: string) => {
+    const labels: any = {
+      secured_loans: 'Secured Loans',
+      unsecured_loans: 'Unsecured Loans',
+      medical_debt: 'Medical Debt',
+      tax_obligations: 'Tax Obligations',
+      legal_obligations: 'Legal Obligations',
+      business_debt: 'Business Debt',
+      other: 'Other Debt',
     };
     return labels[category] || category;
   };
@@ -349,6 +422,53 @@ export default function ReportsPage() {
           </div>
         </div>
 
+        {/* Debt Breakdown */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-xl font-bold text-gray-900 mb-4">Debt Breakdown</h2>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="border border-blue-200 rounded-lg p-4 bg-blue-50">
+              <div className="flex items-center gap-2 mb-2">
+                <Scale className="h-5 w-5 text-blue-600" />
+                <p className="font-semibold text-gray-900">Debt-to-Asset Ratio</p>
+              </div>
+              <p className="text-2xl font-bold text-blue-600">{reportData.debtToAssetRatio.toFixed(1)}%</p>
+              <p className="text-sm text-gray-600 mt-1">
+                {reportData.debtToAssetRatio < 30 && 'Excellent'}
+                {reportData.debtToAssetRatio >= 30 && reportData.debtToAssetRatio < 50 && 'Good'}
+                {reportData.debtToAssetRatio >= 50 && reportData.debtToAssetRatio < 70 && 'Fair'}
+                {reportData.debtToAssetRatio >= 70 && 'High'}
+              </p>
+            </div>
+
+            <div className="border border-orange-200 rounded-lg p-4 bg-orange-50">
+              <div className="flex items-center gap-2 mb-2">
+                <Home className="h-5 w-5 text-orange-600" />
+                <p className="font-semibold text-gray-900">Secured Debt</p>
+              </div>
+              <p className="text-2xl font-bold text-orange-600">{formatCurrency(reportData.securedDebt.value)}</p>
+              <p className="text-sm text-gray-600 mt-1">{reportData.securedDebt.count} obligations</p>
+            </div>
+
+            <div className="border border-purple-200 rounded-lg p-4 bg-purple-50">
+              <div className="flex items-center gap-2 mb-2">
+                <Briefcase className="h-5 w-5 text-purple-600" />
+                <p className="font-semibold text-gray-900">Unsecured Debt</p>
+              </div>
+              <p className="text-2xl font-bold text-purple-600">{formatCurrency(reportData.unsecuredDebt.value)}</p>
+              <p className="text-sm text-gray-600 mt-1">{reportData.unsecuredDebt.count} obligations</p>
+            </div>
+
+            <div className="border border-green-200 rounded-lg p-4 bg-green-50">
+              <div className="flex items-center gap-2 mb-2">
+                <FileText className="h-5 w-5 text-green-600" />
+                <p className="font-semibold text-gray-900">Tax Deductible</p>
+              </div>
+              <p className="text-2xl font-bold text-green-600">{formatCurrency(reportData.taxDeductibleDebt)}</p>
+              <p className="text-sm text-gray-600 mt-1">Interest deduction</p>
+            </div>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Assets by Category */}
           <div className="bg-white rounded-lg shadow p-6">
@@ -375,7 +495,38 @@ export default function ReportsPage() {
             </div>
           </div>
 
-          {/* Top Beneficiaries */}
+          {/* Liabilities by Category */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Liabilities by Category</h2>
+            {reportData.liabilitiesByCategory.length === 0 ? (
+              <p className="text-gray-500 text-center py-8">No liabilities tracked</p>
+            ) : (
+              <div className="space-y-3">
+                {reportData.liabilitiesByCategory.slice(0, 6).map((cat) => {
+                  const percentage = (cat.value / reportData.totalLiabilities.value) * 100;
+                  return (
+                    <div key={cat.category}>
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-sm font-medium text-gray-700">{getLiabilityCategoryLabel(cat.category)}</span>
+                        <span className="text-sm font-semibold text-gray-900">{formatCurrency(cat.value)}</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div
+                          className="bg-red-600 h-2 rounded-full"
+                          style={{ width: `${percentage}%` }}
+                        ></div>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">{percentage.toFixed(1)}% • {cat.count} liabilities</p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Top Beneficiaries (moved here) */}
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-xl font-bold text-gray-900 mb-4">Top Beneficiaries</h2>
             {reportData.topBeneficiaries.length === 0 ? (
