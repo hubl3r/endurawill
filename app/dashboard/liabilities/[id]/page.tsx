@@ -4,10 +4,12 @@
 import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/DashboardLayout';
+import RecordPaymentModal from '@/components/RecordPaymentModal';
 import {
   ArrowLeft,
   Edit,
   Trash2,
+  Plus,
   DollarSign,
   Calendar,
   FileText,
@@ -57,9 +59,12 @@ export default function LiabilityDetailPage({ params }: { params: Promise<{ id: 
   const [liability, setLiability] = useState<Liability | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabView>('details');
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [payments, setPayments] = useState<ValueHistoryEntry[]>([]);
 
   useEffect(() => {
     loadLiability();
+    loadPayments();
   }, [resolvedParams.id]);
 
   const loadLiability = async () => {
@@ -72,6 +77,16 @@ export default function LiabilityDetailPage({ params }: { params: Promise<{ id: 
       console.error('Error loading liability:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadPayments = async () => {
+    try {
+      const response = await fetch(`/api/liabilities/${resolvedParams.id}/payments`);
+      const data = await response.json();
+      if (data.success) setPayments(data.payments);
+    } catch (error) {
+      console.error('Error loading payments:', error);
     }
   };
 
@@ -277,13 +292,82 @@ export default function LiabilityDetailPage({ params }: { params: Promise<{ id: 
           )}
 
           {activeTab === 'payment-history' && (
-            <div className="text-center py-12">
-              <Clock className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600">Payment history tracking coming soon</p>
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h3 className="text-lg font-semibold text-gray-900">Payment History</h3>
+                <button
+                  onClick={() => setShowPaymentModal(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  <Plus className="h-4 w-4" />
+                  Record Payment
+                </button>
+              </div>
+
+              {payments.length === 0 ? (
+                <div className="text-center py-12">
+                  <Clock className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600">No payments recorded yet</p>
+                  <p className="text-sm text-gray-500 mt-1">Click "Record Payment" to track your payments</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {payments.map((payment, index) => {
+                    // Calculate payment amount from balance change
+                    const previousBalance = index < payments.length - 1 
+                      ? Number(payments[index + 1].amount) 
+                      : (liability?.originalAmount ? Number(liability.originalAmount) : Number(payment.amount));
+                    const paymentAmount = previousBalance - Number(payment.amount);
+                    
+                    // Extract payment method from sourceDetails
+                    const paymentMethod = payment.sourceDetails?.startsWith('Payment: ') 
+                      ? payment.sourceDetails.replace('Payment: ', '').replace('_', ' ')
+                      : payment.sourceDetails?.replace('_', ' ') || 'Payment';
+                    
+                    return (
+                      <div key={payment.id} className="border border-gray-200 rounded-lg p-4">
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <p className="font-medium text-gray-900">{formatDate(payment.valueDate)}</p>
+                            <p className="text-sm text-gray-500 capitalize">
+                              {paymentMethod}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-lg font-semibold text-green-600">
+                              -{formatCurrency(paymentAmount)}
+                            </span>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Balance: {formatCurrency(payment.amount)}
+                            </p>
+                          </div>
+                        </div>
+                        {payment.notes && (
+                          <p className="text-sm text-gray-600 mt-2">{payment.notes}</p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </div>
       </div>
+
+      {liability && (
+        <RecordPaymentModal
+          isOpen={showPaymentModal}
+          onClose={() => setShowPaymentModal(false)}
+          onSuccess={() => {
+            loadLiability();
+            loadPayments();
+          }}
+          liabilityId={liability.id}
+          liabilityDescription={liability.description}
+          currentBalance={Number(liability.currentBalance || 0)}
+        />
+      )}
     </DashboardLayout>
   );
 }
