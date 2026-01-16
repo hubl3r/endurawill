@@ -17,6 +17,7 @@ import {
   AlertCircle,
   History,
   Calculator,
+  Users,
 } from 'lucide-react';
 import { getAssetCategory } from '@/lib/assetCategories';
 
@@ -39,6 +40,7 @@ interface Asset {
   notes: string | null;
   basisAdjustments: BasisAdjustment[];
   valueHistory: ValueHistoryEntry[];
+  assetBeneficiaries: AssetBeneficiary[];
 }
 
 interface BasisAdjustment {
@@ -60,7 +62,21 @@ interface ValueHistoryEntry {
   sourceDetails: string | null;
 }
 
-type TabView = 'details' | 'basis' | 'value-history';
+interface AssetBeneficiary {
+  id: string;
+  allocationType: string;
+  percentage: number | null;
+  specificAmount: number | null;
+  isPrimary: boolean;
+  isContingent: boolean;
+  beneficiary: {
+    id: string;
+    fullName: string;
+    relationship: string;
+  };
+}
+
+type TabView = 'details' | 'basis' | 'value-history' | 'allocations';
 
 export default function AssetDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
@@ -121,6 +137,10 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
   const categoryInfo = getAssetCategory(asset.category || '');
   const potentialGain = asset.estimatedValue && asset.adjustedBasis ? Number(asset.estimatedValue) - Number(asset.adjustedBasis) : null;
 
+  const totalAllocated = asset.assetBeneficiaries.reduce((sum, alloc) => {
+    return sum + (alloc.percentage ? Number(alloc.percentage) : 0);
+  }, 0);
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -165,15 +185,11 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
 
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-medium text-gray-600">Holding Period</p>
-              <Calendar className="h-5 w-5 text-purple-600" />
+              <p className="text-sm font-medium text-gray-600">Allocated</p>
+              <Users className="h-5 w-5 text-purple-600" />
             </div>
-            <p className="text-lg font-bold text-gray-900">
-              {asset.holdingPeriod === 'SHORT_TERM' && 'Short-term'}
-              {asset.holdingPeriod === 'LONG_TERM' && 'Long-term'}
-              {asset.holdingPeriod === 'INHERITED' && 'Inherited'}
-              {!asset.holdingPeriod && 'Not set'}
-            </p>
+            <p className="text-2xl font-bold text-gray-900">{totalAllocated.toFixed(1)}%</p>
+            <p className="text-xs text-gray-500 mt-1">{asset.assetBeneficiaries.length} beneficiar{asset.assetBeneficiaries.length !== 1 ? 'ies' : 'y'}</p>
           </div>
         </div>
 
@@ -181,6 +197,7 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
           <nav className="-mb-px flex space-x-8">
             {[
               { id: 'details', label: 'Details', icon: FileText },
+              { id: 'allocations', label: 'Beneficiaries', icon: Users },
               { id: 'basis', label: 'Basis Adjustments', icon: Calculator },
               { id: 'value-history', label: 'Value History', icon: History },
             ].map((tab) => {
@@ -213,17 +230,62 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
             </div>
           )}
 
+          {activeTab === 'allocations' && (
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Beneficiary Allocations</h3>
+                  <p className="text-sm text-gray-500 mt-1">{totalAllocated.toFixed(1)}% allocated • {(100 - totalAllocated).toFixed(1)}% remaining</p>
+                </div>
+                <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                  <Plus className="h-4 w-4" />
+                  Add Beneficiary
+                </button>
+              </div>
+
+              {asset.assetBeneficiaries.length === 0 ? (
+                <div className="text-center py-12">
+                  <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600">No beneficiaries allocated</p>
+                  <p className="text-sm text-gray-500 mt-1">Allocate this asset to one or more beneficiaries</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {asset.assetBeneficiaries.map((alloc) => (
+                    <div key={alloc.id} className="border border-gray-200 rounded-lg p-4 flex justify-between items-center">
+                      <div>
+                        <p className="font-medium text-gray-900">{alloc.beneficiary.fullName}</p>
+                        <p className="text-sm text-gray-500 capitalize">{alloc.beneficiary.relationship.replace('_', ' ')}</p>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <p className="text-2xl font-bold text-blue-600">{alloc.percentage ? `${alloc.percentage}%` : formatCurrency(alloc.specificAmount)}</p>
+                          <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded">
+                            {alloc.isPrimary ? 'Primary' : 'Contingent'}
+                          </span>
+                        </div>
+                        <button className="p-1 text-gray-400 hover:text-red-600">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {activeTab === 'basis' && (
             <div className="text-center py-12">
               <Calculator className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600">Basis adjustments coming soon</p>
+              <p className="text-gray-600">Basis adjustments feature coming soon</p>
             </div>
           )}
 
           {activeTab === 'value-history' && (
             <div className="text-center py-12">
               <History className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600">Value history coming soon</p>
+              <p className="text-gray-600">Value history feature coming soon</p>
             </div>
           )}
         </div>
