@@ -20,6 +20,7 @@ import {
   Users,
 } from 'lucide-react';
 import { getAssetCategory } from '@/lib/assetCategories';
+import CreateAllocationModal from '@/components/CreateAllocationModal';
 
 interface Asset {
   id: string;
@@ -84,6 +85,7 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
   const [asset, setAsset] = useState<Asset | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabView>('details');
+  const [showAllocationModal, setShowAllocationModal] = useState(false);
 
   useEffect(() => {
     loadAsset();
@@ -140,6 +142,17 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
   const totalAllocated = asset.assetBeneficiaries.reduce((sum, alloc) => {
     return sum + (alloc.percentage ? Number(alloc.percentage) : 0);
   }, 0);
+
+  const handleDeleteAllocation = async (allocationId: string, beneficiaryName: string) => {
+    if (!confirm(`Remove ${beneficiaryName} from this asset?`)) return;
+
+    try {
+      const res = await fetch(`/api/allocations/${allocationId}`, { method: 'DELETE' });
+      if (res.ok) await loadAsset();
+    } catch (error) {
+      console.error('Error deleting allocation:', error);
+    }
+  };
 
   return (
     <DashboardLayout>
@@ -237,7 +250,10 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
                   <h3 className="text-lg font-semibold text-gray-900">Beneficiary Allocations</h3>
                   <p className="text-sm text-gray-500 mt-1">{totalAllocated.toFixed(1)}% allocated • {(100 - totalAllocated).toFixed(1)}% remaining</p>
                 </div>
-                <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                <button
+                  onClick={() => setShowAllocationModal(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
                   <Plus className="h-4 w-4" />
                   Add Beneficiary
                 </button>
@@ -264,7 +280,10 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
                             {alloc.isPrimary ? 'Primary' : 'Contingent'}
                           </span>
                         </div>
-                        <button className="p-1 text-gray-400 hover:text-red-600">
+                        <button
+                          onClick={() => handleDeleteAllocation(alloc.id, alloc.beneficiary.fullName)}
+                          className="p-1 text-gray-400 hover:text-red-600"
+                        >
                           <Trash2 className="h-4 w-4" />
                         </button>
                       </div>
@@ -290,6 +309,17 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
           )}
         </div>
       </div>
+
+      {asset && (
+        <CreateAllocationModal
+          isOpen={showAllocationModal}
+          onClose={() => setShowAllocationModal(false)}
+          onSuccess={loadAsset}
+          assetId={asset.id}
+          assetDescription={asset.description}
+          remainingPercentage={100 - totalAllocated}
+        />
+      )}
     </DashboardLayout>
   );
 }
