@@ -168,21 +168,65 @@ export async function POST(
       );
     }
 
-    // If percentage allocation, validate total doesn't exceed 100%
+    // Get current allocations for validation
+    const currentAllocations = await prisma.assetBeneficiary.findMany({
+      where: { assetId: id },
+    });
+
+    const assetValue = asset.estimatedValue ? Number(asset.estimatedValue) : 0;
+
+    // Calculate what's already allocated
+    const allocatedPercentage = currentAllocations.reduce((sum, alloc) => {
+      return sum + (alloc.percentage ? Number(alloc.percentage) : 0);
+    }, 0);
+
+    const allocatedDollars = currentAllocations.reduce((sum, alloc) => {
+      if (alloc.specificAmount) {
+        return sum + Number(alloc.specificAmount);
+      }
+      if (alloc.percentage && assetValue > 0) {
+        return sum + (Number(alloc.percentage) / 100 * assetValue);
+      }
+      return sum;
+    }, 0);
+
+    // Validate new allocation
     if (body.allocationType === 'percentage' && body.percentage) {
-      const currentAllocations = await prisma.assetBeneficiary.findMany({
-        where: { assetId: id },
-      });
-
-      const currentTotal = currentAllocations.reduce((sum, alloc) => {
-        return sum + (alloc.percentage ? Number(alloc.percentage) : 0);
-      }, 0);
-
-      if (currentTotal + parseFloat(body.percentage) > 100) {
+      const newPercentage = parseFloat(body.percentage);
+      
+      // Check if percentage would exceed 100%
+      if (allocatedPercentage + newPercentage > 100) {
         return NextResponse.json(
           {
             success: false,
-            error: `Cannot allocate ${body.percentage}%. Already allocated ${currentTotal}%. Only ${100 - currentTotal}% remaining.`,
+            error: `Cannot allocate ${newPercentage}%. Already allocated ${allocatedPercentage.toFixed(1)}%. Only ${(100 - allocatedPercentage).toFixed(1)}% remaining.`,
+          },
+          { status: 400 }
+        );
+      }
+
+      // Check if dollar value would exceed asset value
+      if (assetValue > 0) {
+        const newDollarValue = (newPercentage / 100) * assetValue;
+        if (allocatedDollars + newDollarValue > assetValue) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: `Cannot allocate ${newPercentage}% (${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(newDollarValue)}). Asset value is ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(assetValue)} and ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(allocatedDollars)} is already allocated in specific amounts.`,
+            },
+            { status: 400 }
+          );
+        }
+      }
+    } else if (body.allocationType === 'specific_amount' && body.specificAmount) {
+      const newAmount = parseFloat(body.specificAmount);
+
+      // Check if specific amount would exceed asset value
+      if (assetValue > 0 && allocatedDollars + newAmount > assetValue) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Cannot allocate ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(newAmount)}. Asset value is ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(assetValue)} and ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(allocatedDollars)} is already allocated. Only ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(assetValue - allocatedDollars)} remaining.`,
           },
           { status: 400 }
         );
