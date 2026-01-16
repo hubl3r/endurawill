@@ -143,6 +143,16 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
     return sum + (alloc.percentage ? Number(alloc.percentage) : 0);
   }, 0);
 
+  const totalAllocatedDollars = asset.assetBeneficiaries.reduce((sum, alloc) => {
+    if (alloc.specificAmount) {
+      return sum + Number(alloc.specificAmount);
+    }
+    if (alloc.percentage && asset.estimatedValue) {
+      return sum + (Number(alloc.percentage) / 100 * Number(asset.estimatedValue));
+    }
+    return sum;
+  }, 0);
+
   const handleDeleteAllocation = async (allocationId: string, beneficiaryName: string) => {
     if (!confirm(`Remove ${beneficiaryName} from this asset?`)) return;
 
@@ -201,8 +211,11 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
               <p className="text-sm font-medium text-gray-600">Allocated</p>
               <Users className="h-5 w-5 text-purple-600" />
             </div>
-            <p className="text-2xl font-bold text-gray-900">{totalAllocated.toFixed(1)}%</p>
-            <p className="text-xs text-gray-500 mt-1">{asset.assetBeneficiaries.length} beneficiar{asset.assetBeneficiaries.length !== 1 ? 'ies' : 'y'}</p>
+            <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalAllocatedDollars)}</p>
+            <p className="text-xs text-gray-500 mt-1">
+              {totalAllocated > 0 && `${totalAllocated.toFixed(1)}% • `}
+              {asset.assetBeneficiaries.length} beneficiar{asset.assetBeneficiaries.length !== 1 ? 'ies' : 'y'}
+            </p>
           </div>
         </div>
 
@@ -248,7 +261,10 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
               <div className="flex justify-between items-center">
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900">Beneficiary Allocations</h3>
-                  <p className="text-sm text-gray-500 mt-1">{totalAllocated.toFixed(1)}% allocated • {(100 - totalAllocated).toFixed(1)}% remaining</p>
+                  <p className="text-sm text-gray-500 mt-1">
+                    {formatCurrency(totalAllocatedDollars)} allocated
+                    {asset.estimatedValue && ` • ${formatCurrency(Number(asset.estimatedValue) - totalAllocatedDollars)} remaining`}
+                  </p>
                 </div>
                 <button
                   onClick={() => setShowAllocationModal(true)}
