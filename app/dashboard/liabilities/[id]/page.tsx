@@ -48,6 +48,7 @@ interface ValueHistoryEntry {
   valueDate: string;
   amount: number;
   source: string;
+  sourceDetails: string | null;
   notes: string | null;
 }
 
