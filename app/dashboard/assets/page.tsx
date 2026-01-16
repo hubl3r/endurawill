@@ -432,7 +432,8 @@ export default function AssetsPage() {
                   return (
                     <div
                       key={asset.id}
-                      className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow p-6"
+                      onClick={() => router.push(`/dashboard/assets/${asset.id}`)}
+                      className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow p-6 cursor-pointer"
                     >
                       <div className="flex items-start justify-between mb-4">
                         <div className={`p-2 bg-${categoryInfo.color}-100 rounded-lg`}>
@@ -440,19 +441,28 @@ export default function AssetsPage() {
                         </div>
                         <div className="flex gap-1">
                           <button
-                            onClick={() => setExpandedAsset(asset.id === expandedAsset ? null : asset.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setExpandedAsset(asset.id === expandedAsset ? null : asset.id);
+                            }}
                             className="p-1 text-gray-400 hover:text-blue-600"
                           >
                             <Eye className="h-4 w-4" />
                           </button>
                           <button
-                            onClick={() => handleEdit(asset)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEdit(asset);
+                            }}
                             className="p-1 text-gray-400 hover:text-blue-600"
                           >
                             <Edit className="h-4 w-4" />
                           </button>
                           <button
-                            onClick={() => handleDelete(asset.id, asset.description)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDelete(asset.id, asset.description);
+                            }}
                             className="p-1 text-gray-400 hover:text-red-600"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -518,7 +528,11 @@ export default function AssetsPage() {
                     {filteredAssets.map((asset) => {
                       const categoryInfo = getCategoryInfo(asset.category);
                       return (
-                        <tr key={asset.id} className="hover:bg-gray-50">
+                        <tr 
+                          key={asset.id} 
+                          onClick={() => router.push(`/dashboard/assets/${asset.id}`)}
+                          className="hover:bg-gray-50 cursor-pointer"
+                        >
                           <td className="px-6 py-4">
                             <div className="font-medium text-gray-900">{asset.description}</div>
                             {asset.institution && (
@@ -533,13 +547,19 @@ export default function AssetsPage() {
                           <td className="px-6 py-4 text-right">
                             <div className="flex justify-end gap-2">
                               <button
-                                onClick={() => handleEdit(asset)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEdit(asset);
+                                }}
                                 className="p-1 text-gray-400 hover:text-blue-600"
                               >
                                 <Edit className="h-4 w-4" />
                               </button>
                               <button
-                                onClick={() => handleDelete(asset.id, asset.description)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDelete(asset.id, asset.description);
+                                }}
                                 className="p-1 text-gray-400 hover:text-red-600"
                               >
                                 <Trash2 className="h-4 w-4" />
