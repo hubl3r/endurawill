@@ -411,7 +411,8 @@ export default function LiabilitiesPage() {
                   return (
                     <div
                       key={liability.id}
-                      className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow p-6"
+                      onClick={() => router.push(`/dashboard/liabilities/${liability.id}`)}
+                      className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow p-6 cursor-pointer"
                     >
                       <div className="flex items-start justify-between mb-4">
                         <div className={`p-2 bg-${categoryInfo.color}-100 rounded-lg`}>
@@ -419,19 +420,28 @@ export default function LiabilitiesPage() {
                         </div>
                         <div className="flex gap-1">
                           <button
-                            onClick={() => setExpandedLiability(liability.id === expandedLiability ? null : liability.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setExpandedLiability(liability.id === expandedLiability ? null : liability.id);
+                            }}
                             className="p-1 text-gray-400 hover:text-blue-600"
                           >
                             <Eye className="h-4 w-4" />
                           </button>
                           <button
-                            onClick={() => handleEdit(liability)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEdit(liability);
+                            }}
                             className="p-1 text-gray-400 hover:text-blue-600"
                           >
                             <Edit className="h-4 w-4" />
                           </button>
                           <button
-                            onClick={() => handleDelete(liability.id, liability.description)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDelete(liability.id, liability.description);
+                            }}
                             className="p-1 text-gray-400 hover:text-red-600"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -508,7 +518,11 @@ export default function LiabilitiesPage() {
                     {filteredLiabilities.map((liability) => {
                       const categoryInfo = getCategoryInfo(liability.category);
                       return (
-                        <tr key={liability.id} className="hover:bg-gray-50">
+                        <tr 
+                          key={liability.id} 
+                          onClick={() => router.push(`/dashboard/liabilities/${liability.id}`)}
+                          className="hover:bg-gray-50 cursor-pointer"
+                        >
                           <td className="px-6 py-4">
                             <div className="font-medium text-gray-900">{liability.description}</div>
                             {liability.creditor && (
@@ -525,13 +539,19 @@ export default function LiabilitiesPage() {
                           <td className="px-6 py-4 text-right">
                             <div className="flex justify-end gap-2">
                               <button
-                                onClick={() => handleEdit(liability)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEdit(liability);
+                                }}
                                 className="p-1 text-gray-400 hover:text-blue-600"
                               >
                                 <Edit className="h-4 w-4" />
                               </button>
                               <button
-                                onClick={() => handleDelete(liability.id, liability.description)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDelete(liability.id, liability.description);
+                                }}
                                 className="p-1 text-gray-400 hover:text-red-600"
                               >
                                 <Trash2 className="h-4 w-4" />
