@@ -146,8 +146,8 @@ export async function POST(
         valueDate: new Date(body.paymentDate),
         amount: newBalance, // Store the new balance after payment
         currency: body.currency || 'USD',
-        source: 'PAYMENT',
-        sourceDetails: body.paymentMethod || null,
+        source: 'OTHER',
+        sourceDetails: `Payment: ${body.paymentMethod || 'unspecified'}`,
         notes: body.notes || null,
         recordedBy: user.id,
       },
