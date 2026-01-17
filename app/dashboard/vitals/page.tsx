@@ -57,20 +57,31 @@ interface VitalsData {
     email: string;
   }[];
   children: {
-    id: string;
     fullName: string;
     dob: string;
     relationship: string;
+    isMinor: boolean;
     guardianPreference: string;
+    notes: string;
   }[];
   pets: {
-    id: string;
     name: string;
     type: string;
     breed: string;
-    age: number;
-    vetInfo: string;
+    age: string;
+    specialNeeds: string;
+    vetName: string;
+    vetPhone: string;
     caretakerPreference: string;
+    notes: string;
+  }[];
+  family: {
+    fullName: string;
+    relationship: string;
+    phone: string;
+    email: string;
+    address: string;
+    notes: string;
   }[];
 }
 
@@ -107,10 +118,11 @@ export default function VitalsPage() {
     emergency: [],
     children: [],
     pets: [],
+    family: [],
   });
 
   const [editMode, setEditMode] = useState(false);
-  const [activeSection, setActiveSection] = useState<'personal' | 'contact' | 'medical' | 'emergency' | 'children' | 'pets'>('personal');
+  const [activeSection, setActiveSection] = useState<'personal' | 'contact' | 'medical' | 'emergency' | 'children' | 'pets' | 'family'>('personal');
   const [loading, setLoading] = useState(false);
 
   const handleSave = async () => {
@@ -137,6 +149,72 @@ export default function VitalsPage() {
     setVitals(prev => ({
       ...prev,
       emergency: prev.emergency.filter((_, i) => i !== index),
+    }));
+  };
+
+  const addChild = () => {
+    setVitals(prev => ({
+      ...prev,
+      children: [...prev.children, {
+        fullName: '',
+        dob: '',
+        relationship: 'child',
+        isMinor: true,
+        guardianPreference: '',
+        notes: '',
+      }],
+    }));
+  };
+
+  const removeChild = (index: number) => {
+    setVitals(prev => ({
+      ...prev,
+      children: prev.children.filter((_, i) => i !== index),
+    }));
+  };
+
+  const addPet = () => {
+    setVitals(prev => ({
+      ...prev,
+      pets: [...prev.pets, {
+        name: '',
+        type: '',
+        breed: '',
+        age: '',
+        specialNeeds: '',
+        vetName: '',
+        vetPhone: '',
+        caretakerPreference: '',
+        notes: '',
+      }],
+    }));
+  };
+
+  const removePet = (index: number) => {
+    setVitals(prev => ({
+      ...prev,
+      pets: prev.pets.filter((_, i) => i !== index),
+    }));
+  };
+
+  const addFamilyMember = () => {
+    setVitals(prev => ({
+      ...prev,
+      family: [...prev.family, {
+        fullName: '',
+        relationship: '',
+        phone: '',
+        email: '',
+        address: '',
+        notes: '',
+      }],
+    }));
+  };
+
+  const removeFamilyMember = (index: number) => {
+    setVitals(prev => ({
+      ...prev,
+      family: prev.family.filter((_, i) => i !== index),
     }));
   };
 
@@ -188,6 +266,7 @@ export default function VitalsPage() {
               { id: 'emergency', label: 'Emergency Contacts', icon: Users },
               { id: 'children', label: 'Children', icon: Baby },
               { id: 'pets', label: 'Pets', icon: Dog },
+              { id: 'family', label: 'Family', icon: Users },
             ].map((tab) => {
               const TabIcon = tab.icon;
               return (
@@ -556,21 +635,471 @@ export default function VitalsPage() {
             </div>
           )}
 
-          {/* Children - Placeholder */}
+          {/* Children */}
           {activeSection === 'children' && (
-            <div className="text-center py-12">
-              <Baby className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600">Children management coming soon</p>
-              <p className="text-sm text-gray-500 mt-1">Track your children and guardian preferences</p>
+            <div className="space-y-4">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold text-gray-900">Children & Dependents</h2>
+                {editMode && (
+                  <button
+                    onClick={addChild}
+                    className="flex items-center gap-2 px-3 py-2 text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add Child
+                  </button>
+                )}
+              </div>
+
+              {vitals.children.length === 0 ? (
+                <div className="text-center py-12">
+                  <Baby className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600">No children added</p>
+                  {editMode && <p className="text-sm text-gray-500 mt-1">Click "Add Child" to get started</p>}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {vitals.children.map((child, index) => (
+                    <div key={index} className="border border-gray-200 rounded-lg p-4">
+                      <div className="flex justify-between items-start mb-4">
+                        <h3 className="font-semibold text-gray-900">{child.fullName || `Child #${index + 1}`}</h3>
+                        {editMode && (
+                          <button
+                            onClick={() => removeChild(index)}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                          <input
+                            type="text"
+                            value={child.fullName}
+                            onChange={(e) => {
+                              const newChildren = [...vitals.children];
+                              newChildren[index].fullName = e.target.value;
+                              setVitals(prev => ({ ...prev, children: newChildren }));
+                            }}
+                            disabled={!editMode}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 disabled:bg-gray-50"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
+                          <input
+                            type="date"
+                            value={child.dob}
+                            onChange={(e) => {
+                              const newChildren = [...vitals.children];
+                              newChildren[index].dob = e.target.value;
+                              setVitals(prev => ({ ...prev, children: newChildren }));
+                            }}
+                            disabled={!editMode}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 disabled:bg-gray-50"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Relationship</label>
+                          <select
+                            value={child.relationship}
+                            onChange={(e) => {
+                              const newChildren = [...vitals.children];
+                              newChildren[index].relationship = e.target.value;
+                              setVitals(prev => ({ ...prev, children: newChildren }));
+                            }}
+                            disabled={!editMode}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 disabled:bg-gray-50"
+                          >
+                            <option value="child">Child</option>
+                            <option value="stepchild">Stepchild</option>
+                            <option value="adopted">Adopted Child</option>
+                            <option value="grandchild">Grandchild</option>
+                            <option value="dependent">Other Dependent</option>
+                          </select>
+                        </div>
+                        <div className="flex items-center pt-6">
+                          <input
+                            type="checkbox"
+                            id={`minor-${index}`}
+                            checked={child.isMinor}
+                            onChange={(e) => {
+                              const newChildren = [...vitals.children];
+                              newChildren[index].isMinor = e.target.checked;
+                              setVitals(prev => ({ ...prev, children: newChildren }));
+                            }}
+                            disabled={!editMode}
+                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-600 disabled:opacity-50"
+                          />
+                          <label htmlFor={`minor-${index}`} className="ml-2 text-sm font-medium text-gray-700">
+                            Currently a minor
+                          </label>
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Guardian Preference (if minor)</label>
+                          <input
+                            type="text"
+                            value={child.guardianPreference}
+                            onChange={(e) => {
+                              const newChildren = [...vitals.children];
+                              newChildren[index].guardianPreference = e.target.value;
+                              setVitals(prev => ({ ...prev, children: newChildren }));
+                            }}
+                            disabled={!editMode}
+                            placeholder="Name of preferred guardian..."
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 disabled:bg-gray-50"
+                          />
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                          <textarea
+                            value={child.notes}
+                            onChange={(e) => {
+                              const newChildren = [...vitals.children];
+                              newChildren[index].notes = e.target.value;
+                              setVitals(prev => ({ ...prev, children: newChildren }));
+                            }}
+                            disabled={!editMode}
+                            rows={2}
+                            placeholder="Special needs, preferences, etc..."
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 disabled:bg-gray-50"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
-          {/* Pets - Placeholder */}
+          {/* Pets */}
           {activeSection === 'pets' && (
-            <div className="text-center py-12">
-              <Dog className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600">Pet management coming soon</p>
-              <p className="text-sm text-gray-500 mt-1">Track your pets and caretaker preferences</p>
+            <div className="space-y-4">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold text-gray-900">Pets & Animal Companions</h2>
+                {editMode && (
+                  <button
+                    onClick={addPet}
+                    className="flex items-center gap-2 px-3 py-2 text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add Pet
+                  </button>
+                )}
+              </div>
+
+              {vitals.pets.length === 0 ? (
+                <div className="text-center py-12">
+                  <Dog className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600">No pets added</p>
+                  {editMode && <p className="text-sm text-gray-500 mt-1">Click "Add Pet" to get started</p>}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {vitals.pets.map((pet, index) => (
+                    <div key={index} className="border border-gray-200 rounded-lg p-4">
+                      <div className="flex justify-between items-start mb-4">
+                        <h3 className="font-semibold text-gray-900">{pet.name || `Pet #${index + 1}`}</h3>
+                        {editMode && (
+                          <button
+                            onClick={() => removePet(index)}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                          <input
+                            type="text"
+                            value={pet.name}
+                            onChange={(e) => {
+                              const newPets = [...vitals.pets];
+                              newPets[index].name = e.target.value;
+                              setVitals(prev => ({ ...prev, pets: newPets }));
+                            }}
+                            disabled={!editMode}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 disabled:bg-gray-50"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                          <select
+                            value={pet.type}
+                            onChange={(e) => {
+                              const newPets = [...vitals.pets];
+                              newPets[index].type = e.target.value;
+                              setVitals(prev => ({ ...prev, pets: newPets }));
+                            }}
+                            disabled={!editMode}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 disabled:bg-gray-50"
+                          >
+                            <option value="">Select...</option>
+                            <option value="dog">Dog</option>
+                            <option value="cat">Cat</option>
+                            <option value="bird">Bird</option>
+                            <option value="fish">Fish</option>
+                            <option value="reptile">Reptile</option>
+                            <option value="small_animal">Small Animal</option>
+                            <option value="horse">Horse</option>
+                            <option value="other">Other</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Breed</label>
+                          <input
+                            type="text"
+                            value={pet.breed}
+                            onChange={(e) => {
+                              const newPets = [...vitals.pets];
+                              newPets[index].breed = e.target.value;
+                              setVitals(prev => ({ ...prev, pets: newPets }));
+                            }}
+                            disabled={!editMode}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 disabled:bg-gray-50"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Age</label>
+                          <input
+                            type="text"
+                            value={pet.age}
+                            onChange={(e) => {
+                              const newPets = [...vitals.pets];
+                              newPets[index].age = e.target.value;
+                              setVitals(prev => ({ ...prev, pets: newPets }));
+                            }}
+                            disabled={!editMode}
+                            placeholder="e.g., 3 years"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 disabled:bg-gray-50"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Veterinarian Name</label>
+                          <input
+                            type="text"
+                            value={pet.vetName}
+                            onChange={(e) => {
+                              const newPets = [...vitals.pets];
+                              newPets[index].vetName = e.target.value;
+                              setVitals(prev => ({ ...prev, pets: newPets }));
+                            }}
+                            disabled={!editMode}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 disabled:bg-gray-50"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Vet Phone</label>
+                          <input
+                            type="tel"
+                            value={pet.vetPhone}
+                            onChange={(e) => {
+                              const newPets = [...vitals.pets];
+                              newPets[index].vetPhone = e.target.value;
+                              setVitals(prev => ({ ...prev, pets: newPets }));
+                            }}
+                            disabled={!editMode}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 disabled:bg-gray-50"
+                          />
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Special Needs / Medical Conditions</label>
+                          <textarea
+                            value={pet.specialNeeds}
+                            onChange={(e) => {
+                              const newPets = [...vitals.pets];
+                              newPets[index].specialNeeds = e.target.value;
+                              setVitals(prev => ({ ...prev, pets: newPets }));
+                            }}
+                            disabled={!editMode}
+                            rows={2}
+                            placeholder="Medications, dietary restrictions, special care..."
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 disabled:bg-gray-50"
+                          />
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Caretaker Preference</label>
+                          <input
+                            type="text"
+                            value={pet.caretakerPreference}
+                            onChange={(e) => {
+                              const newPets = [...vitals.pets];
+                              newPets[index].caretakerPreference = e.target.value;
+                              setVitals(prev => ({ ...prev, pets: newPets }));
+                            }}
+                            disabled={!editMode}
+                            placeholder="Name of preferred caretaker if you're unable..."
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 disabled:bg-gray-50"
+                          />
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Additional Notes</label>
+                          <textarea
+                            value={pet.notes}
+                            onChange={(e) => {
+                              const newPets = [...vitals.pets];
+                              newPets[index].notes = e.target.value;
+                              setVitals(prev => ({ ...prev, pets: newPets }));
+                            }}
+                            disabled={!editMode}
+                            rows={2}
+                            placeholder="Personality, habits, favorite toys, etc..."
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 disabled:bg-gray-50"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Family Members */}
+          {activeSection === 'family' && (
+            <div className="space-y-4">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold text-gray-900">Family Members</h2>
+                {editMode && (
+                  <button
+                    onClick={addFamilyMember}
+                    className="flex items-center gap-2 px-3 py-2 text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add Family Member
+                  </button>
+                )}
+              </div>
+
+              {vitals.family.length === 0 ? (
+                <div className="text-center py-12">
+                  <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600">No family members added</p>
+                  {editMode && <p className="text-sm text-gray-500 mt-1">Click "Add Family Member" to get started</p>}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {vitals.family.map((member, index) => (
+                    <div key={index} className="border border-gray-200 rounded-lg p-4">
+                      <div className="flex justify-between items-start mb-4">
+                        <h3 className="font-semibold text-gray-900">{member.fullName || `Family Member #${index + 1}`}</h3>
+                        {editMode && (
+                          <button
+                            onClick={() => removeFamilyMember(index)}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                          <input
+                            type="text"
+                            value={member.fullName}
+                            onChange={(e) => {
+                              const newFamily = [...vitals.family];
+                              newFamily[index].fullName = e.target.value;
+                              setVitals(prev => ({ ...prev, family: newFamily }));
+                            }}
+                            disabled={!editMode}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 disabled:bg-gray-50"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Relationship</label>
+                          <select
+                            value={member.relationship}
+                            onChange={(e) => {
+                              const newFamily = [...vitals.family];
+                              newFamily[index].relationship = e.target.value;
+                              setVitals(prev => ({ ...prev, family: newFamily }));
+                            }}
+                            disabled={!editMode}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 disabled:bg-gray-50"
+                          >
+                            <option value="">Select...</option>
+                            <option value="spouse">Spouse</option>
+                            <option value="parent">Parent</option>
+                            <option value="sibling">Sibling</option>
+                            <option value="child">Child (Adult)</option>
+                            <option value="grandparent">Grandparent</option>
+                            <option value="grandchild">Grandchild</option>
+                            <option value="aunt_uncle">Aunt/Uncle</option>
+                            <option value="cousin">Cousin</option>
+                            <option value="in_law">In-Law</option>
+                            <option value="other">Other</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                          <input
+                            type="tel"
+                            value={member.phone}
+                            onChange={(e) => {
+                              const newFamily = [...vitals.family];
+                              newFamily[index].phone = e.target.value;
+                              setVitals(prev => ({ ...prev, family: newFamily }));
+                            }}
+                            disabled={!editMode}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 disabled:bg-gray-50"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                          <input
+                            type="email"
+                            value={member.email}
+                            onChange={(e) => {
+                              const newFamily = [...vitals.family];
+                              newFamily[index].email = e.target.value;
+                              setVitals(prev => ({ ...prev, family: newFamily }));
+                            }}
+                            disabled={!editMode}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 disabled:bg-gray-50"
+                          />
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                          <input
+                            type="text"
+                            value={member.address}
+                            onChange={(e) => {
+                              const newFamily = [...vitals.family];
+                              newFamily[index].address = e.target.value;
+                              setVitals(prev => ({ ...prev, family: newFamily }));
+                            }}
+                            disabled={!editMode}
+                            placeholder="Full address..."
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 disabled:bg-gray-50"
+                          />
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                          <textarea
+                            value={member.notes}
+                            onChange={(e) => {
+                              const newFamily = [...vitals.family];
+                              newFamily[index].notes = e.target.value;
+                              setVitals(prev => ({ ...prev, family: newFamily }));
+                            }}
+                            disabled={!editMode}
+                            rows={2}
+                            placeholder="Important information, special considerations..."
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 disabled:bg-gray-50"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
