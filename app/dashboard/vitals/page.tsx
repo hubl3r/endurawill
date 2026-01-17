@@ -4,6 +4,9 @@
 import { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
 import CreateChildModal from '@/components/CreateChildModal';
+import CreatePetModal from '@/components/CreatePetModal';
+import CreateFamilyModal from '@/components/CreateFamilyModal';
+import CreateEmergencyContactModal from '@/components/CreateEmergencyContactModal';
 import {
   User,
   Heart,
@@ -77,11 +80,24 @@ export default function VitalsPage() {
   const [family, setFamily] = useState<FamilyMember[]>([]);
   const [emergencyContacts, setEmergencyContacts] = useState<EmergencyContact[]>([]);
   const [activeTab, setActiveTab] = useState<'children' | 'pets' | 'family' | 'emergency'>('children');
+  
   const [showChildModal, setShowChildModal] = useState(false);
   const [editingChild, setEditingChild] = useState<Child | null>(null);
+  
+  const [showPetModal, setShowPetModal] = useState(false);
+  const [editingPet, setEditingPet] = useState<Pet | null>(null);
+  
+  const [showFamilyModal, setShowFamilyModal] = useState(false);
+  const [editingFamily, setEditingFamily] = useState<FamilyMember | null>(null);
+  
+  const [showContactModal, setShowContactModal] = useState(false);
+  const [editingContact, setEditingContact] = useState<EmergencyContact | null>(null);
 
   useEffect(() => {
     loadChildren();
+    loadPets();
+    loadFamily();
+    loadContacts();
   }, []);
 
   const loadChildren = async () => {
@@ -122,6 +138,7 @@ export default function VitalsPage() {
             ...child,
             dob: dobFormatted,
             isMinor,
+            dateOfDeath: child.dateOfDeath ? child.dateOfDeath.split('T')[0] : '',
             ...parsedData,
             notes: parsedData.extraNotes || '',
           };
@@ -130,6 +147,42 @@ export default function VitalsPage() {
       }
     } catch (error) {
       console.error('Error loading children:', error);
+    }
+  };
+
+  const loadPets = async () => {
+    try {
+      const response = await fetch('/api/pets');
+      const data = await response.json();
+      if (data.success) {
+        setPets(data.pets);
+      }
+    } catch (error) {
+      console.error('Error loading pets:', error);
+    }
+  };
+
+  const loadFamily = async () => {
+    try {
+      const response = await fetch('/api/family');
+      const data = await response.json();
+      if (data.success) {
+        setFamily(data.family);
+      }
+    } catch (error) {
+      console.error('Error loading family:', error);
+    }
+  };
+
+  const loadContacts = async () => {
+    try {
+      const response = await fetch('/api/contacts?type=emergency');
+      const data = await response.json();
+      if (data.success) {
+        setEmergencyContacts(data.contacts);
+      }
+    } catch (error) {
+      console.error('Error loading contacts:', error);
     }
   };
 
@@ -147,21 +200,42 @@ export default function VitalsPage() {
     }
   };
 
-  const handleDeletePet = (id: string) => {
-    if (confirm('Delete this pet?')) {
-      setPets(prev => prev.filter(p => p.id !== id));
+  const handleDeletePet = async (id: string) => {
+    if (!confirm('Delete this pet?')) return;
+
+    try {
+      const response = await fetch(`/api/pets/${id}`, { method: 'DELETE' });
+      if (response.ok) {
+        setPets(prev => prev.filter(p => p.id !== id));
+      }
+    } catch (error) {
+      console.error('Error deleting pet:', error);
     }
   };
 
-  const handleDeleteFamily = (id: string) => {
-    if (confirm('Delete this family member?')) {
-      setFamily(prev => prev.filter(f => f.id !== id));
+  const handleDeleteFamily = async (id: string) => {
+    if (!confirm('Delete this family member?')) return;
+
+    try {
+      const response = await fetch(`/api/family/${id}`, { method: 'DELETE' });
+      if (response.ok) {
+        setFamily(prev => prev.filter(f => f.id !== id));
+      }
+    } catch (error) {
+      console.error('Error deleting family member:', error);
     }
   };
 
-  const handleDeleteEmergency = (id: string) => {
-    if (confirm('Delete this emergency contact?')) {
-      setEmergencyContacts(prev => prev.filter(e => e.id !== id));
+  const handleDeleteEmergency = async (id: string) => {
+    if (!confirm('Delete this emergency contact?')) return;
+
+    try {
+      const response = await fetch(`/api/contacts/${id}`, { method: 'DELETE' });
+      if (response.ok) {
+        setEmergencyContacts(prev => prev.filter(e => e.id !== id));
+      }
+    } catch (error) {
+      console.error('Error deleting contact:', error);
     }
   };
 
@@ -328,7 +402,10 @@ export default function VitalsPage() {
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-semibold text-gray-900">Pets & Animal Companions</h2>
-              <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+              <button
+                onClick={() => setShowPetModal(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
                 <Plus className="h-4 w-4" />
                 Add Pet
               </button>
@@ -339,7 +416,10 @@ export default function VitalsPage() {
                 <Dog className="h-16 w-16 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">No pets added yet</h3>
                 <p className="text-gray-600 mb-4">Add your pets to track their care information</p>
-                <button className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                <button
+                  onClick={() => setShowPetModal(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
                   <Plus className="h-4 w-4" />
                   Add Your First Pet
                 </button>
@@ -359,7 +439,13 @@ export default function VitalsPage() {
                         </div>
                       </div>
                       <div className="flex gap-1">
-                        <button className="p-1 text-gray-400 hover:text-blue-600">
+                        <button
+                          onClick={() => {
+                            setEditingPet(pet);
+                            setShowPetModal(true);
+                          }}
+                          className="p-1 text-gray-400 hover:text-blue-600"
+                        >
                           <Edit className="h-4 w-4" />
                         </button>
                         <button
@@ -406,7 +492,10 @@ export default function VitalsPage() {
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-semibold text-gray-900">Family Members</h2>
-              <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+              <button
+                onClick={() => setShowFamilyModal(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
                 <Plus className="h-4 w-4" />
                 Add Family Member
               </button>
@@ -417,7 +506,10 @@ export default function VitalsPage() {
                 <Users className="h-16 w-16 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">No family members added yet</h3>
                 <p className="text-gray-600 mb-4">Add family members to keep track of important contacts</p>
-                <button className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                <button
+                  onClick={() => setShowFamilyModal(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
                   <Plus className="h-4 w-4" />
                   Add Your First Family Member
                 </button>
@@ -437,7 +529,13 @@ export default function VitalsPage() {
                         </div>
                       </div>
                       <div className="flex gap-1">
-                        <button className="p-1 text-gray-400 hover:text-blue-600">
+                        <button
+                          onClick={() => {
+                            setEditingFamily(member);
+                            setShowFamilyModal(true);
+                          }}
+                          className="p-1 text-gray-400 hover:text-blue-600"
+                        >
                           <Edit className="h-4 w-4" />
                         </button>
                         <button
@@ -481,7 +579,10 @@ export default function VitalsPage() {
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-semibold text-gray-900">Emergency Contacts</h2>
-              <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+              <button
+                onClick={() => setShowContactModal(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
                 <Plus className="h-4 w-4" />
                 Add Emergency Contact
               </button>
@@ -492,7 +593,10 @@ export default function VitalsPage() {
                 <Phone className="h-16 w-16 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">No emergency contacts added yet</h3>
                 <p className="text-gray-600 mb-4">Add emergency contacts for urgent situations</p>
-                <button className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                <button
+                  onClick={() => setShowContactModal(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
                   <Plus className="h-4 w-4" />
                   Add Your First Emergency Contact
                 </button>
@@ -512,7 +616,13 @@ export default function VitalsPage() {
                         </div>
                       </div>
                       <div className="flex gap-1">
-                        <button className="p-1 text-gray-400 hover:text-blue-600">
+                        <button
+                          onClick={() => {
+                            setEditingContact(contact);
+                            setShowContactModal(true);
+                          }}
+                          className="p-1 text-gray-400 hover:text-blue-600"
+                        >
                           <Edit className="h-4 w-4" />
                         </button>
                         <button
@@ -556,6 +666,48 @@ export default function VitalsPage() {
           setEditingChild(null);
         }}
         child={editingChild}
+      />
+
+      <CreatePetModal
+        isOpen={showPetModal}
+        onClose={() => {
+          setShowPetModal(false);
+          setEditingPet(null);
+        }}
+        onSuccess={() => {
+          loadPets();
+          setShowPetModal(false);
+          setEditingPet(null);
+        }}
+        pet={editingPet}
+      />
+
+      <CreateFamilyModal
+        isOpen={showFamilyModal}
+        onClose={() => {
+          setShowFamilyModal(false);
+          setEditingFamily(null);
+        }}
+        onSuccess={() => {
+          loadFamily();
+          setShowFamilyModal(false);
+          setEditingFamily(null);
+        }}
+        familyMember={editingFamily}
+      />
+
+      <CreateEmergencyContactModal
+        isOpen={showContactModal}
+        onClose={() => {
+          setShowContactModal(false);
+          setEditingContact(null);
+        }}
+        onSuccess={() => {
+          loadContacts();
+          setShowContactModal(false);
+          setEditingContact(null);
+        }}
+        contact={editingContact}
       />
     </DashboardLayout>
   );
