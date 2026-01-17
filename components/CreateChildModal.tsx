@@ -32,6 +32,8 @@ export default function CreateChildModal({
     physicianPhone: '',
     allergies: '',
     medications: '',
+    isDeceased: false,
+    dateOfDeath: '',
     notes: '',
   });
 
@@ -55,6 +57,8 @@ export default function CreateChildModal({
         physicianPhone: child.physicianPhone || '',
         allergies: child.allergies || '',
         medications: child.medications || '',
+        isDeceased: child.isDeceased || false,
+        dateOfDeath: child.dateOfDeath || '',
         notes: child.notes || '',
       });
     } else {
@@ -73,6 +77,8 @@ export default function CreateChildModal({
         physicianPhone: '',
         allergies: '',
         medications: '',
+        isDeceased: false,
+        dateOfDeath: '',
         notes: '',
       });
     }
@@ -248,6 +254,36 @@ export default function CreateChildModal({
                 );
               })()}
             </div>
+          </div>
+
+          {/* Status */}
+          <div className="space-y-4 border-t border-gray-200 pt-6">
+            <h3 className="text-lg font-semibold text-gray-900">Status</h3>
+            
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="isDeceased"
+                checked={formData.isDeceased}
+                onChange={(e) => setFormData(prev => ({ ...prev, isDeceased: e.target.checked, dateOfDeath: e.target.checked ? prev.dateOfDeath : '' }))}
+                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-600"
+              />
+              <label htmlFor="isDeceased" className="text-sm font-medium text-gray-700">
+                Deceased
+              </label>
+            </div>
+
+            {formData.isDeceased && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Date of Death</label>
+                <input
+                  type="date"
+                  value={formData.dateOfDeath}
+                  onChange={(e) => setFormData(prev => ({ ...prev, dateOfDeath: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+                />
+              </div>
+            )}
           </div>
 
           {/* School Information */}
