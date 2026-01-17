@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
+import CreateChildModal from '@/components/CreateChildModal';
 import {
   User,
   Heart,
@@ -76,6 +77,8 @@ export default function VitalsPage() {
   const [family, setFamily] = useState<FamilyMember[]>([]);
   const [emergencyContacts, setEmergencyContacts] = useState<EmergencyContact[]>([]);
   const [activeTab, setActiveTab] = useState<'children' | 'pets' | 'family' | 'emergency'>('children');
+  const [showChildModal, setShowChildModal] = useState(false);
+  const [editingChild, setEditingChild] = useState<Child | null>(null);
 
   // Placeholder delete handlers
   const handleDeleteChild = (id: string) => {
@@ -151,7 +154,10 @@ export default function VitalsPage() {
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-semibold text-gray-900">Children & Dependents</h2>
-              <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+              <button
+                onClick={() => setShowChildModal(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
                 <Plus className="h-4 w-4" />
                 Add Child
               </button>
@@ -162,7 +168,10 @@ export default function VitalsPage() {
                 <Baby className="h-16 w-16 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">No children added yet</h3>
                 <p className="text-gray-600 mb-4">Add your children or dependents to track important information</p>
-                <button className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                <button
+                  onClick={() => setShowChildModal(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
                   <Plus className="h-4 w-4" />
                   Add Your First Child
                 </button>
@@ -182,7 +191,13 @@ export default function VitalsPage() {
                         </div>
                       </div>
                       <div className="flex gap-1">
-                        <button className="p-1 text-gray-400 hover:text-blue-600">
+                        <button
+                          onClick={() => {
+                            setEditingChild(child);
+                            setShowChildModal(true);
+                          }}
+                          className="p-1 text-gray-400 hover:text-blue-600"
+                        >
                           <Edit className="h-4 w-4" />
                         </button>
                         <button
@@ -451,6 +466,19 @@ export default function VitalsPage() {
           </div>
         )}
       </div>
+
+      <CreateChildModal
+        isOpen={showChildModal}
+        onClose={() => {
+          setShowChildModal(false);
+          setEditingChild(null);
+        }}
+        onSuccess={() => {
+          // TODO: Reload children data
+          console.log('Child saved successfully');
+        }}
+        child={editingChild}
+      />
     </DashboardLayout>
   );
 }
