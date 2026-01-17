@@ -218,12 +218,17 @@ model Child {
   
   guardianPreference String?
   beneficiaryId String?
+  
+  isDeceased   Boolean  @default(false)
+  dateOfDeath  DateTime?
+  
   notes        String?
   
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   
   @@index([profileId])
+  @@index([isDeceased])
 }
 
 // ============================================
