@@ -78,6 +78,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Calculate isMinor based on date of birth
+    let isMinor = true;
+    if (body.dob) {
+      const birthDate = new Date(body.dob);
+      const today = new Date();
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+      }
+      isMinor = age < 18;
+    }
+
     // Create child with notes field containing additional data as JSON
     const additionalData = {
       ssn: body.ssn || null,
@@ -97,7 +110,7 @@ export async function POST(req: NextRequest) {
         fullName: body.fullName,
         dob: body.dob ? new Date(body.dob) : null,
         relationship: body.relationship || 'child',
-        isMinor: body.isMinor ?? true,
+        isMinor: isMinor,
         guardianPreference: body.guardianPreference || null,
         notes: JSON.stringify(additionalData), // Store extra data as JSON in notes field
       },
