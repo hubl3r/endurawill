@@ -473,9 +473,16 @@ export default function VitalsPage() {
           setShowChildModal(false);
           setEditingChild(null);
         }}
-        onSuccess={() => {
-          // TODO: Reload children data
-          console.log('Child saved successfully');
+        onSuccess={(childData) => {
+          if (editingChild) {
+            // Update existing child
+            setChildren(prev => prev.map(c => c.id === editingChild.id ? { ...childData, id: editingChild.id } : c));
+          } else {
+            // Add new child with temporary ID
+            setChildren(prev => [...prev, { ...childData, id: `temp-${Date.now()}` }]);
+          }
+          setShowChildModal(false);
+          setEditingChild(null);
         }}
         child={editingChild}
       />
