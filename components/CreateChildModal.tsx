@@ -208,19 +208,6 @@ export default function CreateChildModal({
                 </select>
               </div>
 
-              <div className="flex items-center pt-6">
-                <input
-                  type="checkbox"
-                  id="isMinor"
-                  checked={formData.isMinor}
-                  onChange={(e) => setFormData(prev => ({ ...prev, isMinor: e.target.checked }))}
-                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-600"
-                />
-                <label htmlFor="isMinor" className="ml-2 text-sm font-medium text-gray-700">
-                  Currently a minor (under 18)
-                </label>
-              </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Guardian Preference
@@ -242,6 +229,24 @@ export default function CreateChildModal({
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
                 />
               </div>
+
+              {formData.dob && (() => {
+                const birthDate = new Date(formData.dob);
+                const today = new Date();
+                let age = today.getFullYear() - birthDate.getFullYear();
+                const monthDiff = today.getMonth() - birthDate.getMonth();
+                if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+                  age--;
+                }
+                const isMinor = age < 18;
+                return (
+                  <div className="md:col-span-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-sm text-blue-900">
+                      <strong>Age:</strong> {age} years old {isMinor ? '(Minor)' : '(Adult)'}
+                    </p>
+                  </div>
+                );
+              })()}
             </div>
           </div>
 
