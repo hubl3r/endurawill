@@ -238,7 +238,20 @@ export default function VitalsPage() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {children.map((child) => (
+                {children.map((child) => {
+                  // Calculate age
+                  let age = 0;
+                  if (child.dob) {
+                    const birthDate = new Date(child.dob);
+                    const today = new Date();
+                    age = today.getFullYear() - birthDate.getFullYear();
+                    const monthDiff = today.getMonth() - birthDate.getMonth();
+                    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+                      age--;
+                    }
+                  }
+                  
+                  return (
                   <div key={child.id} className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow p-6">
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex items-center gap-3">
@@ -272,7 +285,10 @@ export default function VitalsPage() {
                     <div className="space-y-3">
                       <div className="flex items-center gap-2 text-sm">
                         <Calendar className="h-4 w-4 text-gray-400" />
-                        <span className="text-gray-600">Born: {new Date(child.dob).toLocaleDateString()}</span>
+                        <span className="text-gray-600">
+                          {age > 0 ? `${age} years old` : 'Age not set'}
+                          {child.dob && ` • Born ${new Date(child.dob).toLocaleDateString()}`}
+                        </span>
                       </div>
                       {child.isMinor && (
                         <div className="flex items-center gap-2 text-sm">
@@ -300,7 +316,8 @@ export default function VitalsPage() {
                       )}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
