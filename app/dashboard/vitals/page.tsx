@@ -91,7 +91,7 @@ export default function VitalsPage() {
       if (data.success) {
         // Parse notes field to get additional data
         const childrenWithParsedData = data.children.map((child: any) => {
-          let parsedData = {};
+          let parsedData: any = {};
           try {
             parsedData = child.notes ? JSON.parse(child.notes) : {};
           } catch (e) {
