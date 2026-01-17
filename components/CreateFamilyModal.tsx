@@ -146,7 +146,6 @@ export default function CreateFamilyModal({
                   <option value="spouse">Spouse</option>
                   <option value="parent">Parent</option>
                   <option value="sibling">Sibling</option>
-                  <option value="child">Child (Adult)</option>
                   <option value="grandparent">Grandparent</option>
                   <option value="grandchild">Grandchild</option>
                   <option value="aunt_uncle">Aunt/Uncle</option>
