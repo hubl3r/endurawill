@@ -97,9 +97,31 @@ export default function VitalsPage() {
           } catch (e) {
             parsedData = {};
           }
+          
+          // Fix date format (extract just YYYY-MM-DD to avoid timezone issues)
+          let dobFormatted = '';
+          if (child.dob) {
+            const date = new Date(child.dob);
+            dobFormatted = date.toISOString().split('T')[0];
+          }
+          
+          // Auto-calculate isMinor based on age
+          let isMinor = true;
+          if (child.dob) {
+            const birthDate = new Date(child.dob);
+            const today = new Date();
+            let age = today.getFullYear() - birthDate.getFullYear();
+            const monthDiff = today.getMonth() - birthDate.getMonth();
+            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+              age--;
+            }
+            isMinor = age < 18;
+          }
+          
           return {
             ...child,
-            dob: child.dob || '',
+            dob: dobFormatted,
+            isMinor,
             ...parsedData,
             notes: parsedData.extraNotes || '',
           };
