@@ -199,6 +199,8 @@ model Profile {
   
   children        Child[]
   pets            Pet[]
+  familyMembers   FamilyMember[]
+  contacts        Contact[]
 }
 
 // ============================================
@@ -251,6 +253,58 @@ model Pet {
   updatedAt      DateTime @updatedAt
   
   @@index([profileId])
+}
+
+// ============================================
+// FAMILY MEMBER = Profile's family members
+// ============================================
+model FamilyMember {
+  id           String   @id @default(uuid())
+  profileId    String
+  profile      Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  
+  fullName     String
+  relationship String
+  phone        String?
+  email        String?
+  address      String?
+  
+  isDeceased   Boolean  @default(false)
+  dateOfDeath  DateTime?
+  
+  notes        String?
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  @@index([profileId])
+  @@index([isDeceased])
+}
+
+// ============================================
+// CONTACT = Profile's contacts (emergency & general)
+// ============================================
+model Contact {
+  id           String   @id @default(uuid())
+  profileId    String
+  profile      Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  
+  contactName  String
+  relationship String
+  phone        String
+  email        String?
+  
+  contactType  String   @default("general") // "emergency", "general", "professional", "medical"
+  priority     Int?     // For emergency contacts (1 = primary, 2 = secondary, etc.)
+  
+  notes        String?
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  @@index([profileId])
+  @@index([contactType])
+  @@index([priority])
 }
 
 // ============================================
