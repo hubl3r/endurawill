@@ -136,7 +136,6 @@ export default function CreateEmergencyContactModal({
                 <option value="spouse">Spouse</option>
                 <option value="parent">Parent</option>
                 <option value="sibling">Sibling</option>
-                <option value="child">Child</option>
                 <option value="friend">Friend</option>
                 <option value="neighbor">Neighbor</option>
                 <option value="partner">Partner</option>
