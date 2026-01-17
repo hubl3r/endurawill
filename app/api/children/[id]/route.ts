@@ -135,6 +135,8 @@ export async function PUT(
         relationship: body.relationship || 'child',
         isMinor: isMinor,
         guardianPreference: body.guardianPreference || null,
+        isDeceased: body.isDeceased || false,
+        dateOfDeath: body.dateOfDeath ? new Date(body.dateOfDeath) : null,
         notes: JSON.stringify(additionalData),
       },
     });
