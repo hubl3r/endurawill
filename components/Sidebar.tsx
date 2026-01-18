@@ -115,7 +115,7 @@ export default function Sidebar({
       label: 'Main',
       icon: Home,
       items: [
-        { id: 'overview', label: 'Overview', view: 'overview' },
+        { id: 'overview', label: 'Overview', href: '/dashboard' },
       ]
     },
     {
@@ -127,7 +127,7 @@ export default function Sidebar({
         { id: 'assets', label: 'Assets', href: '/dashboard/assets' },
         { id: 'liabilities', label: 'Liabilities', href: '/dashboard/liabilities' },
         { id: 'beneficiaries', label: 'Beneficiaries', href: '/dashboard/beneficiaries' },
-        { id: 'accounts', label: 'Accounts', view: 'accounts' },
+        { id: 'accounts', label: 'Accounts', href: '/dashboard/accounts' },
         { id: 'vitals', label: 'Vitals', href: '/dashboard/vitals' },
       ]
     },
@@ -136,13 +136,13 @@ export default function Sidebar({
       label: 'Storage Vault',
       icon: FolderLock,
       items: [
-        { id: 'all-documents', label: 'All Documents', view: 'documents' },
-        { id: 'wills-docs', label: 'Wills', view: 'documents-wills' },
-        { id: 'vitals-docs', label: 'Vitals', view: 'documents-vitals' },
-        { id: 'healthcare-docs', label: 'Healthcare Directives', view: 'documents-healthcare' },
-        { id: 'poa-docs', label: 'Power of Attorney', view: 'documents-poa' },
-        { id: 'trusts-docs', label: 'Trusts', view: 'documents-trusts' },
-        { id: 'letters-docs', label: 'Letters', view: 'documents-letters' },
+        { id: 'all-documents', label: 'All Documents', href: '/dashboard/documents' },
+        { id: 'wills-docs', label: 'Wills', href: '/dashboard/documents/wills' },
+        { id: 'vitals-docs', label: 'Vitals', href: '/dashboard/documents/vitals' },
+        { id: 'healthcare-docs', label: 'Healthcare Directives', href: '/dashboard/documents/healthcare' },
+        { id: 'poa-docs', label: 'Power of Attorney', href: '/dashboard/documents/poa' },
+        { id: 'trusts-docs', label: 'Trusts', href: '/dashboard/documents/trusts' },
+        { id: 'letters-docs', label: 'Letters', href: '/dashboard/documents/letters' },
         { id: 'permissions', label: 'Permissions', href: '/dashboard/documents/permissions' },
       ]
     },
@@ -198,7 +198,7 @@ export default function Sidebar({
       icon: Mail,
       items: [
         { id: 'final-arrangements', label: 'Arrangements', href: '/dashboard/final-arrangements' },
-        { id: 'final-letters', label: 'Letters to Survivors', href: '/dashboard/letters' }
+        { id: 'legacy-letters', label: 'Legacy Letters', href: '/dashboard/legacy-letters' },
       ]
     }
   ];
