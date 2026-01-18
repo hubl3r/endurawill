@@ -201,6 +201,7 @@ model Profile {
   pets            Pet[]
   familyMembers   FamilyMember[]
   contacts        Contact[]
+  legacyLetters   LegacyLetter[]
 }
 
 // ============================================
@@ -310,6 +311,88 @@ model Contact {
   @@index([profileId])
   @@index([contactType])
   @@index([priority])
+}
+
+// ============================================
+// LEGACY LETTER = Messages for life moments & after passing
+// ============================================
+model LegacyLetter {
+  id              String   @id @default(uuid())
+  profileId       String
+  profile         Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  
+  title           String
+  letterType      String   // "personal", "shared_story", "instructions"
+  contentType     String   // "written", "video", "audio", "document"
+  
+  // Written content
+  content         String?  @db.Text
+  
+  // File uploads
+  fileUrl         String?
+  fileName        String?
+  fileSize        Int?
+  mimeType        String?
+  
+  // Special instructions (separate from personal letter)
+  instructions    String?  @db.Text
+  
+  // Delivery options
+  deliveryTiming  String   // "on_death", "specific_date", "recurring", "milestone", "conditional"
+  deliveryDate    DateTime?
+  milestone       String?  // "18th_birthday", "21st_birthday", "wedding", "graduation", "first_child"
+  
+  // Recurring delivery
+  recurringFrequency String? // "yearly", "monthly"
+  recurringUntil     DateTime?
+  lastDeliveredAt    DateTime?
+  
+  // Conditional delivery (age-based)
+  conditionalAge  Int?     // Deliver when recipient turns this age
+  
+  // Delivery status
+  deliveryStatus  String   @default("scheduled") // "scheduled", "delivered", "failed", "cancelled"
+  deliveredAt     DateTime?
+  
+  // Notification settings
+  notifyBeforeDelivery Boolean @default(false)
+  notifyDaysBefore     Int?    @default(7)
+  
+  // Privacy
+  isPrivate       Boolean  @default(true)
+  notes           String?  @db.Text
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  recipients      LetterRecipient[]
+  
+  @@index([profileId])
+  @@index([deliveryTiming])
+  @@index([deliveryStatus])
+  @@index([deliveryDate])
+}
+
+// ============================================
+// LETTER RECIPIENT = Who receives the letter (must be beneficiary)
+// ============================================
+model LetterRecipient {
+  id              String   @id @default(uuid())
+  letterId        String
+  letter          LegacyLetter @relation(fields: [letterId], references: [id], onDelete: Cascade)
+  
+  beneficiaryId   String
+  beneficiary     Beneficiary @relation(fields: [beneficiaryId], references: [id], onDelete: Cascade)
+  
+  // Individual delivery tracking (for shared letters)
+  wasDelivered    Boolean  @default(false)
+  deliveredAt     DateTime?
+  
+  createdAt       DateTime @default(now())
+  
+  @@index([letterId])
+  @@index([beneficiaryId])
+  @@unique([letterId, beneficiaryId]) // Can't send same letter to same person twice
 }
 
 // ============================================
@@ -647,6 +730,7 @@ model Beneficiary {
   
   // Relations
   assetAllocations  AssetBeneficiary[]  // Specific asset allocations
+  letterRecipients  LetterRecipient[]   // Legacy letters addressed to this beneficiary
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
