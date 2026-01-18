@@ -1,30 +1,26 @@
-// app/api/legacy-letters/[id]/route.ts
+// app/api/legacy-letters/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { currentUser } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
 import DOMPurify from 'isomorphic-dompurify';
 
 // Sanitize string input to prevent XSS
-function sanitizeString(input: string | null | undefined): string | null {
-  if (!input) return null;
-  return DOMPurify.sanitize(input, { ALLOWED_TAGS: [] });
+function sanitizeString(input: string | null | undefined): string | undefined {
+  if (!input) return undefined;
+  return DOMPurify.sanitize(input, { ALLOWED_TAGS: [] }); // Strip all HTML tags
 }
 
 // Sanitize HTML content (for rich text fields)
-function sanitizeHTML(input: string | null | undefined): string | null {
-  if (!input) return null;
+function sanitizeHTML(input: string | null | undefined): string | undefined {
+  if (!input) return undefined;
   return DOMPurify.sanitize(input, {
     ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'h1', 'h2', 'h3', 'ul', 'ol', 'li', 'blockquote'],
     ALLOWED_ATTR: []
   });
 }
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(req: NextRequest) {
   try {
-    const { id } = await params;
     const clerkUser = await currentUser();
     if (!clerkUser) {
       return NextResponse.json(
@@ -45,11 +41,8 @@ export async function GET(
       );
     }
 
-    const letter = await prisma.legacyLetter.findFirst({
-      where: {
-        id: id,
-        profileId: user.profile.id,
-      },
+    const letters = await prisma.legacyLetter.findMany({
+      where: { profileId: user.profile.id },
       include: {
         recipients: {
           include: {
@@ -57,43 +50,46 @@ export async function GET(
               select: {
                 id: true,
                 fullName: true,
-                relationship: true,
               },
             },
           },
         },
       },
+      orderBy: { createdAt: 'desc' },
     });
 
-    if (!letter) {
-      return NextResponse.json(
-        { success: false, error: 'Letter not found' },
-        { status: 404 }
-      );
-    }
+    // Format response with recipient count
+    const formattedLetters = letters.map(letter => ({
+      id: letter.id,
+      title: letter.title,
+      letterType: letter.letterType,
+      contentType: letter.contentType,
+      deliveryTiming: letter.deliveryTiming,
+      deliveryDate: letter.deliveryDate,
+      deliveryStatus: letter.deliveryStatus,
+      recipientCount: letter.recipients.length,
+      createdAt: letter.createdAt,
+      updatedAt: letter.updatedAt,
+    }));
 
     return NextResponse.json({
       success: true,
-      letter,
+      letters: formattedLetters,
     });
   } catch (error) {
-    console.error('Error fetching letter:', error);
+    console.error('Error fetching legacy letters:', error);
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to fetch letter',
+        error: error instanceof Error ? error.message : 'Failed to fetch letters',
       },
       { status: 500 }
     );
   }
 }
 
-export async function PUT(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(req: NextRequest) {
   try {
-    const { id } = await params;
     const clerkUser = await currentUser();
     if (!clerkUser) {
       return NextResponse.json(
@@ -114,49 +110,56 @@ export async function PUT(
       );
     }
 
-    const letter = await prisma.legacyLetter.findFirst({
-      where: {
-        id: id,
-        profileId: user.profile.id,
-      },
-    });
+    const body = await req.json();
 
-    if (!letter) {
+    // Validate required fields
+    if (!body.title || !body.letterType || !body.contentType || !body.deliveryTiming) {
       return NextResponse.json(
-        { success: false, error: 'Letter not found' },
-        { status: 404 }
+        { success: false, error: 'Missing required fields' },
+        { status: 400 }
       );
     }
 
-    const body = await req.json();
+    // Validate recipients array
+    if (!body.recipients || !Array.isArray(body.recipients) || body.recipients.length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'At least one recipient is required' },
+        { status: 400 }
+      );
+    }
 
     // Sanitize all text inputs
     const sanitizedData = {
       title: sanitizeString(body.title),
       letterType: sanitizeString(body.letterType),
       contentType: sanitizeString(body.contentType),
-      content: sanitizeHTML(body.content),
+      content: sanitizeHTML(body.content), // Allow rich text formatting
       instructions: sanitizeHTML(body.instructions),
       deliveryTiming: sanitizeString(body.deliveryTiming),
       milestone: sanitizeString(body.milestone),
       recurringFrequency: sanitizeString(body.recurringFrequency),
       notes: sanitizeHTML(body.notes),
+      // File fields (validated separately)
       fileUrl: body.fileUrl || null,
       fileName: sanitizeString(body.fileName),
       fileSize: body.fileSize || null,
       mimeType: sanitizeString(body.mimeType),
+      // Dates
       deliveryDate: body.deliveryDate ? new Date(body.deliveryDate) : null,
       recurringUntil: body.recurringUntil ? new Date(body.recurringUntil) : null,
+      // Numbers
       conditionalAge: body.conditionalAge ? parseInt(body.conditionalAge) : null,
       notifyDaysBefore: body.notifyDaysBefore ? parseInt(body.notifyDaysBefore) : 7,
+      // Booleans
       notifyBeforeDelivery: body.notifyBeforeDelivery ?? false,
       isPrivate: body.isPrivate ?? true,
     };
 
-    // Validate file URL if provided
+    // Validate file URL if provided (prevent SSRF attacks)
     if (sanitizedData.fileUrl) {
       try {
         const url = new URL(sanitizedData.fileUrl);
+        // Only allow HTTPS and specific domains (adjust as needed)
         if (url.protocol !== 'https:') {
           return NextResponse.json(
             { success: false, error: 'File URL must use HTTPS' },
@@ -171,22 +174,22 @@ export async function PUT(
       }
     }
 
-    // Update letter and recipients in transaction
-    const updatedLetter = await prisma.$transaction(async (tx) => {
-      // Update the letter
-      const updated = await tx.legacyLetter.update({
-        where: { id: id },
+    // Create letter with recipients in a transaction
+    const letter = await prisma.$transaction(async (tx) => {
+      // Create the letter
+      const newLetter = await tx.legacyLetter.create({
         data: {
-          title: sanitizedData.title,
-          letterType: sanitizedData.letterType,
-          contentType: sanitizedData.contentType,
+          profileId: user.profile!.id,
+          title: sanitizedData.title!,
+          letterType: sanitizedData.letterType!,
+          contentType: sanitizedData.contentType!,
           content: sanitizedData.content,
           instructions: sanitizedData.instructions,
           fileUrl: sanitizedData.fileUrl,
           fileName: sanitizedData.fileName,
           fileSize: sanitizedData.fileSize,
           mimeType: sanitizedData.mimeType,
-          deliveryTiming: sanitizedData.deliveryTiming,
+          deliveryTiming: sanitizedData.deliveryTiming!,
           deliveryDate: sanitizedData.deliveryDate,
           milestone: sanitizedData.milestone,
           recurringFrequency: sanitizedData.recurringFrequency,
@@ -199,96 +202,27 @@ export async function PUT(
         },
       });
 
-      // Update recipients if provided
-      if (body.recipients && Array.isArray(body.recipients)) {
-        // Delete existing recipients
-        await tx.letterRecipient.deleteMany({
-          where: { letterId: id },
-        });
+      // Create recipient links
+      await tx.letterRecipient.createMany({
+        data: body.recipients.map((beneficiaryId: string) => ({
+          letterId: newLetter.id,
+          beneficiaryId: beneficiaryId,
+        })),
+      });
 
-        // Create new recipients
-        await tx.letterRecipient.createMany({
-          data: body.recipients.map((beneficiaryId: string) => ({
-            letterId: id,
-            beneficiaryId: beneficiaryId,
-          })),
-        });
-      }
-
-      return updated;
+      return newLetter;
     });
 
     return NextResponse.json({
       success: true,
-      letter: updatedLetter,
+      letter,
     });
   } catch (error) {
-    console.error('Error updating letter:', error);
+    console.error('Error creating legacy letter:', error);
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to update letter',
-      },
-      { status: 500 }
-    );
-  }
-}
-
-export async function DELETE(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id } = await params;
-    const clerkUser = await currentUser();
-    if (!clerkUser) {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
-    const user = await prisma.user.findFirst({
-      where: { clerkId: clerkUser.id },
-      select: { id: true, profile: { select: { id: true } } },
-    });
-
-    if (!user?.profile?.id) {
-      return NextResponse.json(
-        { success: false, error: 'Profile not found' },
-        { status: 404 }
-      );
-    }
-
-    const letter = await prisma.legacyLetter.findFirst({
-      where: {
-        id: id,
-        profileId: user.profile.id,
-      },
-    });
-
-    if (!letter) {
-      return NextResponse.json(
-        { success: false, error: 'Letter not found' },
-        { status: 404 }
-      );
-    }
-
-    // Delete letter (recipients will cascade delete)
-    await prisma.legacyLetter.delete({
-      where: { id: id },
-    });
-
-    return NextResponse.json({
-      success: true,
-      message: 'Letter deleted successfully',
-    });
-  } catch (error) {
-    console.error('Error deleting letter:', error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to delete letter',
+        error: error instanceof Error ? error.message : 'Failed to create letter',
       },
       { status: 500 }
     );
