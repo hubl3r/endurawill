@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, AlertCircle, ChevronRight, ChevronLeft, Mail, Video, Mic, FileText, Calendar, Heart, Clock, Trophy, Baby, GraduationCap, Ring, Upload, Check } from 'lucide-react';
+import { X, AlertCircle, ChevronRight, ChevronLeft, Mail, Video, Mic, FileText, Calendar, Heart, Clock, Trophy, Baby, GraduationCap, Upload, Check } from 'lucide-react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
