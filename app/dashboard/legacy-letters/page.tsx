@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
+import CreateLegacyLetterModal from '@/components/CreateLegacyLetterModal';
 import {
   Plus,
   Mail,
@@ -39,6 +40,7 @@ export default function LegacyLettersPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [filterType, setFilterType] = useState<'all' | 'written' | 'video' | 'audio' | 'document'>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | 'scheduled' | 'delivered'>('all');
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   useEffect(() => {
     loadLetters();
@@ -145,7 +147,10 @@ export default function LegacyLettersPage() {
             <h1 className="text-3xl font-bold text-gray-900">Legacy Letters</h1>
             <p className="text-gray-600 mt-1">Messages for life's important moments</p>
           </div>
-          <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
             <Plus className="h-5 w-5" />
             Create Letter
           </button>
@@ -266,7 +271,10 @@ export default function LegacyLettersPage() {
             <Heart className="h-16 w-16 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-gray-900 mb-2">No letters yet</h3>
             <p className="text-gray-600 mb-4">Create your first legacy letter to preserve your stories and messages</p>
-            <button className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
               <Plus className="h-4 w-4" />
               Create Your First Letter
             </button>
@@ -370,6 +378,15 @@ export default function LegacyLettersPage() {
           </div>
         )}
       </div>
+
+      <CreateLegacyLetterModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onSuccess={() => {
+          loadLetters();
+          setShowCreateModal(false);
+        }}
+      />
     </DashboardLayout>
   );
 }
