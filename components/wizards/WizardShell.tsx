@@ -50,18 +50,19 @@ export function WizardShell({
     };
   }, [engine]);
 
-  // Auto-save functionality
-  useEffect(() => {
-    if (!onSave || !autoSaveInterval) return;
-
-    const interval = setInterval(async () => {
-      if (engine.serialize().formData && Object.keys(engine.serialize().formData).length > 0) {
-        await handleSave();
-      }
-    }, autoSaveInterval);
-
-    return () => clearInterval(interval);
-  }, [engine, onSave, autoSaveInterval]);
+  // Auto-save functionality - DISABLED to prevent excessive DB queries
+  // Saving now happens only on user actions (Next/Back/Step navigation)
+  // useEffect(() => {
+  //   if (!onSave || !autoSaveInterval) return;
+  //
+  //   const interval = setInterval(async () => {
+  //     if (engine.serialize().formData && Object.keys(engine.serialize().formData).length > 0) {
+  //       await handleSave();
+  //     }
+  //   }, autoSaveInterval);
+  //
+  //   return () => clearInterval(interval);
+  // }, [engine, onSave, autoSaveInterval]);
 
   const handleSave = async () => {
     if (!onSave) return;
@@ -77,11 +78,15 @@ export function WizardShell({
     }
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     const validation = engine.validateCurrentStep();
     
     if (validation.isValid) {
       engine.markStepComplete();
+      
+      // Save progress before moving to next step
+      await handleSave();
+      
       const success = engine.next();
       
       if (success && onStepChange) {
@@ -92,7 +97,10 @@ export function WizardShell({
     }
   };
 
-  const handlePrevious = () => {
+  const handlePrevious = async () => {
+    // Save progress before moving to previous step
+    await handleSave();
+    
     const success = engine.previous();
     
     if (success && onStepChange) {
@@ -102,7 +110,10 @@ export function WizardShell({
     }
   };
 
-  const handleStepClick = (stepId: string) => {
+  const handleStepClick = async (stepId: string) => {
+    // Save progress before jumping to different step
+    await handleSave();
+    
     const success = engine.goToStep(stepId);
     
     if (success && onStepChange) {
